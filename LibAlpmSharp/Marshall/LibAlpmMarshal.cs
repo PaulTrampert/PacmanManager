@@ -2,8 +2,12 @@ using System.Runtime.InteropServices;
 
 namespace LibAlpmSharp.Marshall;
 
-public static partial class LibAlpmMarshal
+internal static partial class LibAlpmMarshal
 {
-    [LibraryImport("libalpm", StringMarshalling = StringMarshalling.Utf8)]
-    public static extern partial IntPtr alpm_initialize(string root, string dbpath, ref AlpmErrno errnum);
+    internal const string LibAlpm = "libalpm";
+    [LibraryImport(LibAlpm, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial IntPtr alpm_initialize(string root, string dbpath, ref AlpmErrno errnum);
+    
+    [LibraryImport(LibAlpm)]
+    internal static partial AlpmErrno alpm_release(IntPtr handle);
 }
