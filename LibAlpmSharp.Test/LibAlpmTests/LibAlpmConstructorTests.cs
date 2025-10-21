@@ -1,4 +1,5 @@
-using LibAlpmSharp.Marshall;
+
+using LibAlpmSharp.AlpmInterop;
 
 namespace LibAlpmSharp.Test.LibAlpmTests;
 
@@ -33,7 +34,7 @@ public class LibAlpmConstructorTests
                 using var alpm = new LibAlpm(root, dbpath);
             });
             
-            Assert.That(ex!.ErrorCode, Is.Not.EqualTo(AlpmErrno.ALPM_ERR_OK));
+            Assert.That(ex!.ErrorCode, Is.Not.EqualTo(_alpm_errno_t.ALPM_ERR_OK));
             Assert.That(ex!.Message, Is.EqualTo("could not find or read directory"));
         });
     }

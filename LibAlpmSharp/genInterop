@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+dotnet tool run ClangSharpPInvokeGenerator -- \
+    -f /usr/include/alpm.h /usr/include/alpm_list.h /usr/include/archive.h /usr/include/archive_entry.h \
+    -n LibAlpmSharp.AlpmInterop \
+    -o ./AlpmInterop \
+    -I /usr/include /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include \
+    -x c \
+    -c multi-file generate-helper-types exclude-fnptr-codegen \
+    -l libalpm \
+    -r va_list="object[]" "FILE *=System.IntPtr" "char *=byte*"
+    

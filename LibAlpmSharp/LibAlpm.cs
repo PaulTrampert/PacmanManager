@@ -1,24 +1,31 @@
-﻿using LibAlpmSharp.Marshall;
+﻿using System.Text;
+using LibAlpmSharp.AlpmInterop;
 
 namespace LibAlpmSharp;
 
-public class LibAlpm : IDisposable
+public unsafe class LibAlpm : IDisposable
 {
-    private IntPtr _alpm;
+    private _alpm_handle_t* _alpm;
     
     public LibAlpm(string root, string dbpath)
     {
-        AlpmErrno errnum = AlpmErrno.ALPM_ERR_OK;
-        _alpm = LibAlpmMarshal.alpm_initialize(root, dbpath, ref errnum);
-        if (errnum != AlpmErrno.ALPM_ERR_OK)
+        var rootBytes = Encoding.UTF8.GetBytes(root);
+        var dbpathBytes = Encoding.UTF8.GetBytes(dbpath);
+        fixed (byte* rootPtr = rootBytes)
+        fixed (byte* dbpathPtr = dbpathBytes)
         {
-            throw new LibAlpmException(errnum);
+            _alpm_errno_t* errnum = stackalloc _alpm_errno_t[1];
+            _alpm = Methods.alpm_initialize(rootPtr, dbpathPtr, errnum);
+            if (*errnum != _alpm_errno_t.ALPM_ERR_OK)
+            {
+                throw new LibAlpmException(*errnum);
+            }
         }
     }
 
     public void Dispose()
     {
-        LibAlpmMarshal.alpm_release(_alpm);
+        Methods.alpm_release(_alpm);
         GC.SuppressFinalize(this);
     }
 }

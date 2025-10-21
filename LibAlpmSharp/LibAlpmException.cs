@@ -1,13 +1,15 @@
 using System.Runtime.InteropServices;
-using LibAlpmSharp.Marshall;
+using LibAlpmSharp.AlpmInterop;
 
 namespace LibAlpmSharp;
 
-public class LibAlpmException : Exception
+public class LibAlpmException(_alpm_errno_t errnum) : Exception(GetErrorMessage(errnum))
 {
-    public AlpmErrno ErrorCode { get; }
-    public LibAlpmException(AlpmErrno errnum) : base(Marshal.PtrToStringUTF8(LibAlpmMarshal.alpm_strerror(errnum)))
+    public _alpm_errno_t ErrorCode { get; } = errnum;
+
+    private static unsafe string GetErrorMessage(_alpm_errno_t errnum)
     {
-        ErrorCode = errnum;
+        var errPtr = Methods.alpm_strerror(errnum);
+        return Marshal.PtrToStringUTF8(new IntPtr(errPtr)) ?? "Unknown error";
     }
 }
