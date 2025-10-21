@@ -22,11 +22,3 @@ public class LibAlpm : IDisposable
         GC.SuppressFinalize(this);
     }
 }
-
-public class LibAlpmException : Exception
-{
-    public LibAlpmException(AlpmErrno errnum)
-    {
-        throw new NotImplementedException();
-    }
-}
