@@ -317,7 +317,7 @@ public class LibAlpmTests
         {
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
-            string dbName = "test-repo";
+            string dbName = "core";
             
             // Act
             AlpmDatabase db = alpm.RegisterSyncDatabase(dbName);
@@ -380,20 +380,21 @@ public class LibAlpmTests
         {
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
-            var syncDbs = alpm.GetSyncDatabases();
+            var coreDb = alpm.RegisterSyncDatabase("core");
             
-            if (syncDbs.Count == 0)
-            {
-                Assert.Warn("No sync databases found");
-                return;
-            }
+            // Add a test server to ensure we have at least one
+            string testServer = "https://mirror.example.com/$repo/os/$arch";
+            coreDb.AddServer(testServer);
             
             // Act
-            var servers = syncDbs[0].GetServers();
+            var servers = coreDb.GetServers();
             
             // Assert
             Assert.That(servers, Is.Not.Null);
-            TestContext.WriteLine($"Database '{syncDbs[0].Name}' has {servers.Count} servers");
+            Assert.That(servers.Count, Is.GreaterThanOrEqualTo(1), "Should have at least one server");
+            Assert.That(servers, Has.Some.EqualTo(testServer), "Should contain the test server we added");
+            
+            TestContext.WriteLine($"Database '{coreDb.Name}' has {servers.Count} servers");
             
             foreach (var server in servers)
             {
@@ -413,7 +414,7 @@ public class LibAlpmTests
         {
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
-            var db = alpm.RegisterSyncDatabase("test-repo");
+            var db = alpm.RegisterSyncDatabase("extra");
             string serverUrl = "https://example.com/repo/$repo/os/$arch";
             
             // Act
@@ -438,7 +439,7 @@ public class LibAlpmTests
         {
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
-            var db = alpm.RegisterSyncDatabase("test-repo");
+            var db = alpm.RegisterSyncDatabase("multilib");
             string serverUrl = "https://example.com/repo/$repo/os/$arch";
             db.AddServer(serverUrl);
             
