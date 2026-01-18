@@ -279,16 +279,17 @@ public class LibAlpmTests
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
             
-            // Register some test databases to ensure we have data
-            alpm.RegisterSyncDatabase("test-core");
-            alpm.RegisterSyncDatabase("test-extra");
+            // Register standard Arch Linux databases
+            alpm.RegisterSyncDatabase("core");
+            alpm.RegisterSyncDatabase("extra");
+            alpm.RegisterSyncDatabase("multilib");
             
             // Act
             List<AlpmDatabase> syncDbs = alpm.GetSyncDatabases();
             
             // Assert
             Assert.That(syncDbs, Is.Not.Null);
-            Assert.That(syncDbs.Count, Is.GreaterThanOrEqualTo(2), "Should have at least the 2 databases we registered");
+            Assert.That(syncDbs.Count, Is.GreaterThanOrEqualTo(3), "Should have at least the 3 standard Arch Linux databases we registered");
             TestContext.WriteLine($"Found {syncDbs.Count} sync databases");
             
             foreach (var db in syncDbs)
@@ -298,9 +299,10 @@ public class LibAlpmTests
                 TestContext.WriteLine($"  - {db}");
             }
             
-            // Verify our test databases are in the list
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "test-core"));
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "test-extra"));
+            // Verify standard Arch Linux databases are in the list
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "core"));
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "extra"));
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "multilib"));
         }
         catch (AlpmException ex)
         {
