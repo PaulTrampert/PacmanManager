@@ -6,7 +6,7 @@ namespace LibAlpmSharp.Interop;
 /// <summary>
 /// Native methods for libalpm - Package and Transaction functions
 /// </summary>
-public static unsafe partial class NativeMethods
+internal static unsafe partial class NativeMethods
 {
     // ============================================================================
     // alpm.h - Package functions

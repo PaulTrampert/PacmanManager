@@ -6,7 +6,7 @@ namespace LibAlpmSharp.Interop;
 /// <summary>
 /// Native methods for libalpm (alpm_list.h)
 /// </summary>
-public static unsafe partial class NativeMethods
+internal static unsafe partial class NativeMethods
 {
     private const string LibAlpm = "libalpm.so";
 

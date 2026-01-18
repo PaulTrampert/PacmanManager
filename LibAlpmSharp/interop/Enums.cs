@@ -5,7 +5,7 @@ namespace LibAlpmSharp.Interop;
 /// <summary>
 /// libalpm's error type
 /// </summary>
-public enum AlpmErrno
+internal enum AlpmErrno
 {
     /// <summary>No error</summary>
     ALPM_ERR_OK = 0,

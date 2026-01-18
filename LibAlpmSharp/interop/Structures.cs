@@ -7,7 +7,7 @@ namespace LibAlpmSharp.Interop;
 /// A doubly linked list (alpm_list_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmList
+internal unsafe struct AlpmList
 {
     /// <summary>data held by the list node</summary>
     public void* data;
@@ -21,7 +21,7 @@ public unsafe struct AlpmList
 /// File in a package (alpm_file_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmFile
+internal unsafe struct AlpmFile
 {
     /// <summary>Name of the file</summary>
     public byte* name;
@@ -35,7 +35,7 @@ public unsafe struct AlpmFile
 /// Package filelist container (alpm_filelist_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmFilelist
+internal unsafe struct AlpmFilelist
 {
     /// <summary>Amount of files in the array</summary>
     public nuint count;
@@ -47,7 +47,7 @@ public unsafe struct AlpmFilelist
 /// Local package or package file backup entry (alpm_backup_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmBackup
+internal unsafe struct AlpmBackup
 {
     /// <summary>Name of the file (without .pacsave extension)</summary>
     public byte* name;
@@ -59,7 +59,7 @@ public unsafe struct AlpmBackup
 /// Package group (alpm_group_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmGroup
+internal unsafe struct AlpmGroup
 {
     /// <summary>group name</summary>
     public byte* name;
@@ -71,7 +71,7 @@ public unsafe struct AlpmGroup
 /// The extended data type used to store non-standard package data fields (alpm_pkg_xdata_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmPkgXData
+internal unsafe struct AlpmPkgXData
 {
     public byte* name;
     public byte* value;
@@ -81,7 +81,7 @@ public unsafe struct AlpmPkgXData
 /// The basic dependency type (alpm_depend_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmDepend
+internal unsafe struct AlpmDepend
 {
     /// <summary>Name of the provider to satisfy this dependency</summary>
     public byte* name;
@@ -99,7 +99,7 @@ public unsafe struct AlpmDepend
 /// Missing dependency (alpm_depmissing_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmDepMissing
+internal unsafe struct AlpmDepMissing
 {
     /// <summary>Name of the package that has the dependency</summary>
     public byte* target;
@@ -113,7 +113,7 @@ public unsafe struct AlpmDepMissing
 /// A conflict that has occurred between two packages (alpm_conflict_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmConflict
+internal unsafe struct AlpmConflict
 {
     /// <summary>The first package</summary>
     public IntPtr package1;
@@ -127,7 +127,7 @@ public unsafe struct AlpmConflict
 /// File conflict (alpm_fileconflict_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmFileConflict
+internal unsafe struct AlpmFileConflict
 {
     /// <summary>The name of the package that caused the conflict</summary>
     public byte* target;
@@ -143,7 +143,7 @@ public unsafe struct AlpmFileConflict
 /// A PGP key (alpm_pgpkey_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmPgpKey
+internal unsafe struct AlpmPgpKey
 {
     /// <summary>The actual key data</summary>
     public void* data;
@@ -169,7 +169,7 @@ public unsafe struct AlpmPgpKey
 /// Signature result (alpm_sigresult_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmSigResult
+internal unsafe struct AlpmSigResult
 {
     /// <summary>The key of the signature</summary>
     public AlpmPgpKey key;
@@ -183,7 +183,7 @@ public unsafe struct AlpmSigResult
 /// Signature list (alpm_siglist_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmSigList
+internal unsafe struct AlpmSigList
 {
     /// <summary>The amount of results in the array</summary>
     public nuint count;
@@ -195,7 +195,7 @@ public unsafe struct AlpmSigList
 /// An event that may represent any event (alpm_event_any_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmEventAny
+internal struct AlpmEventAny
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -205,7 +205,7 @@ public struct AlpmEventAny
 /// A package operation event (alpm_event_package_operation_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmEventPackageOperation
+internal struct AlpmEventPackageOperation
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -221,7 +221,7 @@ public struct AlpmEventPackageOperation
 /// An optional dependency was removed (alpm_event_optdep_removal_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventOptdepRemoval
+internal unsafe struct AlpmEventOptdepRemoval
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -235,7 +235,7 @@ public unsafe struct AlpmEventOptdepRemoval
 /// A scriptlet was ran (alpm_event_scriptlet_info_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventScriptletInfo
+internal unsafe struct AlpmEventScriptletInfo
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -247,7 +247,7 @@ public unsafe struct AlpmEventScriptletInfo
 /// A database is missing (alpm_event_database_missing_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventDatabaseMissing
+internal unsafe struct AlpmEventDatabaseMissing
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -259,7 +259,7 @@ public unsafe struct AlpmEventDatabaseMissing
 /// A pacnew file was created (alpm_event_pacnew_created_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventPacnewCreated
+internal unsafe struct AlpmEventPacnewCreated
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -277,7 +277,7 @@ public unsafe struct AlpmEventPacnewCreated
 /// A pacsave file was created (alpm_event_pacsave_created_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventPacsaveCreated
+internal unsafe struct AlpmEventPacsaveCreated
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -291,7 +291,7 @@ public unsafe struct AlpmEventPacsaveCreated
 /// pre/post transaction hooks are to be ran (alpm_event_hook_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmEventHook
+internal struct AlpmEventHook
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -303,7 +303,7 @@ public struct AlpmEventHook
 /// A pre/post transaction hook was ran (alpm_event_hook_run_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmEventHookRun
+internal unsafe struct AlpmEventHookRun
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -321,7 +321,7 @@ public unsafe struct AlpmEventHookRun
 /// Packages downloading about to start (alpm_event_pkg_retrieve_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmEventPkgRetrieve
+internal struct AlpmEventPkgRetrieve
 {
     /// <summary>Type of event</summary>
     public AlpmEventType type;
@@ -335,7 +335,7 @@ public struct AlpmEventPkgRetrieve
 /// Context struct for when a download starts (alpm_download_event_init_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmDownloadEventInit
+internal struct AlpmDownloadEventInit
 {
     /// <summary>whether this file is optional and thus the errors could be ignored</summary>
     public int optional;
@@ -345,7 +345,7 @@ public struct AlpmDownloadEventInit
 /// Context struct for when a download progresses (alpm_download_event_progress_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmDownloadEventProgress
+internal struct AlpmDownloadEventProgress
 {
     /// <summary>Amount of data downloaded</summary>
     public long downloaded;
@@ -357,7 +357,7 @@ public struct AlpmDownloadEventProgress
 /// Context struct for when a download retries (alpm_download_event_retry_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmDownloadEventRetry
+internal struct AlpmDownloadEventRetry
 {
     /// <summary>If the download will resume or start over</summary>
     public int resume;
@@ -367,7 +367,7 @@ public struct AlpmDownloadEventRetry
 /// Context struct for when a download completes (alpm_download_event_completed_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmDownloadEventCompleted
+internal struct AlpmDownloadEventCompleted
 {
     /// <summary>Total bytes in file</summary>
     public long total;
@@ -379,7 +379,7 @@ public struct AlpmDownloadEventCompleted
 /// Question - any (alpm_question_any_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmQuestionAny
+internal struct AlpmQuestionAny
 {
     /// <summary>The type of question</summary>
     public AlpmQuestionType type;
@@ -389,7 +389,7 @@ public struct AlpmQuestionAny
 /// Question - install ignorepkg (alpm_question_install_ignorepkg_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmQuestionInstallIgnorepkg
+internal struct AlpmQuestionInstallIgnorepkg
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -403,7 +403,7 @@ public struct AlpmQuestionInstallIgnorepkg
 /// Question - replace package (alpm_question_replace_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct AlpmQuestionReplace
+internal struct AlpmQuestionReplace
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -421,7 +421,7 @@ public struct AlpmQuestionReplace
 /// Question - conflict (alpm_question_conflict_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmQuestionConflict
+internal unsafe struct AlpmQuestionConflict
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -435,7 +435,7 @@ public unsafe struct AlpmQuestionConflict
 /// Question - corrupted package (alpm_question_corrupted_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmQuestionCorrupted
+internal unsafe struct AlpmQuestionCorrupted
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -451,7 +451,7 @@ public unsafe struct AlpmQuestionCorrupted
 /// Question - remove packages (alpm_question_remove_pkgs_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmQuestionRemovePkgs
+internal unsafe struct AlpmQuestionRemovePkgs
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -465,7 +465,7 @@ public unsafe struct AlpmQuestionRemovePkgs
 /// Question - select provider (alpm_question_select_provider_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmQuestionSelectProvider
+internal unsafe struct AlpmQuestionSelectProvider
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
@@ -481,7 +481,7 @@ public unsafe struct AlpmQuestionSelectProvider
 /// Question - import key (alpm_question_import_key_t)
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct AlpmQuestionImportKey
+internal unsafe struct AlpmQuestionImportKey
 {
     /// <summary>Type of question</summary>
     public AlpmQuestionType type;
