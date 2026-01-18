@@ -180,4 +180,138 @@ public sealed class AlpmDatabase
                 Marshal.FreeHGlobal(urlPtr);
         }
     }
+
+    /// <summary>
+    /// Gets a package from this database by name.
+    /// </summary>
+    /// <param name="name">The name of the package to find.</param>
+    /// <returns>The package if found, null otherwise.</returns>
+    /// <exception cref="ArgumentException">Thrown when name is null or empty.</exception>
+    public AlpmPackage? GetPackage(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Package name cannot be null or empty", nameof(name));
+
+        IntPtr namePtr = IntPtr.Zero;
+        try
+        {
+            namePtr = Marshal.StringToHGlobalAnsi(name);
+            
+            unsafe
+            {
+                IntPtr pkgHandle = NativeMethods.alpm_db_get_pkg(_dbHandle, (byte*)namePtr.ToPointer());
+                if (pkgHandle == IntPtr.Zero)
+                    return null;
+
+                return new AlpmPackage(pkgHandle);
+            }
+        }
+        finally
+        {
+            if (namePtr != IntPtr.Zero)
+                Marshal.FreeHGlobal(namePtr);
+        }
+    }
+
+    /// <summary>
+    /// Gets all packages in this database.
+    /// </summary>
+    /// <returns>A list of all packages in the database.</returns>
+    public List<AlpmPackage> GetPackages()
+    {
+        var packages = new List<AlpmPackage>();
+        
+        unsafe
+        {
+            AlpmList* pkgList = NativeMethods.alpm_db_get_pkgcache(_dbHandle);
+            AlpmList* current = pkgList;
+
+            while (current != null)
+            {
+                IntPtr pkgHandle = (IntPtr)current->data;
+                if (pkgHandle != IntPtr.Zero)
+                {
+                    packages.Add(new AlpmPackage(pkgHandle));
+                }
+                current = NativeMethods.alpm_list_next(current);
+            }
+        }
+
+        return packages;
+    }
+
+    /// <summary>
+    /// Searches for packages in this database matching the given terms.
+    /// </summary>
+    /// <param name="searchTerms">The search terms to match against package names and descriptions.</param>
+    /// <returns>A list of packages matching the search terms.</returns>
+    /// <exception cref="ArgumentException">Thrown when searchTerms is null or empty.</exception>
+    /// <exception cref="AlpmException">Thrown when the search fails.</exception>
+    public List<AlpmPackage> Search(params string[] searchTerms)
+    {
+        if (searchTerms == null || searchTerms.Length == 0)
+            throw new ArgumentException("Search terms cannot be null or empty", nameof(searchTerms));
+
+        var packages = new List<AlpmPackage>();
+        
+        unsafe
+        {
+            // Build search list
+            AlpmList* needles = null;
+            List<IntPtr> allocatedPtrs = new List<IntPtr>();
+
+            try
+            {
+                foreach (var term in searchTerms)
+                {
+                    if (!string.IsNullOrWhiteSpace(term))
+                    {
+                        IntPtr termPtr = Marshal.StringToHGlobalAnsi(term);
+                        allocatedPtrs.Add(termPtr);
+                        needles = NativeMethods.alpm_list_add(needles, (void*)termPtr.ToPointer());
+                    }
+                }
+
+                AlpmList* results = null;
+                int ret = NativeMethods.alpm_db_search(_dbHandle, needles, &results);
+
+                if (ret != 0)
+                {
+                    AlpmErrno err = _alpm.GetLastError();
+                    throw new AlpmException(err, $"Failed to search database: {LibAlpm.GetErrorString(err)}");
+                }
+
+                // Extract packages from results
+                AlpmList* current = results;
+                while (current != null)
+                {
+                    IntPtr pkgHandle = (IntPtr)current->data;
+                    if (pkgHandle != IntPtr.Zero)
+                    {
+                        packages.Add(new AlpmPackage(pkgHandle));
+                    }
+                    current = NativeMethods.alpm_list_next(current);
+                }
+
+                // Free the result list (not the package handles, they're owned by the database)
+                if (results != null)
+                    NativeMethods.alpm_list_free(results);
+            }
+            finally
+            {
+                // Free the search term list
+                if (needles != null)
+                    NativeMethods.alpm_list_free(needles);
+                
+                // Free allocated string pointers
+                foreach (var ptr in allocatedPtrs)
+                {
+                    if (ptr != IntPtr.Zero)
+                        Marshal.FreeHGlobal(ptr);
+                }
+            }
+        }
+
+        return packages;
+    }
 }

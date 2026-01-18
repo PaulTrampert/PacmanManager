@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LibAlpmSharp.Interop;
 using NUnit.Framework;
 
@@ -50,7 +51,7 @@ public class AlpmDatabaseTests
             
             // Assert
             Assert.That(syncDbs, Is.Not.Null);
-            Assert.That(syncDbs.Count, Is.GreaterThanOrEqualTo(3), "Should have at least the 3 standard Arch Linux databases we registered");
+            Assert.That(syncDbs, Has.Count.GreaterThanOrEqualTo(3), "Should have at least the 3 standard Arch Linux databases we registered");
             TestContext.WriteLine($"Found {syncDbs.Count} sync databases");
             
             foreach (var db in syncDbs)
@@ -152,7 +153,7 @@ public class AlpmDatabaseTests
             
             // Assert
             Assert.That(servers, Is.Not.Null);
-            Assert.That(servers.Count, Is.GreaterThanOrEqualTo(1), "Should have at least one server");
+            Assert.That(servers, Has.Count.GreaterThanOrEqualTo(1), "Should have at least one server");
             Assert.That(servers, Has.Some.EqualTo(testServer), "Should contain the test server we added");
             
             TestContext.WriteLine($"Database '{coreDb.Name}' has {servers.Count} servers");
@@ -234,6 +235,187 @@ public class AlpmDatabaseTests
             
             // Assert
             TestContext.WriteLine($"Local database is valid: {isValid}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void GetPackage_WithValidName_ReturnsPackage()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Get all packages to find a valid one
+            var packages = localDb.GetPackages();
+            if (packages.Count == 0)
+            {
+                Assert.Warn("No packages found in local database");
+                return;
+            }
+            
+            string testPackageName = packages[0].Name;
+            
+            // Act
+            AlpmPackage? pkg = localDb.GetPackage(testPackageName);
+            
+            // Assert
+            Assert.That(pkg, Is.Not.Null);
+            Assert.That(pkg!.Name, Is.EqualTo(testPackageName));
+            Assert.That(pkg.Version, Is.Not.Null.And.Not.Empty);
+            
+            TestContext.WriteLine($"Found package: {pkg}");
+            TestContext.WriteLine($"  Description: {pkg.Description}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void GetPackage_WithInvalidName_ReturnsNull()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act
+            AlpmPackage? pkg = localDb.GetPackage("this-package-does-not-exist-xyz123");
+            
+            // Assert
+            Assert.That(pkg, Is.Null);
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void GetPackage_WithNullName_ThrowsArgumentException()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => localDb.GetPackage(null!));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void GetPackages_ReturnsListOfPackages()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act
+            var packages = localDb.GetPackages();
+            
+            // Assert
+            Assert.That(packages, Is.Not.Null);
+            Assert.That(packages, Has.Count.GreaterThanOrEqualTo(1), "Should have at least one package in local database");
+            TestContext.WriteLine($"Found {packages.Count} packages in local database");
+            
+            if (packages.Count > 0)
+            {
+                var firstPkg = packages[0];
+                TestContext.WriteLine($"First package: {firstPkg}");
+                TestContext.WriteLine($"  Description: {firstPkg.Description}");
+                TestContext.WriteLine($"  Architecture: {firstPkg.GetArchitecture()}");
+            }
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void Search_WithValidTerm_ReturnsMatchingPackages()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Get all packages to find a valid search term
+            var allPackages = localDb.GetPackages();
+            if (allPackages.Count == 0)
+            {
+                Assert.Warn("No packages found in local database");
+                return;
+            }
+            
+            // Use part of the first package name as search term
+            string searchTerm = allPackages[0].Name.Substring(0, Math.Min(3, allPackages[0].Name.Length));
+            
+            // Act
+            var results = localDb.Search(searchTerm);
+            
+            // Assert
+            Assert.That(results, Is.Not.Null);
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(1), "Search should return at least one result");
+            TestContext.WriteLine($"Search for '{searchTerm}' found {results.Count} packages");
+            
+            foreach (var pkg in results.Take(5))
+            {
+                TestContext.WriteLine($"  - {pkg}");
+            }
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void Search_WithNullTerms_ThrowsArgumentException()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => localDb.Search(null!));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void Search_WithEmptyTerms_ThrowsArgumentException()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => localDb.Search());
         }
         catch (AlpmException ex)
         {
