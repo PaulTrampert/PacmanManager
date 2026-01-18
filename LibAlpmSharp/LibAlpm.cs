@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using LibAlpmSharp.Interop;
 
@@ -158,6 +159,97 @@ public sealed class LibAlpm : IDisposable
     public static AlpmCaps GetCapabilities()
     {
         return (AlpmCaps)NativeMethods.alpm_capabilities();
+    }
+
+    /// <summary>
+    /// Gets the local database containing installed packages.
+    /// </summary>
+    /// <returns>The local database.</returns>
+    /// <exception cref="AlpmException">Thrown when the local database cannot be retrieved.</exception>
+    public AlpmDatabase GetLocalDatabase()
+    {
+        ThrowIfDisposed();
+        
+        IntPtr localDb = NativeMethods.alpm_get_localdb(_handle);
+        if (localDb == IntPtr.Zero)
+        {
+            AlpmErrno err = GetLastError();
+            throw new AlpmException(err, $"Failed to get local database: {GetErrorString(err)}");
+        }
+
+        return new AlpmDatabase(this, localDb, isLocal: true);
+    }
+
+    /// <summary>
+    /// Gets the list of registered sync databases.
+    /// </summary>
+    /// <returns>A list of sync databases.</returns>
+    public List<AlpmDatabase> GetSyncDatabases()
+    {
+        ThrowIfDisposed();
+        
+        var databases = new List<AlpmDatabase>();
+        
+        unsafe
+        {
+            AlpmList* dbList = NativeMethods.alpm_get_syncdbs(_handle);
+            AlpmList* current = dbList;
+
+            while (current != null)
+            {
+                IntPtr dbHandle = (IntPtr)current->data;
+                if (dbHandle != IntPtr.Zero)
+                {
+                    databases.Add(new AlpmDatabase(this, dbHandle, isLocal: false));
+                }
+                current = NativeMethods.alpm_list_next(current);
+            }
+        }
+
+        return databases;
+    }
+
+    /// <summary>
+    /// Registers a new sync database.
+    /// </summary>
+    /// <param name="name">The name of the sync repository (e.g., "core", "extra").</param>
+    /// <param name="signatureLevel">The signature verification level for this database.</param>
+    /// <returns>The newly registered database.</returns>
+    /// <exception cref="ArgumentException">Thrown when name is null or empty.</exception>
+    /// <exception cref="AlpmException">Thrown when the database cannot be registered.</exception>
+    public AlpmDatabase RegisterSyncDatabase(string name, int signatureLevel = 0)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Database name cannot be null or empty", nameof(name));
+
+        ThrowIfDisposed();
+
+        IntPtr namePtr = IntPtr.Zero;
+        try
+        {
+            namePtr = Marshal.StringToHGlobalAnsi(name);
+            
+            unsafe
+            {
+                IntPtr dbHandle = NativeMethods.alpm_register_syncdb(
+                    _handle,
+                    (byte*)namePtr.ToPointer(),
+                    signatureLevel);
+
+                if (dbHandle == IntPtr.Zero)
+                {
+                    AlpmErrno err = GetLastError();
+                    throw new AlpmException(err, $"Failed to register sync database '{name}': {GetErrorString(err)}");
+                }
+
+                return new AlpmDatabase(this, dbHandle, isLocal: false);
+            }
+        }
+        finally
+        {
+            if (namePtr != IntPtr.Zero)
+                Marshal.FreeHGlobal(namePtr);
+        }
     }
 
     /// <summary>

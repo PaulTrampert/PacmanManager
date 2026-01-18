@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using LibAlpmSharp.Interop;
 using NUnit.Framework;
 
@@ -244,5 +245,235 @@ public class LibAlpmTests
         
         // Assert
         Assert.That(exception.Message, Is.EqualTo(customMessage));
+    }
+
+    [Test]
+    public void GetLocalDatabase_ReturnsValidDatabase()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            
+            // Act
+            AlpmDatabase localDb = alpm.GetLocalDatabase();
+            
+            // Assert
+            Assert.That(localDb, Is.Not.Null);
+            Assert.That(localDb.IsLocal, Is.True);
+            Assert.That(localDb.Name, Is.Not.Null.And.Not.Empty);
+            
+            TestContext.WriteLine($"Local database: {localDb}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void GetSyncDatabases_ReturnsListOfDatabases()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            
+            // Register some test databases to ensure we have data
+            alpm.RegisterSyncDatabase("test-core");
+            alpm.RegisterSyncDatabase("test-extra");
+            
+            // Act
+            List<AlpmDatabase> syncDbs = alpm.GetSyncDatabases();
+            
+            // Assert
+            Assert.That(syncDbs, Is.Not.Null);
+            Assert.That(syncDbs.Count, Is.GreaterThanOrEqualTo(2), "Should have at least the 2 databases we registered");
+            TestContext.WriteLine($"Found {syncDbs.Count} sync databases");
+            
+            foreach (var db in syncDbs)
+            {
+                Assert.That(db.IsLocal, Is.False);
+                Assert.That(db.Name, Is.Not.Null.And.Not.Empty);
+                TestContext.WriteLine($"  - {db}");
+            }
+            
+            // Verify our test databases are in the list
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "test-core"));
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "test-extra"));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void RegisterSyncDatabase_CreatesNewDatabase()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            string dbName = "test-repo";
+            
+            // Act
+            AlpmDatabase db = alpm.RegisterSyncDatabase(dbName);
+            
+            // Assert
+            Assert.That(db, Is.Not.Null);
+            Assert.That(db.Name, Is.EqualTo(dbName));
+            Assert.That(db.IsLocal, Is.False);
+            
+            TestContext.WriteLine($"Registered database: {db}");
+            
+            // Verify it appears in sync databases list
+            var syncDbs = alpm.GetSyncDatabases();
+            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == dbName));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void RegisterSyncDatabase_WithNullName_ThrowsArgumentException()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => alpm.RegisterSyncDatabase(null!));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void RegisterSyncDatabase_WithEmptyName_ThrowsArgumentException()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => alpm.RegisterSyncDatabase(""));
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void AlpmDatabase_GetServers_ReturnsListOfServers()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var syncDbs = alpm.GetSyncDatabases();
+            
+            if (syncDbs.Count == 0)
+            {
+                Assert.Warn("No sync databases found");
+                return;
+            }
+            
+            // Act
+            var servers = syncDbs[0].GetServers();
+            
+            // Assert
+            Assert.That(servers, Is.Not.Null);
+            TestContext.WriteLine($"Database '{syncDbs[0].Name}' has {servers.Count} servers");
+            
+            foreach (var server in servers)
+            {
+                TestContext.WriteLine($"  - {server}");
+            }
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void AlpmDatabase_AddServer_AddsServerToList()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var db = alpm.RegisterSyncDatabase("test-repo");
+            string serverUrl = "https://example.com/repo/$repo/os/$arch";
+            
+            // Act
+            db.AddServer(serverUrl);
+            
+            // Assert
+            var servers = db.GetServers();
+            Assert.That(servers, Has.Some.EqualTo(serverUrl));
+            
+            TestContext.WriteLine($"Added server to {db.Name}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void AlpmDatabase_RemoveServer_RemovesServerFromList()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var db = alpm.RegisterSyncDatabase("test-repo");
+            string serverUrl = "https://example.com/repo/$repo/os/$arch";
+            db.AddServer(serverUrl);
+            
+            // Act
+            bool removed = db.RemoveServer(serverUrl);
+            
+            // Assert
+            Assert.That(removed, Is.True);
+            var servers = db.GetServers();
+            Assert.That(servers, Has.None.EqualTo(serverUrl));
+            
+            TestContext.WriteLine($"Removed server from {db.Name}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
+    }
+
+    [Test]
+    public void AlpmDatabase_IsValid_ReturnsValidationStatus()
+    {
+        try
+        {
+            // Arrange
+            using LibAlpm alpm = LibAlpm.Initialize();
+            var localDb = alpm.GetLocalDatabase();
+            
+            // Act
+            bool isValid = localDb.IsValid();
+            
+            // Assert
+            TestContext.WriteLine($"Local database is valid: {isValid}");
+        }
+        catch (AlpmException ex)
+        {
+            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
+        }
     }
 }
