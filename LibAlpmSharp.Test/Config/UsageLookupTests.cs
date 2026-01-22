@@ -192,7 +192,5 @@ public class UsageLookupTests
         // Assert
         var expected = AlpmDbUsage.ALPM_DB_USAGE_SYNC | AlpmDbUsage.ALPM_DB_USAGE_UPGRADE;
         Assert.That(result, Is.EqualTo(expected));
-        Assert.That((result & AlpmDbUsage.ALPM_DB_USAGE_SYNC), Is.EqualTo(AlpmDbUsage.ALPM_DB_USAGE_SYNC));
-        Assert.That((result & AlpmDbUsage.ALPM_DB_USAGE_UPGRADE), Is.EqualTo(AlpmDbUsage.ALPM_DB_USAGE_UPGRADE));
     }
 }
