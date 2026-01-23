@@ -24,13 +24,13 @@ internal class PacmanConfigRepoSectionVisitor(ILogger logger) : PacmanConfParser
         switch (key)
         {
             case nameof(PacmanRepositoryConfig.Server):
-                repositoryConfig = repositoryConfig with { Server = repositoryConfig.Server.Concat(values) };
+                repositoryConfig = repositoryConfig with { Server = repositoryConfig.Server.Union(values) };
                 break;
             case nameof(PacmanRepositoryConfig.SigLevel):
                 repositoryConfig = repositoryConfig with { SigLevel = SigLevelLookup.LookupSigLevel(values) };
                 break;
             case nameof(PacmanRepositoryConfig.CacheServer):
-                repositoryConfig = repositoryConfig with { CacheServer = repositoryConfig.CacheServer.Concat(values) };
+                repositoryConfig = repositoryConfig with { CacheServer = repositoryConfig.CacheServer.Union(values) };
                 break;
             case nameof(PacmanRepositoryConfig.Usage):
                 repositoryConfig = repositoryConfig with { Usage = UsageLookup.LookupUsage(values) };
