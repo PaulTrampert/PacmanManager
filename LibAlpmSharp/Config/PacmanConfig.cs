@@ -5,7 +5,7 @@ namespace LibAlpmSharp.Config;
 public record PacmanConfig
 {
     public string RootDir { get; init; } = "/";
-    public string DbPath { get; init; } = "/var/lib/pacman";
+    public string DBPath { get; init; } = "/var/lib/pacman";
     public string CacheDir { get; init; } = "/var/cache/pacman/pkg";
     public string HookDir { get; init; } = "/etc/pacman.d/hooks";
     public string GPGDir { get; init; } = "/etc/pacman.d/gnupg";

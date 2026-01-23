@@ -129,9 +129,16 @@ internal class PacmanConfigTokenSource : ITokenSource
             throw new InvalidOperationException("Expected '=' token for include directive.");
         }
         var filenameTokens = new List<IToken>();
+        var leadingWsSkipped = false;
         while (CurrentLexer.CurrentMode != PacmanConfLexer.DEFAULT_MODE)
         {
-            filenameTokens.Add(CurrentLexer.NextToken());
+            var valueToken = CurrentLexer.NextToken();
+            if (!leadingWsSkipped && valueToken.Type == PacmanConfLexer.STRING_WS)
+            {
+                continue;
+            }
+            leadingWsSkipped = true;
+            filenameTokens.Add(valueToken);
         }
         
         var valueTokenSource = new ListTokenSource(filenameTokens);

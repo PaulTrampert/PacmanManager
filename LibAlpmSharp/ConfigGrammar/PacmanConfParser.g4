@@ -1,30 +1,32 @@
 parser grammar PacmanConfParser;
 options { tokenVocab=PacmanConfLexer; }
 
-pacmanConf: sectionContent? section* ;
+pacmanConf
+    : ((comment (eol section)*) | (eol* section (eol section)*))? eol? EOF
+    ;
 
-eol: (NEWLINE | STRING_NEWLINE | EOF) ;
+eol: (NEWLINE | STRING_NEWLINE) ;
 
 section
-        : sectionHeader sectionContent?
+        : sectionHeader (eol sectionContent)?
         ;
         
-sectionHeader: LBRACKET (OPTIONS | REPO_ID) RBRACKET eol ;
+sectionHeader: LBRACKET (OPTIONS | REPO_ID) RBRACKET ;
 
 sectionContent
-    : (comment | setting | include)+
+    : (comment | setting | include) (eol (comment | setting | include))*
     ;
 
 include
-    : INCLUDE EQUALS settingValue eol
+    : INCLUDE EQUALS STRING_WS? settingValue STRING_WS?
     ;
     
 comment
-    : COMMENT eol
+    : COMMENT (eol COMMENT)*
     ;
 
 setting
-    : settingKey (EQUALS settingValues)? eol
+    : settingKey (EQUALS STRING_WS? settingValues)? STRING_WS?
     ;
     
 settingValues
