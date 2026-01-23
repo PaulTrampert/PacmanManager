@@ -3,6 +3,7 @@ using Antlr4.Runtime.Atn;
 using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using LibAlpmSharp.Config.Listeners;
+using LibAlpmSharp.Config.TokenSources;
 using LibAlpmSharp.Config.Visitors;
 using Microsoft.Extensions.Logging;
 
@@ -16,12 +17,11 @@ public class PacmanConfigReader(ILogger<PacmanConfigReader> logger)
     {
         logger.LogInformation("Reading Pacman configuration from {FilePath}", filePath);
 
-        using var configReader = File.OpenText(filePath);
-        var tokenStream = new AntlrInputStream(configReader);
+        var tokenStream = new AntlrFileStream(filePath);
         var lexer = new PacmanConfLexer(tokenStream);
-        var tokens = new CommonTokenStream(lexer);
+        var tokens = new CommonTokenStream(new PacmanConfigTokenSource(logger, lexer));
         var parser = new PacmanConfParser(tokens);
-        parser.AddErrorListener(_errorListener);
+        parser.AddErrorListener(new PacmanConfigErrorListener(logger));
         var parseTree = parser.pacmanConf();
         var visitor = new PacmanConfigVisitor(logger);
         return visitor.Visit(parseTree);

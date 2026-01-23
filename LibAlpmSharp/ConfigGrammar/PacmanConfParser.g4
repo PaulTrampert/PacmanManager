@@ -1,13 +1,9 @@
 parser grammar PacmanConfParser;
 options { tokenVocab=PacmanConfLexer; }
 
-pacmanConf: rootSection? section* ;
+pacmanConf: sectionContent? section* ;
 
 eol: (NEWLINE | STRING_NEWLINE | EOF) ;
-
-rootSection
-    : sectionContent
-    ;
 
 section
         : sectionHeader sectionContent?
@@ -16,9 +12,13 @@ section
 sectionHeader: LBRACKET (OPTIONS | REPO_ID) RBRACKET eol ;
 
 sectionContent
-    : (comment | setting)+
+    : (comment | setting | include)+
     ;
 
+include
+    : INCLUDE EQUALS settingValue eol
+    ;
+    
 comment
     : COMMENT eol
     ;
@@ -84,7 +84,6 @@ settingKey
     | REMOTEFILESIGLEVEL
     | CACHESERVER
     | SERVER
-    | INCLUDE
     | USAGE
     ;
 

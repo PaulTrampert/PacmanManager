@@ -2,9 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp.Config.Visitors;
 
-internal class PacmanConfigRepoSectionVisitor(ILogger logger, PacmanRepositoryConfig? baseRepositoryConfig = null) : PacmanConfParserBaseVisitor<PacmanRepositoryConfig>
+internal class PacmanConfigRepoSectionVisitor(ILogger logger) : PacmanConfParserBaseVisitor<PacmanRepositoryConfig>
 {
-    PacmanRepositoryConfig repositoryConfig = baseRepositoryConfig ?? new PacmanRepositoryConfig();
+    PacmanRepositoryConfig repositoryConfig = new();
 
     public override PacmanRepositoryConfig VisitSectionHeader(PacmanConfParser.SectionHeaderContext context)
     {
