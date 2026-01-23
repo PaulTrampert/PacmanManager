@@ -6,4 +6,15 @@
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+      <PackageReference Include="Antlr4BuildTasks" Version="12.11.0" PrivateAssets="all" IncludeAssets="build" />
+      <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.2" />
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Antlr4 Include="**/*.g4" />
+    </ItemGroup>
 </Project>
