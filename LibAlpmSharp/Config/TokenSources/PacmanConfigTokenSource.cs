@@ -56,7 +56,7 @@ internal class PacmanConfigTokenSource : ITokenSource
         {
             PushLexerForFile(file);
         }
-        return CurrentLexer.NextToken();
+        return NextToken();
     }
     
     private void PushLexerForFile(string fullFilename)
@@ -80,7 +80,7 @@ internal class PacmanConfigTokenSource : ITokenSource
             var matcher = new Matcher();
             matcher.AddInclude(fileName);
             var result = matcher.GetResultsInFullPath(baseDir);
-            return result.Reverse();
+            return result.OrderByDescending(f => f);
         }
         var fullPath = Path.IsPathFullyQualified(fileName)
             ? fileName
@@ -88,7 +88,7 @@ internal class PacmanConfigTokenSource : ITokenSource
 
         if (Directory.Exists(fullPath))
         {
-            return Directory.EnumerateFiles(fullPath).Reverse();
+            return Directory.EnumerateFiles(fullPath).OrderByDescending(f => f);
         }
 
         if (File.Exists(fullPath))
