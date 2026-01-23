@@ -4,15 +4,21 @@ namespace LibAlpmSharp.Config.Visitors;
 
 internal class PacmanConfigRepoSectionVisitor(ILogger logger) : PacmanConfParserBaseVisitor<PacmanRepositoryConfig>
 {
-    PacmanRepositoryConfig repositoryConfig = new();
+    private PacmanRepositoryConfig _repositoryConfig = new();
+
+    public override PacmanRepositoryConfig VisitSection(PacmanConfParser.SectionContext context)
+    {
+        base.VisitSection(context);
+        return _repositoryConfig;
+    }
 
     public override PacmanRepositoryConfig VisitSectionHeader(PacmanConfParser.SectionHeaderContext context)
     {
-        repositoryConfig = repositoryConfig with
+        _repositoryConfig = _repositoryConfig with
         {
             Name = context.REPO_ID().GetText()!
         };
-        return repositoryConfig;
+        return _repositoryConfig;
     }
 
     public override PacmanRepositoryConfig VisitSetting(PacmanConfParser.SettingContext context)
@@ -24,21 +30,21 @@ internal class PacmanConfigRepoSectionVisitor(ILogger logger) : PacmanConfParser
         switch (key)
         {
             case nameof(PacmanRepositoryConfig.Server):
-                repositoryConfig = repositoryConfig with { Server = repositoryConfig.Server.Union(values) };
+                _repositoryConfig = _repositoryConfig with { Server = _repositoryConfig.Server.Union(values) };
                 break;
             case nameof(PacmanRepositoryConfig.SigLevel):
-                repositoryConfig = repositoryConfig with { SigLevel = SigLevelLookup.LookupSigLevel(values) };
+                _repositoryConfig = _repositoryConfig with { SigLevel = SigLevelLookup.LookupSigLevel(values) };
                 break;
             case nameof(PacmanRepositoryConfig.CacheServer):
-                repositoryConfig = repositoryConfig with { CacheServer = repositoryConfig.CacheServer.Union(values) };
+                _repositoryConfig = _repositoryConfig with { CacheServer = _repositoryConfig.CacheServer.Union(values) };
                 break;
             case nameof(PacmanRepositoryConfig.Usage):
-                repositoryConfig = repositoryConfig with { Usage = UsageLookup.LookupUsage(values) };
+                _repositoryConfig = _repositoryConfig with { Usage = UsageLookup.LookupUsage(values) };
                 break;
             default:
                 throw new NotSupportedException($"Unsupported repository setting key: {key}");
         }
         
-        return repositoryConfig;
+        return _repositoryConfig;
     }
 }

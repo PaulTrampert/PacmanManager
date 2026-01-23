@@ -1,12 +1,22 @@
 using Microsoft.Extensions.Logging;
-using NUnit.Framework;
-using System;
+
+namespace LibAlpmSharp.Test.Utils;
+
+public record LogEvent
+{
+    public LogLevel LogLevel { get; init; }
+    public string Category { get; init; } = string.Empty;
+    public string Message { get; init; } = string.Empty;
+    public Exception? Exception { get; init; }
+}
 
 // ILogger implementation
 public class TestOutputLogger : ILogger
 {
     private readonly string _categoryName;
 
+    public IEnumerable<LogEvent> LogEvents { get; private set; } = [];
+    
     public TestOutputLogger(string categoryName)
     {
         _categoryName = categoryName;
@@ -33,6 +43,17 @@ public class TestOutputLogger : ILogger
         {
             return;
         }
+        
+        LogEvents = [
+            ..LogEvents,
+            new LogEvent
+            {
+                LogLevel = logLevel,
+                Category = _categoryName,
+                Message = message,
+                Exception = exception
+            }
+        ];
 
         // Use TestContext.Out.WriteLine to write to the test output
         // TestContext.Progress.WriteLine can be used for immediate output (useful for long-running tests)

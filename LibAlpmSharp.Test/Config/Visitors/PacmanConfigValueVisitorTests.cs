@@ -1,6 +1,7 @@
 using Antlr4.Runtime;
 using LibAlpmSharp.Config.Visitors;
 using LibAlpmSharp.Test.Config.Listeners;
+using LibAlpmSharp.Test.Utils;
 using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp.Test.Config.Visitors;
