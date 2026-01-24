@@ -9,6 +9,15 @@ namespace LibAlpmSharp.Interop;
 internal static unsafe partial class NativeMethods
 {
     private const string LibAlpm = "libalpm.so";
+    private const string LibC = "libc.so.6";
+
+    // ============================================================================
+    // libc - Standard C library functions
+    // ============================================================================
+
+    /// <summary>Free memory allocated by malloc/calloc/realloc</summary>
+    [DllImport(LibC, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free(void* ptr);
 
     // ============================================================================
     // alpm_list.h - List manipulation functions

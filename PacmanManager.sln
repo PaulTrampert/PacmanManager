@@ -4,8 +4,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibAlpmSharp", "LibAlpmShar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibAlpmSharp.Test", "LibAlpmSharp.Test\LibAlpmSharp.Test.csproj", "{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.Interfaces", "PacmanManager.Interfaces\PacmanManager.Interfaces.csproj", "{74E46414-EFFF-4205-9461-6ACD203AC4C9}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,9 +18,5 @@ Global
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{74E46414-EFFF-4205-9461-6ACD203AC4C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{74E46414-EFFF-4205-9461-6ACD203AC4C9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{74E46414-EFFF-4205-9461-6ACD203AC4C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{74E46414-EFFF-4205-9461-6ACD203AC4C9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -153,4 +153,169 @@ public sealed class AlpmPackage
         var timestamp = NativeMethods.alpm_pkg_get_installdate(_pkgHandle);
         return DateTimeOffset.FromUnixTimeSeconds(timestamp);
     }
+
+    /// <summary>
+    /// Gets the list of package dependencies.
+    /// </summary>
+    /// <returns>A list of dependencies.</returns>
+    public List<AlpmDependency> GetDependencies()
+    {
+        var dependencies = new List<AlpmDependency>();
+        
+        unsafe
+        {
+            AlpmList* depList = NativeMethods.alpm_pkg_get_depends(_pkgHandle);
+            AlpmList* current = depList;
+
+            while (current != null)
+            {
+                if (current->data != null)
+                {
+                    var depend = (AlpmDepend*)current->data;
+                    dependencies.Add(new AlpmDependency(depend));
+                }
+                current = NativeMethods.alpm_list_next(current);
+            }
+        }
+
+        return dependencies;
+    }
+
+    /// <summary>
+    /// Gets the list of package optional dependencies.
+    /// </summary>
+    /// <returns>A list of optional dependencies.</returns>
+    public List<AlpmDependency> GetOptionalDependencies()
+    {
+        var dependencies = new List<AlpmDependency>();
+        
+        unsafe
+        {
+            AlpmList* depList = NativeMethods.alpm_pkg_get_optdepends(_pkgHandle);
+            AlpmList* current = depList;
+
+            while (current != null)
+            {
+                if (current->data != null)
+                {
+                    var depend = (AlpmDepend*)current->data;
+                    dependencies.Add(new AlpmDependency(depend));
+                }
+                current = NativeMethods.alpm_list_next(current);
+            }
+        }
+
+        return dependencies;
+    }
+
+    /// <summary>
+    /// Computes the list of packages requiring this package.
+    /// Note: The returned list must be freed by the caller.
+    /// </summary>
+    /// <returns>A list of package names that require this package.</returns>
+    public List<string> GetRequiredBy()
+    {
+        var requiredBy = new List<string>();
+        
+        unsafe
+        {
+            AlpmList* list = NativeMethods.alpm_pkg_compute_requiredby(_pkgHandle);
+            AlpmList* current = list;
+
+            try
+            {
+                while (current != null)
+                {
+                    if (current->data != null)
+                    {
+                        string? pkgName = Marshal.PtrToStringUTF8((IntPtr)current->data);
+                        if (!string.IsNullOrEmpty(pkgName))
+                            requiredBy.Add(pkgName);
+                    }
+                    current = NativeMethods.alpm_list_next(current);
+                }
+            }
+            finally
+            {
+                // Free the list - the compute functions allocate a new list that we own
+                if (list != null)
+                {
+                    AlpmListFnFree freeStringDelegate = NativeMethods.free;
+                    NativeMethods.alpm_list_free_inner(list, freeStringDelegate);
+                    NativeMethods.alpm_list_free(list);
+                }
+            }
+        }
+
+        return requiredBy;
+    }
+
+    /// <summary>
+    /// Computes the list of packages that optionally require this package.
+    /// Note: The returned list must be freed by the caller.
+    /// </summary>
+    /// <returns>A list of package names that optionally require this package.</returns>
+    public List<string> GetOptionalFor()
+    {
+        var optionalFor = new List<string>();
+        
+        unsafe
+        {
+            AlpmList* list = NativeMethods.alpm_pkg_compute_optionalfor(_pkgHandle);
+            AlpmList* current = list;
+
+            try
+            {
+                while (current != null)
+                {
+                    if (current->data != null)
+                    {
+                        string? pkgName = Marshal.PtrToStringUTF8((IntPtr)current->data);
+                        if (!string.IsNullOrEmpty(pkgName))
+                            optionalFor.Add(pkgName);
+                    }
+                    current = NativeMethods.alpm_list_next(current);
+                }
+            }
+            finally
+            {
+                // Free the list - the compute functions allocate a new list that we own
+                if (list != null)
+                {
+                    AlpmListFnFree freeStringDelegate = NativeMethods.free;
+                    NativeMethods.alpm_list_free_inner(list, freeStringDelegate);
+                    NativeMethods.alpm_list_free(list);
+                }
+            }
+        }
+
+        return optionalFor;
+    }
+
+    /// <summary>
+    /// Gets the list of packages that conflict with this package.
+    /// </summary>
+    /// <returns>A list of conflicting package dependencies.</returns>
+    public List<AlpmDependency> GetConflicts()
+    {
+        var conflicts = new List<AlpmDependency>();
+        
+        unsafe
+        {
+            AlpmList* conflictList = NativeMethods.alpm_pkg_get_conflicts(_pkgHandle);
+            AlpmList* current = conflictList;
+
+            while (current != null)
+            {
+                if (current->data != null)
+                {
+                    var depend = (AlpmDepend*)current->data;
+                    conflicts.Add(new AlpmDependency(depend));
+                }
+                current = NativeMethods.alpm_list_next(current);
+            }
+        }
+
+        return conflicts;
+    }
 }
