@@ -137,18 +137,20 @@ public sealed class AlpmPackage
     /// <summary>
     /// Gets the build date of the package.
     /// </summary>
-    /// <returns>The build date as a Unix timestamp.</returns>
-    public long GetBuildDate()
+    /// <returns>The build date.</returns>
+    public DateTimeOffset GetBuildDate()
     {
-        return NativeMethods.alpm_pkg_get_builddate(_pkgHandle);
+        var timestamp = NativeMethods.alpm_pkg_get_builddate(_pkgHandle);
+        return DateTimeOffset.FromUnixTimeSeconds(timestamp);
     }
 
     /// <summary>
     /// Gets the install date of the package.
     /// </summary>
-    /// <returns>The install date as a Unix timestamp, or 0 if not installed.</returns>
-    public long GetInstallDate()
+    /// <returns>The install date, or null if not installed.</returns>
+    public DateTimeOffset? GetInstallDate()
     {
-        return NativeMethods.alpm_pkg_get_installdate(_pkgHandle);
+        var timestamp = NativeMethods.alpm_pkg_get_installdate(_pkgHandle);
+        return DateTimeOffset.FromUnixTimeSeconds(timestamp);
     }
 }
