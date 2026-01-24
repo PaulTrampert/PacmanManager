@@ -18,7 +18,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -42,7 +42,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -66,7 +66,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -90,7 +90,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -117,7 +117,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -142,7 +142,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -167,7 +167,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -192,7 +192,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -217,7 +217,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -242,7 +242,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -267,7 +267,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -293,7 +293,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -321,7 +321,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -351,7 +351,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -385,7 +385,7 @@ public class AlpmPackageTests
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
             var localDb = alpm.GetLocalDatabase();
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             Assert.That(pkg, Is.Not.Null);
             
@@ -421,7 +421,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -449,7 +449,7 @@ public class AlpmPackageTests
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
             var localDb = alpm.GetLocalDatabase();
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             Assert.That(pkg, Is.Not.Null);
             var dependencies = pkg!.GetDependencies();
@@ -488,7 +488,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -521,7 +521,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -551,7 +551,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -581,7 +581,7 @@ public class AlpmPackageTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -609,7 +609,7 @@ public class AlpmPackageTests
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
             var localDb = alpm.GetLocalDatabase();
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             Assert.That(pkg, Is.Not.Null);
             
@@ -636,7 +636,7 @@ public class AlpmPackageTests
             // Arrange
             using LibAlpm alpm = LibAlpm.Initialize();
             var localDb = alpm.GetLocalDatabase();
-            AlpmPackage? pkg = localDb.GetPackage(TestPackageName);
+            var pkg = localDb.GetPackage(TestPackageName);
             
             Assert.That(pkg, Is.Not.Null);
             

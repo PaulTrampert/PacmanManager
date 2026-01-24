@@ -8,7 +8,7 @@ namespace LibAlpmSharp;
 /// <summary>
 /// Represents a package database (local or sync).
 /// </summary>
-public sealed class AlpmDatabase
+public sealed class AlpmDatabase : IAlpmDatabase
 {
     private readonly LibAlpm _alpm;
     private readonly IntPtr _dbHandle;
@@ -88,7 +88,7 @@ public sealed class AlpmDatabase
     /// Gets the list of servers configured for this database.
     /// </summary>
     /// <returns>A list of server URLs.</returns>
-    public List<string> GetServers()
+    public IEnumerable<string> GetServers()
     {
         var servers = new List<string>();
         
@@ -187,7 +187,7 @@ public sealed class AlpmDatabase
     /// <param name="name">The name of the package to find.</param>
     /// <returns>The package if found, null otherwise.</returns>
     /// <exception cref="ArgumentException">Thrown when name is null or empty.</exception>
-    public AlpmPackage? GetPackage(string name)
+    public IPackage? GetPackage(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Package name cannot be null or empty", nameof(name));
@@ -217,7 +217,7 @@ public sealed class AlpmDatabase
     /// Gets all packages in this database.
     /// </summary>
     /// <returns>A list of all packages in the database.</returns>
-    public List<AlpmPackage> GetPackages()
+    public IEnumerable<IPackage> GetPackages()
     {
         var packages = new List<AlpmPackage>();
         
@@ -247,7 +247,7 @@ public sealed class AlpmDatabase
     /// <returns>A list of packages matching the search terms.</returns>
     /// <exception cref="ArgumentException">Thrown when searchTerms is null or empty.</exception>
     /// <exception cref="AlpmException">Thrown when the search fails.</exception>
-    public List<AlpmPackage> Search(params string[] searchTerms)
+    public IEnumerable<IPackage> Search(params string[] searchTerms)
     {
         if (searchTerms == null || searchTerms.Length == 0)
             throw new ArgumentException("Search terms cannot be null or empty", nameof(searchTerms));

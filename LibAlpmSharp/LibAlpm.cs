@@ -9,7 +9,7 @@ namespace LibAlpmSharp;
 /// Represents a handle to the libalpm library.
 /// This class provides safe, managed access to the Arch Linux Package Manager library.
 /// </summary>
-public sealed class LibAlpm : IDisposable
+public sealed class LibAlpm : ILibAlpm
 {
     private IntPtr _handle;
     private bool _disposed;
@@ -166,7 +166,7 @@ public sealed class LibAlpm : IDisposable
     /// </summary>
     /// <returns>The local database.</returns>
     /// <exception cref="AlpmException">Thrown when the local database cannot be retrieved.</exception>
-    public AlpmDatabase GetLocalDatabase()
+    public IAlpmDatabase GetLocalDatabase()
     {
         ThrowIfDisposed();
         
@@ -184,7 +184,7 @@ public sealed class LibAlpm : IDisposable
     /// Gets the list of registered sync databases.
     /// </summary>
     /// <returns>A list of sync databases.</returns>
-    public List<AlpmDatabase> GetSyncDatabases()
+    public IEnumerable<IAlpmDatabase> GetSyncDatabases()
     {
         ThrowIfDisposed();
         
@@ -217,7 +217,7 @@ public sealed class LibAlpm : IDisposable
     /// <returns>The newly registered database.</returns>
     /// <exception cref="ArgumentException">Thrown when name is null or empty.</exception>
     /// <exception cref="AlpmException">Thrown when the database cannot be registered.</exception>
-    public AlpmDatabase RegisterSyncDatabase(string name, int signatureLevel = 0)
+    public IAlpmDatabase RegisterSyncDatabase(string name, int signatureLevel = 0)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Database name cannot be null or empty", nameof(name));
