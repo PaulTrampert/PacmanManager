@@ -4,10 +4,39 @@ using LibAlpmSharp.Interop;
 
 namespace LibAlpmSharp;
 
+public interface IDependency
+{
+    /// <summary>
+    /// Gets the name of the provider to satisfy this dependency.
+    /// </summary>
+    string Name { get; }
+
+    /// <summary>
+    /// Gets the version of the provider to match against (optional).
+    /// </summary>
+    string? Version { get; }
+
+    /// <summary>
+    /// Gets a description of why this dependency is needed (optional).
+    /// </summary>
+    string? Description { get; }
+
+    /// <summary>
+    /// Gets how the version should match against the provider.
+    /// </summary>
+    AlpmDepMod Modifier { get; }
+
+    /// <summary>
+    /// Returns a string that represents the current dependency.
+    /// </summary>
+    /// <returns>A string that represents the current dependency.</returns>
+    string ToString();
+}
+
 /// <summary>
 /// Represents a package dependency.
 /// </summary>
-public sealed class AlpmDependency
+public sealed class AlpmDependency : IDependency
 {
     /// <summary>
     /// Gets the name of the provider to satisfy this dependency.

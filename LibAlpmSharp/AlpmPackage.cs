@@ -7,7 +7,7 @@ namespace LibAlpmSharp;
 /// <summary>
 /// Represents a package in a database.
 /// </summary>
-public sealed class AlpmPackage
+public sealed class AlpmPackage : IPackage
 {
     private readonly IntPtr _pkgHandle;
 

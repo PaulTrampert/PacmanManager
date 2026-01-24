@@ -15,10 +15,10 @@ public class AlpmDatabaseTests
         try
         {
             // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
+            using var alpm = LibAlpm.Initialize();
             
             // Act
-            AlpmDatabase localDb = alpm.GetLocalDatabase();
+            var localDb = alpm.GetLocalDatabase();
             
             // Assert
             Assert.That(localDb, Is.Not.Null);
@@ -47,7 +47,7 @@ public class AlpmDatabaseTests
             alpm.RegisterSyncDatabase("multilib");
             
             // Act
-            List<AlpmDatabase> syncDbs = alpm.GetSyncDatabases();
+            var syncDbs = alpm.GetSyncDatabases().ToList();
             
             // Assert
             Assert.That(syncDbs, Is.Not.Null);
@@ -82,7 +82,7 @@ public class AlpmDatabaseTests
             string dbName = "core";
             
             // Act
-            AlpmDatabase db = alpm.RegisterSyncDatabase(dbName);
+            var db = alpm.RegisterSyncDatabase(dbName);
             
             // Assert
             Assert.That(db, Is.Not.Null);
@@ -149,7 +149,7 @@ public class AlpmDatabaseTests
             coreDb.AddServer(testServer);
             
             // Act
-            var servers = coreDb.GetServers();
+            var servers = coreDb.GetServers().ToList();
             
             // Assert
             Assert.That(servers, Is.Not.Null);
@@ -252,7 +252,7 @@ public class AlpmDatabaseTests
             var localDb = alpm.GetLocalDatabase();
             
             // Get all packages to find a valid one
-            var packages = localDb.GetPackages();
+            var packages = localDb.GetPackages().ToList();
             if (packages.Count == 0)
             {
                 Assert.Warn("No packages found in local database");
@@ -262,7 +262,7 @@ public class AlpmDatabaseTests
             string testPackageName = packages[0].Name;
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage(testPackageName);
+            var pkg = localDb.GetPackage(testPackageName);
             
             // Assert
             Assert.That(pkg, Is.Not.Null);
@@ -288,7 +288,7 @@ public class AlpmDatabaseTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            AlpmPackage? pkg = localDb.GetPackage("this-package-does-not-exist-xyz123");
+            var pkg = localDb.GetPackage("this-package-does-not-exist-xyz123");
             
             // Assert
             Assert.That(pkg, Is.Null);
@@ -327,7 +327,7 @@ public class AlpmDatabaseTests
             var localDb = alpm.GetLocalDatabase();
             
             // Act
-            var packages = localDb.GetPackages();
+            var packages = localDb.GetPackages().ToList();
             
             // Assert
             Assert.That(packages, Is.Not.Null);
@@ -358,7 +358,7 @@ public class AlpmDatabaseTests
             var localDb = alpm.GetLocalDatabase();
             
             // Get all packages to find a valid search term
-            var allPackages = localDb.GetPackages();
+            var allPackages = localDb.GetPackages().ToList();
             if (allPackages.Count == 0)
             {
                 Assert.Warn("No packages found in local database");
@@ -369,7 +369,7 @@ public class AlpmDatabaseTests
             string searchTerm = allPackages[0].Name.Substring(0, Math.Min(3, allPackages[0].Name.Length));
             
             // Act
-            var results = localDb.Search(searchTerm);
+            var results = localDb.Search(searchTerm).ToList();
             
             // Assert
             Assert.That(results, Is.Not.Null);
