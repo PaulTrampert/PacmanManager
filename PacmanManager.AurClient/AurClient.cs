@@ -22,9 +22,21 @@ public class AurClient(HttpClient client) : IAurClient
         return (T)result;
     }
     
+    private static string GetSearchByValue(AurSearchBy searchBy) => searchBy switch
+    {
+        AurSearchBy.Name => "name",
+        AurSearchBy.NameDesc => "name-desc",
+        AurSearchBy.Maintainer => "maintainer",
+        AurSearchBy.Depends => "depends",
+        AurSearchBy.MakeDepends => "makedepends",
+        AurSearchBy.OptDepends => "optdepends",
+        AurSearchBy.CheckDepends => "checkdepends",
+        _ => throw new ArgumentOutOfRangeException(nameof(searchBy), searchBy, "Invalid search by value")
+    };
+    
     public Task<AurResponse<AurBasicPackageInfo>> Search(string term, AurSearchBy searchBy)
     {
-        return GetAsync<AurResponse<AurBasicPackageInfo>>($"/rpc/v5/search/{UrlEncoder.Default.Encode(term)}?by={UrlEncoder.Default.Encode(searchBy.ToString())}");
+        return GetAsync<AurResponse<AurBasicPackageInfo>>($"/rpc/v5/search/{UrlEncoder.Default.Encode(term)}?by={UrlEncoder.Default.Encode(GetSearchByValue(searchBy))}");
     }
     
     public Task<AurResponse<AurFullPackageInfo>> Info(IEnumerable<string> packageNames)
