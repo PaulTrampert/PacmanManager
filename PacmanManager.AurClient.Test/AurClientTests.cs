@@ -19,7 +19,7 @@ public class AurClientTests
     [TearDown]
     public void TearDown()
     {
-        _httpClient?.Dispose();
+        _httpClient.Dispose();
     }
 
     [Test]
@@ -48,8 +48,8 @@ public class AurClientTests
         Assert.That(firstPackage.Version, Is.Not.Null.And.Not.Empty);
         Assert.That(firstPackage.Description, Is.Not.Null.And.Not.Empty);
         
-        TestContext.WriteLine($"Found {result.ResultCount} packages matching '{searchTerm}'");
-        TestContext.WriteLine($"First result: {firstPackage.Name} ({firstPackage.Version})");
+        await TestContext.Out.WriteLineAsync($"Found {result.ResultCount} packages matching '{searchTerm}'");
+        await TestContext.Out.WriteLineAsync($"First result: {firstPackage.Name} ({firstPackage.Version})");
     }
 
     [Test]
@@ -68,7 +68,7 @@ public class AurClientTests
         Assert.That(result.Type, Is.EqualTo(AurReturnType.Search));
         Assert.That(result.ResultCount, Is.GreaterThan(0), "Should find packages with 'helper' in name or description");
         
-        TestContext.WriteLine($"Found {result.ResultCount} packages matching '{searchTerm}' by name or description");
+        await TestContext.Out.WriteLineAsync($"Found {result.ResultCount} packages matching '{searchTerm}' by name or description");
     }
 
     [Test]
@@ -101,10 +101,10 @@ public class AurClientTests
         Assert.That(package.MakeDepends, Is.Not.Null);
         Assert.That(package.License, Is.Not.Null);
         
-        TestContext.WriteLine($"Package: {package.Name} {package.Version}");
-        TestContext.WriteLine($"Description: {package.Description}");
-        TestContext.WriteLine($"Maintainer: {package.Maintainer}");
-        TestContext.WriteLine($"Votes: {package.NumVotes}, Popularity: {package.Popularity}");
+        await TestContext.Out.WriteLineAsync($"Package: {package.Name} {package.Version}");
+        await TestContext.Out.WriteLineAsync($"Description: {package.Description}");
+        await TestContext.Out.WriteLineAsync($"Maintainer: {package.Maintainer}");
+        await TestContext.Out.WriteLineAsync($"Votes: {package.NumVotes}, Popularity: {package.Popularity}");
     }
 
     [Test]
@@ -132,7 +132,7 @@ public class AurClientTests
             Assert.That(package.Version, Is.Not.Null.And.Not.Empty);
             Assert.That(packageNames, Does.Contain(package.Name), $"Package name {package.Name} should be in requested list");
             
-            TestContext.WriteLine($"Package: {package.Name} {package.Version}");
+            await TestContext.Out.WriteLineAsync($"Package: {package.Name} {package.Version}");
         }
     }
 
@@ -152,7 +152,7 @@ public class AurClientTests
         Assert.That(result.ResultCount, Is.EqualTo(0), "Should find no packages");
         Assert.That(result.Results, Is.Empty);
         
-        TestContext.WriteLine("Correctly returned empty results for non-existent package");
+        await TestContext.Out.WriteLineAsync("Correctly returned empty results for non-existent package");
     }
 
     [Test]
@@ -172,6 +172,6 @@ public class AurClientTests
         // ResultCount could be 0 or more, both are valid
         Assert.That(result.Results, Is.Not.Null);
         
-        TestContext.WriteLine($"Search for '{searchTerm}' returned {result.ResultCount} results");
+        await TestContext.Out.WriteLineAsync($"Search for '{searchTerm}' returned {result.ResultCount} results");
     }
 }
