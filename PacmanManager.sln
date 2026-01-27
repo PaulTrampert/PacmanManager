@@ -4,6 +4,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibAlpmSharp", "LibAlpmShar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibAlpmSharp.Test", "LibAlpmSharp.Test\LibAlpmSharp.Test.csproj", "{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.AurClient", "PacmanManager.AurClient\PacmanManager.AurClient.csproj", "{EA77C992-9531-4C20-AD9D-B2265178703F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.AurClient.Test", "PacmanManager.AurClient.Test\PacmanManager.AurClient.Test.csproj", "{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AA1DA8A8-D858-4A85-BC12-4F6CBA39DBBB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA77C992-9531-4C20-AD9D-B2265178703F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA77C992-9531-4C20-AD9D-B2265178703F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA77C992-9531-4C20-AD9D-B2265178703F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA77C992-9531-4C20-AD9D-B2265178703F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
