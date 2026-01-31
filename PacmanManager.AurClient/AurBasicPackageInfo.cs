@@ -6,17 +6,17 @@ public record AurBasicPackageInfo
 {
     public long Id { get; init; }
     
-    public string Name { get; init; }
+    public required string Name { get; init; }
     
     public long PackageBaseId { get; init; }
     
-    public string PackageBase { get; init; }
+    public required string PackageBase { get; init; }
     
-    public string Version { get; init; }
+    public required string Version { get; init; }
     
-    public string Description { get; init; }
+    public string? Description { get; init; }
     
-    public string Url { get; init; }
+    public string? Url { get; init; }
     
     public long NumVotes { get; init; }
     
@@ -25,7 +25,7 @@ public record AurBasicPackageInfo
     [JsonConverter(typeof(NullableDateTimeOffsetConverter))]
     public DateTimeOffset? OutOfDate { get; init; }
     
-    public string Maintainer { get; init; }
+    public string? Maintainer { get; init; }
     
     [JsonConverter(typeof(DateTimeOffsetConverter))]
     public DateTimeOffset FirstSubmitted { get; init; }
@@ -33,5 +33,5 @@ public record AurBasicPackageInfo
     [JsonConverter(typeof(DateTimeOffsetConverter))]
     public DateTimeOffset LastModified { get; init; }
     
-    public string UrlPath { get; init; }
+    public string? UrlPath { get; init; }
 };

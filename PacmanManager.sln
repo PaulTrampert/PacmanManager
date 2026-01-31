@@ -8,6 +8,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.AurClient", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.AurClient.Test", "PacmanManager.AurClient.Test\PacmanManager.AurClient.Test.csproj", "{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.CliTools", "PacmanManager.CliTools\PacmanManager.CliTools.csproj", "{8AF81069-2B03-4C35-84FF-499AE157C23C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PacmanManager.CliTools.Test", "PacmanManager.CliTools.Test\PacmanManager.CliTools.Test.csproj", "{C5B23B75-456F-4F97-A704-C9BD585EC393}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +34,13 @@ Global
 		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{019B8CC8-0CC5-4FA6-AC72-11DF517C7D29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AF81069-2B03-4C35-84FF-499AE157C23C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AF81069-2B03-4C35-84FF-499AE157C23C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AF81069-2B03-4C35-84FF-499AE157C23C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AF81069-2B03-4C35-84FF-499AE157C23C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5B23B75-456F-4F97-A704-C9BD585EC393}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5B23B75-456F-4F97-A704-C9BD585EC393}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5B23B75-456F-4F97-A704-C9BD585EC393}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5B23B75-456F-4F97-A704-C9BD585EC393}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
