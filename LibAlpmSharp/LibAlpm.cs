@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using LibAlpmSharp.Config;
 using LibAlpmSharp.Interop;
+using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp;
 
@@ -54,6 +56,49 @@ public sealed class LibAlpm : ILibAlpm
         _handle = handle;
         Root = root;
         DbPath = dbPath;
+    }
+    
+    /// <summary>
+    /// Initialize libalpm from a Pacman configuration. Using this will pre-register all repositories defined in the config.
+    /// This means you should be able to directly interact with the sync databases after initialization.
+    /// </summary>
+    /// <param name="configPath">Config object to initialize libalpm from.</param>
+    /// <param name="loggerFactory">Optional logger factory to create a logger for the config reader.</param>
+    /// <returns>Initialized ILibAlpm</returns>
+    /// <exception cref="ArgumentNullException">Thrown if config is not provided.</exception>
+    public static ILibAlpm FromConfig(string configPath, ILoggerFactory? loggerFactory = null)
+    {
+        loggerFactory ??= new LoggerFactory();
+        var logger = loggerFactory.CreateLogger<PacmanConfigReader>();
+        var reader = new PacmanConfigReader(logger);
+        var config = reader.ReadConfig(configPath);
+        return FromConfig(config);
+    }
+
+    /// <summary>
+    /// Initialize libalpm from a Pacman configuration. Using this will pre-register all repositories defined in the config.
+    /// This means you should be able to directly interact with the sync databases after initialization.
+    /// </summary>
+    /// <param name="config">Config object to initialize libalpm from.</param>
+    /// <returns>Initialized ILibAlpm</returns>
+    /// <exception cref="ArgumentNullException">Thrown if config is not provided.</exception>
+    public static ILibAlpm FromConfig(PacmanConfig config)
+    {
+        if (config == null)
+            throw new ArgumentNullException(nameof(config));
+
+        var libalpm = Initialize(config.RootDir, config.DBPath);
+        
+        foreach(var repo in config.Repositories)
+        {
+            var db = libalpm.RegisterSyncDatabase(repo.Name, (int)repo.SigLevel);
+            foreach(var server in repo.Server)
+            {
+                db.AddServer(server);
+            }
+        }
+        
+        return libalpm;
     }
 
     /// <summary>
