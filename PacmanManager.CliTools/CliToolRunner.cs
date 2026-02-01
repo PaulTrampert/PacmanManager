@@ -7,41 +7,19 @@ namespace PacmanManager.CliTools;
 /// Class that runs CLI tools and manages their output handling.
 /// </summary>
 /// <param name="outputHandlerRegistry">Registry of global output handlers.</param>
-public class CliToolRunner(ICliOutputHandlerRegistry outputHandlerRegistry)
+public class CliToolRunner(ICliOutputHandlerRegistry outputHandlerRegistry) : ICliToolRunner
 {
     private const int FwdBufferSize = 4096;
 
-    /// <summary>
-    /// Run the given CLI tool. Returns the exit code of the tool.
-    /// </summary>
-    /// <param name="tool">Descriptor of the cli tool to run.</param>
-    /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <inheritdoc/>
     public Task<int> RunToolAsync(ICliTool tool, CancellationToken ct = default)
         => RunToolAsync(tool, Array.Empty<ICliOutputHandler>(), ct);
     
-    /// <summary>
-    /// Run the given CLI tool with specified output handlers. Returns the exit code of the tool. Upon return,
-    /// all output handlers have completed processing.
-    /// </summary>
-    /// <param name="tool">Descriptor of the cli tool to run.</param>
-    /// <param name="outputHandler">Handler for the output of the tool.</param>
-    /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <inheritdoc/>
     public Task<int> RunToolAsync(ICliTool tool, ICliOutputHandler outputHandler, CancellationToken ct = default)
         => RunToolAsync(tool, [outputHandler], ct);
     
-    /// <summary>
-    /// Run the given CLI tool with specified output handlers. Returns the exit code of the tool. Upon return,
-    /// all output handlers have completed processing.
-    /// </summary>
-    /// <param name="tool">Descriptor of the cli tool to run.</param>
-    /// <param name="outputHandlers">List of output handlers for this specific tool run.</param>
-    /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <inheritdoc/>
     public async Task<int> RunToolAsync(
         ICliTool tool, 
         IEnumerable<ICliOutputHandler> outputHandlers,
