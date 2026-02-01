@@ -30,6 +30,9 @@ public class CliToolRunner(ICliOutputHandlerRegistry outputHandlerRegistry) : IC
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            WorkingDirectory = string.IsNullOrEmpty(tool.WorkingDirectory) 
+                ? Environment.CurrentDirectory 
+                : tool.WorkingDirectory,
         };
 
         using var process = Process.Start(startInfo);

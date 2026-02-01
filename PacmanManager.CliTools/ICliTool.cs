@@ -19,4 +19,9 @@ public interface ICliTool
     /// Arguments to be passed to the CLI tool.
     /// </summary>
     IEnumerable<string> Arguments { get; }
+    
+    /// <summary>
+    /// Gets the working directory for the CLI tool execution. If empty, the current directory is used.
+    /// </summary>
+    string WorkingDirectory { get; }
 }
