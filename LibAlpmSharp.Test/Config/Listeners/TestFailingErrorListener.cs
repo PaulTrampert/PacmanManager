@@ -8,7 +8,7 @@ public class TestFailingErrorListener : BaseErrorListener
         string msg, RecognitionException e)
     {
         Assert.Fail($"Syntax error at line {line}, position {charPositionInLine}: {msg}\n" +
-                    $"Offending Token Type: {PacmanConfLexer.ruleNames[offendingSymbol.Type]}",
-            e);
+                    $"Offending Token Type: {PacmanConfLexer.ruleNames[offendingSymbol.Type]}\n" +
+                    $"{e}");
     }
 }
