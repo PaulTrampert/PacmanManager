@@ -1,9 +1,19 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using LibAlpmSharp;
 using PacmanManager.CliTools;
+using Serilog;
 
+// Configure Serilog
 var builder = WebApplication.CreateBuilder(args);
 
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+#region Services
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -15,11 +25,16 @@ builder.Services.AddCliToolRunner()
 builder.Services.AddControllers()
     .AddJsonOptions(opt =>
     {
-        opt.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Always;
+        opt.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+builder.Services.AddScoped<ILibAlpm>(p =>
+    LibAlpm.FromConfig("./pacman-local.conf", p.GetRequiredService<ILoggerFactory>()));
+#endregion
+
+#region Request Pipeline
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -30,9 +45,19 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
-app.Run();
+#endregion
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+try
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    Log.Information("Starting PacmanManager.RepoHost");
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
 }

@@ -2,15 +2,14 @@
 ARG APP_UID=1001
 ARG APP_GID=1001
 ARG APP_USER=app
-ARG APP_HOME=/home/${APP_USER}
-ENV APP_DIR=${APP_HOME}/app/
-ENV DATA_DIR=${APP_HOME}/data/
+ARG APP_HOME=/app
+ENV DATA_DIR=/data
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm aspnet-runtime && \
     groupadd -g ${APP_GID} ${APP_USER} && \
     useradd --uid ${APP_UID} --gid ${APP_GID} --home ${APP_HOME} -m ${APP_USER} 
 USER $APP_USER
-WORKDIR ${APP_DIR}
+WORKDIR ${APP_HOME}
 VOLUME ${DATA_DIR}
 EXPOSE 8080
 EXPOSE 8081
@@ -31,6 +30,6 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./PacmanManager.RepoHost.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
-WORKDIR ${APP_DIR}
+WORKDIR ${APP_HOME}
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "PacmanManager.RepoHost.dll"]
