@@ -1,0 +1,6 @@
+@PacmanManager.RepoHost_HostAddress = http://localhost:5119
+
+GET {{PacmanManager.RepoHost_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
