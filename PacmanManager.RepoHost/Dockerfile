@@ -18,6 +18,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY ["LibAlpmSharp/LibAlpmSharp.csproj", "LibAlpmSharp/"]
 COPY ["PacmanManager.CliTools/PacmanManager.CliTools.csproj", "PacmanManager.CliTools/"]
 COPY ["PacmanManager.RepoHost/PacmanManager.RepoHost.csproj", "PacmanManager.RepoHost/"]
 RUN dotnet restore "PacmanManager.RepoHost/PacmanManager.RepoHost.csproj"

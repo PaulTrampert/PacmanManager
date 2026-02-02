@@ -15,10 +15,17 @@
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
+      <None Remove="pacman-local.conf" />
+      <Content Include="pacman-local.conf" />
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Controllers\" />
     </ItemGroup>
 
 </Project>
