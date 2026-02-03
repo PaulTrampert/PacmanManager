@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LibAlpmSharp;
+using LibAlpmSharp.Config;
 using PacmanManager.CliTools;
 using Serilog;
 
@@ -29,13 +30,20 @@ builder.Services.AddControllers()
         opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+builder.Services.AddTransient<PacmanConfig>(p =>
+    new PacmanConfigReader(p.GetRequiredService<ILogger<PacmanConfigReader>>())
+        .ReadConfig("./pacman-local.conf"));
 
 builder.Services.AddScoped<ILibAlpm>(p =>
-    LibAlpm.FromConfig("./pacman-local.conf", p.GetRequiredService<ILoggerFactory>()));
+    LibAlpm.FromConfig(p.GetRequiredService<PacmanConfig>()));
 #endregion
 
 #region Request Pipeline
 var app = builder.Build();
+
+var pacmanConfig = app.Services.GetRequiredService<PacmanConfig>();
+Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "sync"));
+Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "local"));
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

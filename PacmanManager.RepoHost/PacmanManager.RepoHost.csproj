@@ -27,8 +27,4 @@
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Controllers\" />
-    </ItemGroup>
-
 </Project>

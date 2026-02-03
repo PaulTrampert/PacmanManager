@@ -4,15 +4,17 @@ ARG APP_GID=1001
 ARG APP_USER=app
 ARG APP_HOME=/app
 ENV DATA_DIR=/data
+ENV ASPNETCORE_HTTP_PORTS=8080
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm aspnet-runtime && \
     groupadd -g ${APP_GID} ${APP_USER} && \
-    useradd --uid ${APP_UID} --gid ${APP_GID} --home ${APP_HOME} -m ${APP_USER} 
+    useradd --uid ${APP_UID} --gid ${APP_GID} --home ${APP_HOME} -m ${APP_USER} && \
+    mkdir ${DATA_DIR} && \
+    chown -R ${APP_USER}:${APP_USER} ${DATA_DIR} ${APP_HOME}
 USER $APP_USER
 WORKDIR ${APP_HOME}
 VOLUME ${DATA_DIR}
 EXPOSE 8080
-EXPOSE 8081
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
