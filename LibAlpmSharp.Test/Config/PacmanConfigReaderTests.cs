@@ -448,4 +448,35 @@ public class PacmanConfigReaderTests
         // Act & Assert
         Assert.Throws<FileNotFoundException>(() => reader.ReadConfig(configFile));
     }
+
+    [Test]
+    public void ReadConfig_IncludeAsLastStatementWithoutTrailingNewline_ParsesCorrectly()
+    {
+        // Arrange
+        var repoFile = Path.Combine(_testDir, "custom-repo.conf");
+        var repoContent = "[custom]\n" +
+                         "Server=https://custom.example.com/$repo/os/$arch\n";
+        File.WriteAllText(repoFile, repoContent);
+
+        var configFile = Path.Combine(_testDir, "pacman.conf");
+        var content = "[options]\n" +
+                     "Architecture=x86_64\n" +
+                     $"Include={repoFile}"; // No trailing newline
+        File.WriteAllText(configFile, content);
+        
+        var reader = new PacmanConfigReader(_logger);
+
+        // Act
+        var result = reader.ReadConfig(configFile);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+        Assert.That(result.Repositories.Count(), Is.EqualTo(1));
+        
+        var customRepo = result.Repositories.First();
+        Assert.That(customRepo.Name, Is.EqualTo("custom"));
+        Assert.That(customRepo.Server.Count(), Is.EqualTo(1));
+        Assert.That(customRepo.Server.First(), Is.EqualTo("https://custom.example.com/$repo/os/$arch"));
+    }
 }
