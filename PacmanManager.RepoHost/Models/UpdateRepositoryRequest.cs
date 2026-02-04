@@ -11,17 +11,7 @@ public record UpdateRepositoryRequest
     public string? Name { get; init; }
     
     /// <summary>
-    /// Human-readable description of the repository.
-    /// </summary>
-    public string? Description { get; init; }
-    
-    /// <summary>
     /// Repository architecture (e.g., "x86_64", "any").
     /// </summary>
     public string? Architecture { get; init; }
-    
-    /// <summary>
-    /// Whether the repository is enabled/active.
-    /// </summary>
-    public bool? IsEnabled { get; init; }
 }

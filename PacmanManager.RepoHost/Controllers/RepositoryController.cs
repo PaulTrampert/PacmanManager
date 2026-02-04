@@ -32,16 +32,16 @@ public class RepositoryController : ControllerBase
     }
 
     /// <summary>
-    /// Get a specific repository by ID.
+    /// Get a specific repository by name.
     /// </summary>
-    /// <param name="id">Repository ID.</param>
+    /// <param name="name">Repository name.</param>
     /// <returns>The requested repository.</returns>
-    [HttpGet("{id}")]
+    [HttpGet("{name}")]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<Repository> GetById(Guid id)
+    public ActionResult<Repository> GetById(string name)
     {
-        _logger.LogInformation("Getting repository {RepositoryId}", id);
+        _logger.LogInformation("Getting repository {RepositoryName}", name);
         
         // TODO: Implement repository retrieval
         return NotFound();
@@ -62,31 +62,28 @@ public class RepositoryController : ControllerBase
         // TODO: Implement repository creation
         var repository = new Repository
         {
-            Id = Guid.NewGuid(),
             Name = request.Name,
-            Description = request.Description,
             Architecture = request.Architecture,
-            IsEnabled = request.IsEnabled,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
         
-        return CreatedAtAction(nameof(GetById), new { id = repository.Id }, repository);
+        return CreatedAtAction(nameof(GetById), new { name = repository.Name }, repository);
     }
 
     /// <summary>
     /// Update an existing repository.
     /// </summary>
-    /// <param name="id">Repository ID.</param>
+    /// <param name="name">Repository name.</param>
     /// <param name="request">Repository update request.</param>
     /// <returns>The updated repository.</returns>
-    [HttpPut("{id}")]
+    [HttpPut("{name}")]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<Repository> Update(Guid id, [FromBody] UpdateRepositoryRequest request)
+    public ActionResult<Repository> Update(string name, [FromBody] UpdateRepositoryRequest request)
     {
-        _logger.LogInformation("Updating repository {RepositoryId}", id);
+        _logger.LogInformation("Updating repository {RepositoryName}", name);
         
         // TODO: Implement repository update
         return NotFound();
@@ -95,14 +92,14 @@ public class RepositoryController : ControllerBase
     /// <summary>
     /// Delete a repository.
     /// </summary>
-    /// <param name="id">Repository ID.</param>
+    /// <param name="name">Repository name.</param>
     /// <returns>No content on success.</returns>
-    [HttpDelete("{id}")]
+    [HttpDelete("{name}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult Delete(Guid id)
+    public ActionResult Delete(string name)
     {
-        _logger.LogInformation("Deleting repository {RepositoryId}", id);
+        _logger.LogInformation("Deleting repository {RepositoryName}", name);
         
         // TODO: Implement repository deletion
         return NotFound();
