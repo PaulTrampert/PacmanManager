@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="PacmanManager.RepoHost.Test" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
         <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
         <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
@@ -19,12 +23,16 @@
         <Link>.dockerignore</Link>
       </Content>
       <None Remove="pacman-local.conf" />
-      <Content Include="pacman-local.conf" />
+      <Content Include="pacman-local.conf" CopyToPublishDirectory="Always" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Services\" />
     </ItemGroup>
 
 </Project>

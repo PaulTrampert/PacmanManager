@@ -1,6 +1,6 @@
 using Antlr4.Runtime;
 using LibAlpmSharp.Config.TokenSources;
-using LibAlpmSharp.Test.Utils;
+using PacmanManager.TestUtils;
 using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp.Test.Config.TokenSources;

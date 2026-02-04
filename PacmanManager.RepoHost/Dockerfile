@@ -32,6 +32,6 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./PacmanManager.RepoHost.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
-WORKDIR ${APP_HOME}
+WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "PacmanManager.RepoHost.dll"]

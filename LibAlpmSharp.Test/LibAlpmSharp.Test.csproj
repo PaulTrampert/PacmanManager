@@ -27,6 +27,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
+      <ProjectReference Include="..\PacmanManager.TestUtils\PacmanManager.TestUtils.csproj" />
     </ItemGroup>
 
 </Project>

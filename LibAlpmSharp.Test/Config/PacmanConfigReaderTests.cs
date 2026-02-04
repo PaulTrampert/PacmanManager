@@ -1,5 +1,5 @@
 using LibAlpmSharp.Config;
-using LibAlpmSharp.Test.Utils;
+using PacmanManager.TestUtils;
 using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp.Test.Config;
