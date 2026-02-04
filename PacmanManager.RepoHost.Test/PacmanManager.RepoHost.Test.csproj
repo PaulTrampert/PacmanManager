@@ -22,12 +22,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Link model files for serialization without full project reference -->
-        <Compile Include="..\PacmanManager.RepoHost\Models\*.cs" Link="Models\%(Filename)%(Extension)" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\PacmanManager.TestUtils\PacmanManager.TestUtils.csproj" />
+        <ProjectReference Include="..\PacmanManager.RepoHost\PacmanManager.RepoHost.csproj" />
+        <ProjectReference Include="..\PacmanManager.TestUtils\PacmanManager.TestUtils.csproj" />
     </ItemGroup>
 
 </Project>
