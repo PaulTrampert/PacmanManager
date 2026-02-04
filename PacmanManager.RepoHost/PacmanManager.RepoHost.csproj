@@ -23,16 +23,11 @@
         <Link>.dockerignore</Link>
       </Content>
       <None Remove="pacman-local.conf" />
-      <Content Include="pacman-local.conf" CopyToPublishDirectory="Always" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Services\" />
     </ItemGroup>
 
 </Project>

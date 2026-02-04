@@ -2,7 +2,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using LibAlpmSharp;
 using LibAlpmSharp.Config;
+using Microsoft.Extensions.Options;
 using PacmanManager.CliTools;
+using PacmanManager.RepoHost;
+using PacmanManager.RepoHost.Startup.LibAlpm;
 using Serilog;
 
 // Configure Serilog
@@ -19,6 +22,15 @@ builder.Host.UseSerilog();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Configure PacmanConfigSettings - always use DATA_DIR environment variable
+builder.Services.Configure<PacmanConfigSettings>(options =>
+{
+    options.DataDir = EnvironmentVariables.DataDir;
+});
+
+// Register config generator
+builder.Services.AddSingleton<IPacmanConfigGenerator, PacmanConfigGenerator>();
+
 // Register CLI tool runner and logger
 builder.Services.AddCliToolRunner()
     .AddCliOutputLogger();
@@ -30,9 +42,16 @@ builder.Services.AddControllers()
         opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
+// Generate pacman config in-memory and parse it
 builder.Services.AddTransient<PacmanConfig>(p =>
-    new PacmanConfigReader(p.GetRequiredService<ILogger<PacmanConfigReader>>())
-        .ReadConfig("./pacman-local.conf"));
+{
+    var configGenerator = p.GetRequiredService<IPacmanConfigGenerator>();
+    var configSettings = p.GetRequiredService<IOptions<PacmanConfigSettings>>().Value;
+    var configContent = configGenerator.GenerateConfigContent();
+    var configReader = new PacmanConfigReader(p.GetRequiredService<ILogger<PacmanConfigReader>>());
+    return configReader.ReadConfigFromString(configContent, configSettings.DataDir);
+});
 
 builder.Services.AddScoped<ILibAlpm>(p =>
     LibAlpm.FromConfig(p.GetRequiredService<PacmanConfig>()));
