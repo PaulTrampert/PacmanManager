@@ -1,3 +1,5 @@
+using System.Text;
+using LibAlpmSharp.Config;
 using Microsoft.Extensions.Options;
 
 namespace PacmanManager.RepoHost.Startup.LibAlpm;
@@ -7,36 +9,35 @@ public interface IPacmanConfigGenerator
     string GenerateConfigContent();
 }
 
-public class PacmanConfigGenerator : IPacmanConfigGenerator
+public partial class PacmanConfigGenerator(
+    IPacmanConfigSerializer serializer,
+    IOptions<PacmanConfigSettings> settings, 
+    ILogger<PacmanConfigGenerator> logger) : IPacmanConfigGenerator
 {
-    private readonly PacmanConfigSettings _settings;
-    private readonly ILogger<PacmanConfigGenerator> _logger;
-
-    public PacmanConfigGenerator(
-        IOptions<PacmanConfigSettings> settings,
-        ILogger<PacmanConfigGenerator> logger)
-    {
-        _settings = settings.Value;
-        _logger = logger;
-    }
-
     public string GenerateConfigContent()
     {
-        _logger.LogInformation("Generating pacman config content for DataDir: {DataDir}", _settings.DataDir);
+        var currentSettings = settings.Value;
+        LogGeneratingPacmanConfigContentForDatadirDatadir(logger, currentSettings.DataDir);
         
-        var configContent = $"""
-            [options]
-            RootDir = /
-            DBPath = {_settings.DbPath}
-            CacheDir = {_settings.CacheDir}
-            LogFile = {_settings.LogFile}
-
-            Include = {_settings.Include}
-
-            """;
+        var baseConfig = new PacmanConfig
+        {
+            CacheDir = currentSettings.CacheDir,
+            DBPath = currentSettings.DbPath,
+            LogFile = currentSettings.LogFile,
+        };
         
-        _logger.LogDebug("Generated config content:{NewLine}{Content}", Environment.NewLine, configContent);
+        var configContent = new StringBuilder(serializer.Serialize(baseConfig));
+        configContent.AppendLine($"Include = {currentSettings.Include}");
         
-        return configContent;
+        var result = configContent.ToString();
+        LogGeneratedConfigContentNewlineContent(logger, result);
+        
+        return result;
     }
+
+    [LoggerMessage(LogLevel.Debug, "Generating pacman config content for DataDir: {dataDir}")]
+    static partial void LogGeneratingPacmanConfigContentForDatadirDatadir(ILogger<PacmanConfigGenerator> logger, string dataDir);
+
+    [LoggerMessage(LogLevel.Information, "Generated config content:\n{content}")]
+    static partial void LogGeneratedConfigContentNewlineContent(ILogger<PacmanConfigGenerator> logger, string content);
 }

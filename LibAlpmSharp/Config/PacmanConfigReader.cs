@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LibAlpmSharp.Config;
 
-public class PacmanConfigReader(ILogger<PacmanConfigReader> logger)
+public class PacmanConfigReader(ILogger<PacmanConfigReader> logger) : IPacmanConfigReader
 {
     public PacmanConfig ReadConfig(string filePath)
     {
