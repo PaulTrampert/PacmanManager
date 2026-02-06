@@ -28,7 +28,9 @@ builder.Services.Configure<PacmanConfigSettings>(options =>
     options.DataDir = EnvironmentVariables.DataDir;
 });
 
-// Register config generator
+// Register config generator and serializer
+builder.Services.AddSingleton<IPacmanConfigSerializer, PacmanConfigSerializer>();
+builder.Services.AddSingleton<IPacmanConfigReader, PacmanConfigReader>();
 builder.Services.AddSingleton<IPacmanConfigGenerator, PacmanConfigGenerator>();
 
 // Register CLI tool runner and logger
