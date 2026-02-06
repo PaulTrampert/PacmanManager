@@ -1,0 +1,9 @@
+@RepoHost_HostAddress = http://localhost:8080
+
+GET {{RepoHost_HostAddress}}/admin/Repository/
+Accept: application/json
+
+###
+
+PUT {{RepoHost_HostAddress}}/admin/Repository/test-repo
+Accept: application/json

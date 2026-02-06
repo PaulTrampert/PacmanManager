@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="PacmanManager.RepoHost.Test" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+        <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
+      <None Remove="pacman-local.conf" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
+      <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
+    </ItemGroup>
+
+</Project>

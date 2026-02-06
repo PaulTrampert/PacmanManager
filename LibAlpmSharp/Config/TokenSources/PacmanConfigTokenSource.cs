@@ -133,6 +133,11 @@ internal class PacmanConfigTokenSource : ITokenSource
         while (CurrentLexer.CurrentMode != PacmanConfLexer.DEFAULT_MODE)
         {
             var valueToken = CurrentLexer.NextToken();
+            if (valueToken.Type == PacmanConfLexer.Eof)
+            {
+                CurrentLexer.PopMode();
+                break;
+            }
             if (!leadingWsSkipped && valueToken.Type == PacmanConfLexer.STRING_WS)
             {
                 continue;
