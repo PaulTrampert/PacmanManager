@@ -4,6 +4,7 @@ namespace LibAlpmSharp.Config;
 
 public record PacmanRepositoryConfig
 {
+    public static PacmanRepositoryConfig Default => new();
     public string Name { get; init; } = string.Empty;
     public IEnumerable<string> Server { get; init; } = [];
     public IEnumerable<string> CacheServer { get; init; } = [];
