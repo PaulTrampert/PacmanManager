@@ -2,10 +2,10 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "clangsharppinvokegenerator": {
-      "version": "20.1.2.1",
+    "dotnet-ef": {
+      "version": "10.0.3",
       "commands": [
-        "ClangSharpPInvokeGenerator"
+        "dotnet-ef"
       ],
       "rollForward": false
     }

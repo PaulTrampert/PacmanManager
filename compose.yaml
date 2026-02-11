@@ -1,0 +1,30 @@
+﻿services:
+  pacmanmanager.repohost:
+    image: pacmanmanager.repohost
+    build:
+      context: .
+      dockerfile: PacmanManager.RepoHost/Dockerfile
+    ports:
+      - "5000:80"
+      
+  migrations:
+    image: pacmanmanager.migrations
+    build:
+      context: .
+      dockerfile: PacmanManager.Migrations/Dockerfile
+    depends_on:
+      - postgres
+        
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: pacmanmanager
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/
+        
+volumes:
+  pgdata:
+

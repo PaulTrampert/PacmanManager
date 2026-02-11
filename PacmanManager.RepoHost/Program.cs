@@ -2,8 +2,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using LibAlpmSharp;
 using LibAlpmSharp.Config;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PacmanManager.CliTools;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using Serilog;
@@ -44,6 +46,11 @@ builder.Services.AddControllers()
         opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
+builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
+{
+    opts.UseNpgsql(builder.Configuration.GetConnectionString("pacmanmanager"));
+});
 
 // Generate pacman config in-memory and parse it
 builder.Services.AddTransient<PacmanConfig>(p =>
