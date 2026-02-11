@@ -1,6 +1,6 @@
 ﻿FROM mcr.microsoft.com/dotnet/runtime:10.0 AS base
 USER $APP_UID
-ENV ConnectionStrings__pacmanmanager="Host=postgres;Port=5432;User Id=pacmanmanager;Password=password;"
+ENV ConnectionStrings__pacmanmanager="Server=postgres;Port=5432;User Id=pacmanmanager;Password=password;"
 WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

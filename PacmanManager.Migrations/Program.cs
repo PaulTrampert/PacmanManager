@@ -14,6 +14,7 @@ var builder = new HostApplicationBuilder(new HostApplicationBuilderSettings
 });
 
 var connectionString = builder.Configuration.GetConnectionString("pacmanmanager");
+var targetMigration = builder.Configuration.GetSection("TargetMigration").Value;
 builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
     {
         opts.UseNpgsql(
@@ -25,4 +26,4 @@ builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
 var app = builder.Build();
 
 using var scope = app.Services.CreateScope();
-scope.ServiceProvider.GetRequiredService<PacmanManagerDbContext>().Database.Migrate();
+scope.ServiceProvider.GetRequiredService<PacmanManagerDbContext>().Database.Migrate(targetMigration);
