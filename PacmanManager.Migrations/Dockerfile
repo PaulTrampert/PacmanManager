@@ -1,21 +1,22 @@
-﻿FROM mcr.microsoft.com/dotnet/runtime:10.0 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 USER $APP_UID
-ENV ConnectionStrings__pacmanmanager="Server=postgres;Port=5432;User Id=pacmanmanager;Password=password;"
 WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY [".config/dotnet-tools.json", "./.config/"]
-RUN dotnet tool restore
 COPY ["PacmanManager.Migrations/PacmanManager.Migrations.csproj", "PacmanManager.Migrations/"]
 COPY ["PacmanManager.Entities/PacmanManager.Entities.csproj", "PacmanManager.Entities/"]
 RUN dotnet restore "PacmanManager.Migrations/PacmanManager.Migrations.csproj"
 COPY . .
-RUN dotnet build PacmanManager.Migrations/PacmanManager.Migrations.csproj
-RUN dotnet ef migrations bundle --project PacmanManager.Migrations
+WORKDIR "/src/PacmanManager.Migrations"
+RUN dotnet build "./PacmanManager.Migrations.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "./PacmanManager.Migrations.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
-COPY --from=build /src/efbundle .
-ENTRYPOINT ["./efbundle", "--connection", "$ConnectionStrings__pacmanmanager" ]
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "PacmanManager.Migrations.dll"]

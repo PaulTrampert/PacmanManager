@@ -16,6 +16,7 @@
       </PackageReference>
       <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+      <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -29,6 +30,10 @@
     <ItemGroup>
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
+      </Content>
+      <None Remove="appsettings.json" />
+      <Content Include="appsettings.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </Content>
     </ItemGroup>
 
