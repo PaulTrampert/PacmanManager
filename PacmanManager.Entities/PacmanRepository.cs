@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
 
 namespace PacmanManager.Entities;
 
+[Index(nameof(Name), nameof(Architecture), IsUnique = true)]
 public record PacmanRepository
 {
     [Key]
@@ -19,7 +21,4 @@ public record PacmanRepository
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
-    
-    [Required]
-    public required string FileSystemPath { get; init; }
 }
