@@ -8,17 +8,17 @@ public record PacmanPackage
     [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
     
-    [MaxLength(255)]
-    [RegularExpression(@"[a-z\d_@][a-z\d_-\+@\.]+")]
+    [MaxLength(PacmanPackageValidationConstants.NameMaxLength)]
+    [RegularExpression(PacmanPackageValidationConstants.NameRegexPattern)]
     [Required]
     public required string Name { get; init; }
     
-    [MaxLength(255)]
-    [RegularExpression(@"(\d+:)?[a-zA-Z\d_\.\+]+(-\d+)?")]
+    [MaxLength(PacmanPackageValidationConstants.VersionMaxLength)]
+    [RegularExpression(PacmanPackageValidationConstants.VersionRegexPattern)]
     [Required]
     public required string Version { get; init; }
     
-    [MaxLength(255)]
+    [MaxLength(PacmanPackageValidationConstants.ArchitectureMaxLength)]
     [Required]
     public required string Architecture { get; init; }
     
