@@ -12,8 +12,8 @@ using PacmanManager.Entities;
 namespace PacmanManager.Migrations.Migrations
 {
     [DbContext(typeof(PacmanManagerDbContext))]
-    [Migration("20260212040324_PacmanRepositoryAndPackageIndexes")]
-    partial class PacmanRepositoryAndPackageIndexes
+    [Migration("20260213042717_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,44 +24,6 @@ namespace PacmanManager.Migrations.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("PacmanManager.Entities.PacmanPackage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Architecture")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid>("RepositoryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Version")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RepositoryId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("PacmanPackages");
-                });
 
             modelBuilder.Entity("PacmanManager.Entities.PacmanRepository", b =>
                 {
@@ -91,17 +53,6 @@ namespace PacmanManager.Migrations.Migrations
                         .IsUnique();
 
                     b.ToTable("PacmanRepositories");
-                });
-
-            modelBuilder.Entity("PacmanManager.Entities.PacmanPackage", b =>
-                {
-                    b.HasOne("PacmanManager.Entities.PacmanRepository", "Repository")
-                        .WithMany()
-                        .HasForeignKey("RepositoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Repository");
                 });
 #pragma warning restore 612, 618
         }
