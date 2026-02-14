@@ -74,3 +74,7 @@ if (!success)
     logger.LogCritical("Failed to migrate database after {MaxRetries} attempts. Exiting with failure.", maxRetries);
     Environment.Exit(1);
 }
+else
+{
+    logger.LogInformation("Migration completed successfully.");
+}

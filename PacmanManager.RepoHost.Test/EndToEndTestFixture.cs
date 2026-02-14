@@ -1,5 +1,8 @@
 using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
+using DotNet.Testcontainers.Images;
+using DotNet.Testcontainers.Networks;
 using Microsoft.Extensions.Logging;
 using PacmanManager.TestUtils;
 
@@ -11,7 +14,9 @@ namespace PacmanManager.RepoHost.Test;
 /// </summary>
 public class EndToEndTestFixture : IAsyncDisposable
 {
-    private IContainer? _container;
+    private INetwork? _testNetwork;
+    private IContainer? _dbContainer;
+    private IContainer? _apiContainer;
     private HttpClient? _httpClient;
 
     /// <summary>
@@ -30,7 +35,7 @@ public class EndToEndTestFixture : IAsyncDisposable
     /// <summary>
     /// Gets the base URL of the containerized API.
     /// </summary>
-    public string BaseUrl => $"http://{_container!.Hostname}:{_container.GetMappedPublicPort(8080)}";
+    public string BaseUrl => $"http://{_apiContainer!.Hostname}:{_apiContainer.GetMappedPublicPort(8080)}";
 
     /// <summary>
     /// Starts the container and initializes the HTTP client.
@@ -44,8 +49,14 @@ public class EndToEndTestFixture : IAsyncDisposable
             var solutionDirectory = FindSolutionDirectory();
             logger.LogInformation($"Building Docker image from: {solutionDirectory}");
 
+            _testNetwork = new NetworkBuilder()
+                .WithName("pacmanmanager-test-network")
+                .WithCleanUp(true)
+                .WithLogger(logger)
+                .Build();
+
             // Build the Docker image from the Dockerfile
-            var image = new ImageFromDockerfileBuilder()
+            var apiImage = new ImageFromDockerfileBuilder()
                 .WithContextDirectory(solutionDirectory)
                 .WithDockerfileDirectory(Path.Combine(solutionDirectory, "PacmanManager.RepoHost"))
                 .WithName("pacmanmanager-repohost-test:latest")
@@ -53,10 +64,50 @@ public class EndToEndTestFixture : IAsyncDisposable
                 .WithLogger(logger)
                 .Build();
 
-            // Build the image (this creates it in Docker)
-            await image.CreateAsync();
+            var migrationImage = new ImageFromDockerfileBuilder()
+                .WithContextDirectory(solutionDirectory)
+                .WithDockerfileDirectory(Path.Combine(solutionDirectory, "PacmanManager.Migrations"))
+                .WithName("pacmanmanager-migrations-test:latest")
+                .WithCleanUp(false) // Keep the image for reuse
+                .WithLogger(logger)
+                .Build();
 
-            _container = new ContainerBuilder(image)
+            // Build the image (this creates it in Docker)
+            await Task.WhenAll(apiImage.CreateAsync(), migrationImage.CreateAsync());
+
+            _dbContainer = new ContainerBuilder(new DockerImage("postgres:18"))
+                .WithNetwork(_testNetwork)
+                .WithNetworkAliases(nameof(_dbContainer))
+                .WithEnvironment("POSTGRES_USER", "pacmanmanager")
+                .WithEnvironment("POSTGRES_PASSWORD", "password")
+                .WithWaitStrategy(Wait.ForUnixContainer()
+                    .UntilInternalTcpPortIsAvailable(5432))
+                .WithCleanUp(true)
+                .Build();
+            
+            await _dbContainer.StartAsync();
+                
+            await using var migrationsContainer = new ContainerBuilder(migrationImage)
+                .WithNetwork(_testNetwork)
+                .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={nameof(_dbContainer)};User Id=pacmanmanager;Password=password;")
+                .WithWaitStrategy(Wait.ForUnixContainer()
+                    .AddCustomWaitStrategy(new UntilExitWaitStrategy(), s => s.WithMode(WaitStrategyMode.OneShot)))
+                .WithCleanUp(true)
+                .Build();
+
+            await migrationsContainer.StartAsync();
+            
+            var migrationsExitCode = await migrationsContainer.GetExitCodeAsync();
+            if (migrationsExitCode != 0)
+            {
+                var logs = await migrationsContainer.GetLogsAsync();
+                logger.LogError("Migrations container failed with exit code {ExitCode}. Logs:\n{Logs}", migrationsExitCode, logs);
+                throw new Exception($"Migrations container failed with exit code {migrationsExitCode}");
+            }
+            
+            _apiContainer = new ContainerBuilder(apiImage)
+                .WithNetwork(_testNetwork)
+                .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={nameof(_dbContainer)};User Id=pacmanmanager;Password=password;")
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
@@ -69,7 +120,7 @@ public class EndToEndTestFixture : IAsyncDisposable
                 .WithCleanUp(true)
                 .Build();
 
-            await _container.StartAsync();
+            await _apiContainer.StartAsync();
 
             _httpClient = new HttpClient
             {
@@ -90,10 +141,21 @@ public class EndToEndTestFixture : IAsyncDisposable
     {
         _httpClient?.Dispose();
 
-        if (_container != null)
+        if (_apiContainer != null)
         {
-            await _container.StopAsync();
-            await _container.DisposeAsync();
+            await _apiContainer.StopAsync();
+            await _apiContainer.DisposeAsync();
+        }
+
+        if (_dbContainer != null)
+        {
+            await _dbContainer.StopAsync();
+            await _dbContainer.DisposeAsync();
+        }
+
+        if (_testNetwork != null)
+        {
+            await _testNetwork.DisposeAsync();
         }
 
         GC.SuppressFinalize(this);
