@@ -25,6 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\PacmanManager.Migrations\PacmanManager.Migrations.csproj" />
         <ProjectReference Include="..\PacmanManager.RepoHost\PacmanManager.RepoHost.csproj" />
         <ProjectReference Include="..\PacmanManager.TestUtils\PacmanManager.TestUtils.csproj" />
     </ItemGroup>
