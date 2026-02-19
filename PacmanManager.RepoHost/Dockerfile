@@ -22,6 +22,7 @@ WORKDIR /src
 COPY ["LibAlpmSharp/LibAlpmSharp.csproj", "LibAlpmSharp/"]
 COPY ["PacmanManager.CliTools/PacmanManager.CliTools.csproj", "PacmanManager.CliTools/"]
 COPY ["PacmanManager.RepoHost/PacmanManager.RepoHost.csproj", "PacmanManager.RepoHost/"]
+COPY ["PacmanManager.Entities/PacmanManager.Entities.csproj", "PacmanManager.Entities/"]
 RUN dotnet restore "PacmanManager.RepoHost/PacmanManager.RepoHost.csproj"
 COPY . .
 WORKDIR "/src/PacmanManager.RepoHost"

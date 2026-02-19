@@ -8,3 +8,4 @@ riderModule.iml
 *.tokens
 gen/
 data/
+bin\\Debug/
