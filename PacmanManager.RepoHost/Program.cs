@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Asp.Versioning;
+using Asp.Versioning.Conventions;
 using LibAlpmSharp;
 using LibAlpmSharp.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -25,13 +27,10 @@ try
 
     #region Services
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-    builder.Services.AddOpenApi();
-
 // Configure PacmanConfigSettings - always use DATA_DIR environment variable
     builder.Services.Configure<PacmanConfigSettings>(options => { options.DataDir = EnvironmentVariables.DataDir; });
     builder.Services.Configure<AuthConfig>(builder.Configuration.GetSection(AuthConfig.Section));
+    builder.Services.Configure<SwaggerConfig>(builder.Configuration.GetSection(SwaggerConfig.Section));
     builder.Services.ConfigureOptions<ConfigureJwtOptions>();
 
 // Register config generator and serializer
@@ -42,6 +41,20 @@ try
 // Register CLI tool runner and logger
     builder.Services.AddCliToolRunner()
         .AddCliOutputLogger();
+    
+    builder.Services.AddApiVersioning(opts =>
+        {
+            opts.ReportApiVersions = true;
+            opts.DefaultApiVersion = ApiVersion.Default;
+        })
+        .AddMvc(opts => { opts.Conventions.Add(new VersionByNamespaceConvention()); })
+        .AddApiExplorer(opts =>
+        {
+            opts.GroupNameFormat = "'v'V";
+            opts.SubstituteApiVersionInUrl = true;
+        });
+    builder.Services.ConfigureOptions<ConfigureSwaggerGenOptions>();
+    builder.Services.AddSwaggerGen(c => c.DescribeAllParametersInCamelCase());
 
     builder.Services.AddControllers()
         .AddJsonOptions(opt =>
@@ -85,9 +98,20 @@ try
     Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "local"));
 
     // Configure the HTTP request pipeline.
-    if (app.Environment.IsDevelopment())
+    var swaggerConfig = app.Services.GetRequiredService<IOptions<SwaggerConfig>>().Value;
+    if (app.Environment.IsDevelopment() || swaggerConfig.EnableSwaggerUi)
     {
-        app.MapOpenApi();
+        app.UseSwagger();
+        app.UseSwaggerUI(opts =>
+        {
+            foreach (var description in app.DescribeApiVersions().Where(desc => desc.ApiVersion != ApiVersion.Neutral))
+                opts.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
+                    description.GroupName.ToUpperInvariant());
+
+            opts.OAuthClientId(swaggerConfig.SwaggerClientId ?? "budgy-swagger");
+            opts.OAuthUsePkce();
+            opts.EnablePersistAuthorization();
+        });
     }
 
     app.UseAuthorization();

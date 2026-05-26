@@ -2,7 +2,7 @@
 services:
   migrations:
     build:
-      context: "/home/paul/Code/PacmanManager"
+      context: "/home/paul/Code/PrivatePacmanRepo"
       dockerfile: "PacmanManager.Migrations/Dockerfile"
       target: "base"
     command: []
@@ -15,13 +15,13 @@ services:
     image: "pacmanmanager.migrations:dev"
     ports: []
     volumes:
-    - "/home/paul/Code/PacmanManager/PacmanManager.Migrations:/app:rw"
-    - "/home/paul/Code/PacmanManager:/src:rw"
+    - "/home/paul/Code/PrivatePacmanRepo/PacmanManager.Migrations:/app:rw"
+    - "/home/paul/Code/PrivatePacmanRepo:/src:rw"
     - "/home/paul/.nuget/packages:/home/app/.nuget/packages"
     working_dir: "/app"
   pacmanmanager.repohost:
     build:
-      context: "/home/paul/Code/PacmanManager"
+      context: "/home/paul/Code/PrivatePacmanRepo"
       dockerfile: "PacmanManager.RepoHost/Dockerfile"
       target: "base"
     command: []
@@ -34,7 +34,7 @@ services:
     image: "pacmanmanager.repohost:dev"
     ports: []
     volumes:
-    - "/home/paul/Code/PacmanManager/PacmanManager.RepoHost:/app:rw"
-    - "/home/paul/Code/PacmanManager:/src:rw"
+    - "/home/paul/Code/PrivatePacmanRepo/PacmanManager.RepoHost:/app:rw"
+    - "/home/paul/Code/PrivatePacmanRepo:/src:rw"
     - "/home/paul/.nuget/packages:/home/app/.nuget/packages"
     working_dir: "/app"

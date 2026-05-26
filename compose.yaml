@@ -5,7 +5,7 @@
       context: .
       dockerfile: PacmanManager.RepoHost/Dockerfile
     ports:
-      - "5000:8080"
+      - "8082:8080"
         
   auth:
     image: quay.io/keycloak/keycloak
