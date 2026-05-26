@@ -87,7 +87,7 @@ public class EndToEndTestFixture : IAsyncDisposable
                 .WithWaitStrategy(Wait.ForUnixContainer()
                     .UntilHttpRequestIsSucceeded(r => r
                         .ForPort(8080)
-                        .ForPath("/api/repository")
+                        .ForPath("/api/v1/healthcheck")
                         .ForStatusCode(System.Net.HttpStatusCode.OK)))
                 // Clean up after test
                 .WithCleanUp(true)

@@ -34,7 +34,7 @@ public class RepositoryControllerTests
     public async Task GetAll_ReturnsOkStatus()
     {
         // Act
-        var response = await _client.GetAsync("/api/repository");
+        var response = await _client.GetAsync("/api/v1/repository");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -44,7 +44,7 @@ public class RepositoryControllerTests
     public async Task GetAll_ReturnsListOfRepositories()
     {
         // Act
-        var response = await _client.GetAsync("/api/repository");
+        var response = await _client.GetAsync("/api/v1/repository");
         var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
 
         // Assert
@@ -56,7 +56,7 @@ public class RepositoryControllerTests
     public async Task GetAll_InitiallyReturnsEmptyList()
     {
         // Act
-        var response = await _client.GetAsync("/api/repository");
+        var response = await _client.GetAsync("/api/v1/repository");
         var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
 
         // Assert
@@ -75,7 +75,7 @@ public class RepositoryControllerTests
         var name = "non-existent-repo";
 
         // Act
-        var response = await _client.GetAsync($"/api/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{name}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -89,7 +89,7 @@ public class RepositoryControllerTests
         var name = "test-repo";
 
         // Act
-        var response = await _client.GetAsync($"/api/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{name}");
 
         // Assert
         // Currently returns NotFound until storage is implemented
@@ -111,7 +111,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
@@ -128,7 +128,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -147,7 +147,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -167,7 +167,7 @@ public class RepositoryControllerTests
         var beforeCreate = DateTimeOffset.UtcNow;
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
         var afterCreate = DateTimeOffset.UtcNow;
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
@@ -189,7 +189,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -207,7 +207,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -230,7 +230,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/repository/{name}", request);
+        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -248,7 +248,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/repository/{name}", request);
+        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
 
         // Assert
         // Currently returns NotFound until storage is implemented
@@ -263,7 +263,7 @@ public class RepositoryControllerTests
         var request = new UpdateRepositoryRequest();
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/repository/{name}", request);
+        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
 
         // Assert
         // Should not throw, currently returns NotFound
@@ -281,7 +281,7 @@ public class RepositoryControllerTests
         var name = "non-existent-repo";
 
         // Act
-        var response = await _client.DeleteAsync($"/api/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -295,7 +295,7 @@ public class RepositoryControllerTests
         var name = "test-repo";
 
         // Act
-        var response = await _client.DeleteAsync($"/api/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
 
         // Assert
         // Currently returns NotFound until storage is implemented
