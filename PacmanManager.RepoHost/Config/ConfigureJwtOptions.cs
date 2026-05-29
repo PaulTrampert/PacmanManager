@@ -8,5 +8,5 @@ public class ConfigureJwtOptions(IOptions<AuthConfig> authConfig, IHostEnvironme
     {
         opts.Authority = authConfig.Value.Authority;
         opts.Audience = authConfig.Value.Audience;
-        opts.RequireHttpsMetadata = env.IsDevelopment();
+        opts.RequireHttpsMetadata = !env.IsDevelopment();
     });
