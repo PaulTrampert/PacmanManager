@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using PacmanManager.RepoHost.Models;
 
-namespace PacmanManager.RepoHost.Controllers;
+namespace PacmanManager.RepoHost.Controllers.v1;
 
 /// <summary>
 /// Controller for managing pacman repositories.
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route(ControllerConstants.ControllerBaseRoute)]
 public class RepositoryController : ControllerBase
 {
     private readonly ILogger<RepositoryController> _logger;

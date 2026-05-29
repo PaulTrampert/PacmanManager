@@ -5,7 +5,20 @@
       context: .
       dockerfile: PacmanManager.RepoHost/Dockerfile
     ports:
-      - "5000:80"
+      - "8082:8080"
+        
+  auth:
+    image: quay.io/keycloak/keycloak
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/:/opt/keycloak/data/import/
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: "http://localhost:8080"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       
   migrations:
     image: pacmanmanager.migrations

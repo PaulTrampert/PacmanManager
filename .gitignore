@@ -9,3 +9,4 @@ riderModule.iml
 gen/
 data/
 bin\\Debug/
+*.generated*
