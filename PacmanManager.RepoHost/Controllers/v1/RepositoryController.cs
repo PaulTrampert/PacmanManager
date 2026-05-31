@@ -62,6 +62,7 @@ public class RepositoryController : ControllerBase
         // TODO: Implement repository creation
         var repository = new Repository
         {
+            Id = Guid.CreateVersion7(),
             Name = request.Name,
             Architecture = request.Architecture,
             CreatedAt = DateTimeOffset.UtcNow,

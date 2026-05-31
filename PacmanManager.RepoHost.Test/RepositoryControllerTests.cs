@@ -336,6 +336,7 @@ public class RepositoryControllerTests
         // Arrange & Act
         var repository = new Repository
         {
+            Id = Guid.CreateVersion7(),
             Name = "test",
             Architecture = "x86_64",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -355,6 +356,7 @@ public class RepositoryControllerTests
         // Arrange
         var repository = new Repository
         {
+            Id = Guid.CreateVersion7(),
             Name = "custom-repo",
             Architecture = "aarch64"
         };
@@ -373,6 +375,7 @@ public class RepositoryControllerTests
         // Arrange
         var repository = new Repository
         {
+            Id =  Guid.CreateVersion7(),
             Name = "test-repo",
             Architecture = "x86_64"
         };
