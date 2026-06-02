@@ -55,7 +55,7 @@ public class RepositoryController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<Repository> Create([FromBody] CreateRepositoryRequest request)
+    public ActionResult<Repository> Create([FromBody] WriteRepositoryRequest request)
     {
         _logger.LogInformation("Creating repository {RepositoryName}", request.Name);
         
@@ -82,7 +82,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<Repository> Update(string name, [FromBody] UpdateRepositoryRequest request)
+    public ActionResult<Repository> Update(string name, [FromBody] WriteRepositoryRequest request)
     {
         _logger.LogInformation("Updating repository {RepositoryName}", name);
         

@@ -104,7 +104,7 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_ReturnsCreatedStatus()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo",
             Architecture = "x86_64"
@@ -121,7 +121,7 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_ReturnsRepositoryWithName()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-2",
             Architecture = "x86_64"
@@ -140,7 +140,7 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_SetsPropertiesCorrectly()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "custom-repo",
             Architecture = "aarch64"
@@ -160,7 +160,7 @@ public class RepositoryControllerTests
     public async Task Create_SetsTimestamps()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-timestamps"
         };
@@ -183,7 +183,7 @@ public class RepositoryControllerTests
     public async Task Create_ReturnsLocationHeader()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-location"
         };
@@ -201,7 +201,7 @@ public class RepositoryControllerTests
     public async Task Create_WithMinimalRequest_UsesDefaults()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "minimal-repo"
         };
@@ -224,7 +224,7 @@ public class RepositoryControllerTests
     {
         // Arrange
         var name = "non-existent-repo";
-        var request = new UpdateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
@@ -242,7 +242,7 @@ public class RepositoryControllerTests
         // This test will be updated when repository storage is implemented
         // Arrange
         var name = "test-repo";
-        var request = new UpdateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
@@ -252,21 +252,6 @@ public class RepositoryControllerTests
 
         // Assert
         // Currently returns NotFound until storage is implemented
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-    }
-
-    [Test]
-    public async Task Update_WithEmptyRequest_IsValid()
-    {
-        // Arrange
-        var name = "test-repo";
-        var request = new UpdateRepositoryRequest();
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
-
-        // Assert
-        // Should not throw, currently returns NotFound
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
@@ -310,24 +295,13 @@ public class RepositoryControllerTests
     public void CreateRepositoryRequest_HasRequiredProperties()
     {
         // Arrange & Act
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test"
         };
 
         // Assert
         Assert.That(request.Name, Is.Not.Null);
-    }
-
-    [Test]
-    public void UpdateRepositoryRequest_AllPropertiesOptional()
-    {
-        // Arrange & Act
-        var request = new UpdateRepositoryRequest();
-
-        // Assert
-        Assert.That(request.Name, Is.Null);
-        Assert.That(request.Architecture, Is.Null);
     }
 
     [Test]

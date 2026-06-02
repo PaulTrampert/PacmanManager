@@ -43,7 +43,7 @@ public class RepositoryService(
         return File.OpenRead(repoFileName);
     }
     
-    public async Task<Repository> CreateRepositoryAsync(CreateRepositoryRequest request, CancellationToken cancellationToken = default)
+    public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
 
