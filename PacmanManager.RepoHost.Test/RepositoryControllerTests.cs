@@ -143,7 +143,7 @@ public class RepositoryControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "custom-repo",
-            Architecture = "aarch64"
+            Architecture = "any"
         };
 
         // Act
