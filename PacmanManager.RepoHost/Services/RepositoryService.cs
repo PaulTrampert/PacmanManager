@@ -78,17 +78,21 @@ internal class RepositoryService(
     {
         var query = dbContext.PacmanRepositories.AsNoTracking();
 
+        if (!string.IsNullOrWhiteSpace(paginationParams.SearchTerm))
+        {
+            query = query.Where(r => r.Name.Contains(paginationParams.SearchTerm));
+        }
+
         var total = await query.CountAsync(cancellationToken);
-        var repositories = await query
+        var entities = await query
             .OrderByDescending(r => r.CreatedAt)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
-            .Select(r => Repository.FromPacmanRepository(r))
             .ToListAsync(cancellationToken);
 
         return new PaginatedResponse<Repository>
         {
-            Results = repositories,
+            Results = entities.Select(Repository.FromPacmanRepository),
             Offset = paginationParams.Offset,
             Total = total
         };

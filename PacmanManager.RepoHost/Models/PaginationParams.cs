@@ -11,4 +11,6 @@ public record PaginationParams
     [DefaultValue(50)]
     [Range(1, 500)]
     public int PageSize { get; init; } = 50;
+
+    public string? SearchTerm { get; init; }
 }
