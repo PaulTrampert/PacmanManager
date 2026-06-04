@@ -9,12 +9,12 @@ using PacmanManager.RepoHost.Startup.LibAlpm;
 
 namespace PacmanManager.RepoHost.Services;
 
-public class RepositoryService(
+internal class RepositoryService(
     PacmanManagerDbContext dbContext, 
     ICliToolRunner cliRunner, 
     IOptionsSnapshot<PacmanConfigSettings> pacmanSettings, 
     ILogger<RepositoryService> logger,
-    IFileSystem fileSystem)
+    IFileSystem fileSystem) : IRepositoryService
 {
     private PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
 
@@ -72,5 +72,25 @@ public class RepositoryService(
         }
 
         return Repository.FromPacmanRepository(repository);
+    }
+
+    public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.PacmanRepositories.AsNoTracking();
+
+        var total = await query.CountAsync(cancellationToken);
+        var repositories = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip(paginationParams.Offset)
+            .Take(paginationParams.PageSize)
+            .Select(r => Repository.FromPacmanRepository(r))
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedResponse<Repository>
+        {
+            Results = repositories,
+            Offset = paginationParams.Offset,
+            Total = total
+        };
     }
 }

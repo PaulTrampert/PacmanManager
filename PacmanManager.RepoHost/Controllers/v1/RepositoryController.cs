@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.RepoHost.Services;
 
 namespace PacmanManager.RepoHost.Controllers.v1;
 
@@ -8,15 +9,8 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// </summary>
 [ApiController]
 [Route(ControllerConstants.ControllerBaseRoute)]
-public class RepositoryController : ControllerBase
+public class RepositoryController(IRepositoryService repositoryService, ILogger<RepositoryController> logger) : ControllerBase
 {
-    private readonly ILogger<RepositoryController> _logger;
-
-    public RepositoryController(ILogger<RepositoryController> logger)
-    {
-        _logger = logger;
-    }
-
     /// <summary>
     /// Get all repositories.
     /// </summary>
@@ -25,7 +19,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<Repository>), StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<Repository>> GetAll()
     {
-        _logger.LogInformation("Getting all repositories");
+        logger.LogInformation("Getting all repositories");
         
         // TODO: Implement repository storage/retrieval
         return Ok(Enumerable.Empty<Repository>());
@@ -41,7 +35,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<Repository> GetById(string name)
     {
-        _logger.LogInformation("Getting repository {RepositoryName}", name);
+        logger.LogInformation("Getting repository {RepositoryName}", name);
         
         // TODO: Implement repository retrieval
         return NotFound();
@@ -57,7 +51,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public ActionResult<Repository> Create([FromBody] WriteRepositoryRequest request)
     {
-        _logger.LogInformation("Creating repository {RepositoryName}", request.Name);
+        logger.LogInformation("Creating repository {RepositoryName}", request.Name);
         
         // TODO: Implement repository creation
         var repository = new Repository
@@ -84,7 +78,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public ActionResult<Repository> Update(string name, [FromBody] WriteRepositoryRequest request)
     {
-        _logger.LogInformation("Updating repository {RepositoryName}", name);
+        logger.LogInformation("Updating repository {RepositoryName}", name);
         
         // TODO: Implement repository update
         return NotFound();
@@ -100,7 +94,7 @@ public class RepositoryController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult Delete(string name)
     {
-        _logger.LogInformation("Deleting repository {RepositoryName}", name);
+        logger.LogInformation("Deleting repository {RepositoryName}", name);
         
         // TODO: Implement repository deletion
         return NotFound();
