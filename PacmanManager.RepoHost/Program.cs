@@ -11,6 +11,7 @@ using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost;
 using PacmanManager.RepoHost.Config;
+using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using Serilog;
 
@@ -41,7 +42,9 @@ try
 // Register CLI tool runner and logger
     builder.Services.AddCliToolRunner()
         .AddCliOutputLogger();
-    
+
+    builder.Services.AddSingleton<IFileSystem, PhysicalFileSystem>();
+
     builder.Services.AddApiVersioning(opts =>
         {
             opts.ReportApiVersions = true;

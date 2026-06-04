@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.CliTools;
+using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 
@@ -12,19 +13,14 @@ public class RepositoryService(
     PacmanManagerDbContext dbContext, 
     ICliToolRunner cliRunner, 
     IOptionsSnapshot<PacmanConfigSettings> pacmanSettings, 
-    ILogger<RepositoryService> logger)
+    ILogger<RepositoryService> logger,
+    IFileSystem fileSystem)
 {
     private PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
 
     private string GetRepositoryFileName(string repositoryName)
     {
         return Path.Combine(_pacmanConfig.DbPath, "sync", $"{repositoryName}.db.tar.gz");
-    }
-
-    public async Task<Repository?> GetRepositoryByIdAsync(Guid repositoryId, CancellationToken cancellationToken = default)
-    {
-        var repository = await dbContext.PacmanRepositories.FindAsync([repositoryId], cancellationToken: cancellationToken);
-        return repository is not null ? Repository.FromPacmanRepository(repository) : null;
     }
 
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
@@ -40,7 +36,7 @@ public class RepositoryService(
             return null;
         
         var repoFileName = GetRepositoryFileName(repository.Name);
-        return File.OpenRead(repoFileName);
+        return fileSystem.OpenRead(repoFileName);
     }
     
     public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
@@ -68,9 +64,9 @@ public class RepositoryService(
         {
             logger.LogError(e, "Failed to create repository: {@Request}", request);
             var expectedRepoPath = GetRepositoryFileName(repository.Name);
-            if (File.Exists(expectedRepoPath))
+            if (fileSystem.Exists(expectedRepoPath))
             {
-                File.Delete(expectedRepoPath);
+                fileSystem.Delete(expectedRepoPath);
             }
             throw;
         }
