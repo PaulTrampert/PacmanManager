@@ -21,7 +21,7 @@ public class RepositoryServiceTests
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private Mock<ICliToolRunner> _mockCliRunner;
     private Mock<IOptionsSnapshot<PacmanConfigSettings>> _mockPacmanSettings;
-    private Mock<ILogger<RepositoryService>> _mockLogger;
+    private TestOutputLogger<RepositoryService> _logger;
     private Mock<IFileSystem> _mockFileSystem;
     private PacmanManagerDbContext _dbContext;
     private RepositoryService _service;
@@ -36,7 +36,7 @@ public class RepositoryServiceTests
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
 
         _mockCliRunner = new Mock<ICliToolRunner>();
-        _mockLogger = new Mock<ILogger<RepositoryService>>();
+        _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 
         var settings = new PacmanConfigSettings
@@ -50,7 +50,7 @@ public class RepositoryServiceTests
             _dbContext,
             _mockCliRunner.Object,
             _mockPacmanSettings.Object,
-            _mockLogger.Object,
+            _logger,
             _mockFileSystem.Object);
     }
 
@@ -76,7 +76,7 @@ public class RepositoryServiceTests
         Assert.Multiple(() =>
         {
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Name, Is.EqualTo("new-repo"));
+            Assert.That(result!.Name, Is.EqualTo("new-repo"));
             Assert.That(result.Architecture, Is.EqualTo("x86_64"));
             
             var dbRepo = _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo").GetAwaiter().GetResult();
@@ -140,7 +140,7 @@ public class RepositoryServiceTests
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
 
-        var repoFileName = Path.Combine("/tmp/pacman", "libalpm", "sync", $"{repoName}.db.tar.gz");
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoName}.db.tar.gz");
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
@@ -183,4 +183,73 @@ public class RepositoryServiceTests
         });
     }
 
+    [Test]
+    public async Task GetRepositoriesAsync_ReturnsEmptyResponse_WhenNoRepositoriesExist()
+    {
+        // Arrange
+        var paginationParams = new PaginationParams { Offset = 0, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Results, Is.Empty);
+            Assert.That(result.Total, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_ReturnsPaginatedResults_WithFiltering()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        
+        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
+        await _dbContext.SaveChangesAsync();
+
+        var paginationParams = new PaginationParams { SearchTerm = "repo-b", Offset = 0, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(ResultCount(result), Is.EqualTo(1));
+            Assert.That(result.Results.First().Name, Is.EqualTo("repo-b"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_AppliesOffsetAndPageSize()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        
+        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
+        await _dbContext.SaveChangesAsync();
+
+        // Order is descending by CreatedAt: repo-1, repo-2, repo-3
+        var paginationParams = new PaginationParams { Offset = 1, PageSize = 1 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(3));
+            Assert.That(ResultCount(result), Is.EqualTo(1));
+            Assert.That(result.Results.First().Name, Is.EqualTo("repo-2"));
+        });
+    }
+
+    private int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
 }
