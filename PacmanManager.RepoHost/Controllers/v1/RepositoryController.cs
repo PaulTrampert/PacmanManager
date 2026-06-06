@@ -17,12 +17,12 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     /// <returns>List of all repositories.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<Repository>), StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<Repository>> GetAll()
+    public async Task<ActionResult<PaginatedResponse<Repository>>> Get([FromQuery] PaginationParams query, CancellationToken ct = default)
     {
         logger.LogInformation("Getting all repositories");
         
-        // TODO: Implement repository storage/retrieval
-        return Ok(Enumerable.Empty<Repository>());
+        var result = await repositoryService.GetRepositoriesAsync(query, ct);
+        return Ok(result);
     }
 
     /// <summary>

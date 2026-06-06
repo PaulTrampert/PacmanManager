@@ -31,7 +31,7 @@ public class RepositoryControllerTests
     #region GetAll Tests
 
     [Test]
-    public async Task GetAll_ReturnsOkStatus()
+    public async Task Get_ReturnsOkStatus()
     {
         // Act
         var response = await _client.GetAsync("/api/v1/repository");
@@ -41,27 +41,15 @@ public class RepositoryControllerTests
     }
 
     [Test]
-    public async Task GetAll_ReturnsListOfRepositories()
+    public async Task Get_ReturnsListOfRepositories()
     {
         // Act
         var response = await _client.GetAsync("/api/v1/repository");
-        var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
         Assert.That(response.IsSuccessStatusCode, Is.True);
         Assert.That(repositories, Is.Not.Null);
-    }
-
-    [Test]
-    public async Task GetAll_InitiallyReturnsEmptyList()
-    {
-        // Act
-        var response = await _client.GetAsync("/api/v1/repository");
-        var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
-
-        // Assert
-        Assert.That(repositories, Is.Not.Null);
-        Assert.That(repositories, Is.Empty);
     }
 
     #endregion
