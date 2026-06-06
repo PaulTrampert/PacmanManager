@@ -251,5 +251,90 @@ public class RepositoryServiceTests
         });
     }
 
+    [Test]
+    public async Task GetRepositoriesAsync_ReturnsEmpty_WhenOffsetIsAtOrBeyondTotal()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        await _dbContext.PacmanRepositories.AddAsync(repo1);
+        await _dbContext.SaveChangesAsync();
+
+        var paginationParams = new PaginationParams { Offset = 1, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Results, Is.Empty);
+            Assert.That(result.Total, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_HandlesEmptySearchTerm()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        await _dbContext.PacmanRepositories.AddAsync(repo1);
+        await _dbContext.SaveChangesAsync();
+
+        var paginationParams = new PaginationParams { SearchTerm = "", Offset = 0, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.First().Name, Is.EqualTo("repo-a"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_HandlesNullSearchTerm()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        await _dbContext.PacmanRepositories.AddAsync(repo1);
+        await _dbContext.SaveChangesAsync();
+
+        var paginationParams = new PaginationParams { SearchTerm = null, Offset = 0, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.First().Name, Is.EqualTo("repo-a"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_ReturnsCorrectTotalCountWithFiltering()
+    {
+        // Arrange
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2);
+        await _dbContext.SaveChangesAsync();
+
+        var paginationParams = new PaginationParams { SearchTerm = "repo-a", Offset = 0, PageSize = 10 };
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.First().Name, Is.EqualTo("repo-a"));
+        });
+    }
+
     private int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
 }
