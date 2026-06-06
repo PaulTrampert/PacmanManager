@@ -80,7 +80,7 @@ public class EndToEndTestFixture : IAsyncDisposable
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
-                .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={nameof(_dbContainer)};User Id=pacmanmanager;Password=password;")
+                .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
@@ -91,6 +91,8 @@ public class EndToEndTestFixture : IAsyncDisposable
                         .ForStatusCode(System.Net.HttpStatusCode.OK)))
                 // Clean up after test
                 .WithCleanUp(true)
+                .WithLogger(logger)
+                .WithOutputConsumer(Consume.RedirectStdoutAndStderrToConsole())
                 .Build();
 
             await _apiContainer.StartAsync();

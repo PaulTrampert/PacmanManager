@@ -45,25 +45,18 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     /// Create a new repository.
     /// </summary>
     /// <param name="request">Repository creation request.</param>
+    /// <param name="ct">Cancellation Token</param>
     /// <returns>The created repository.</returns>
     [HttpPost]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<Repository> Create([FromBody] WriteRepositoryRequest request)
+    public async Task<ActionResult<Repository>> Create([FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
         logger.LogInformation("Creating repository {RepositoryName}", request.Name);
+
+        var result = await repositoryService.CreateRepositoryAsync(request, ct);
         
-        // TODO: Implement repository creation
-        var repository = new Repository
-        {
-            Id = Guid.CreateVersion7(),
-            Name = request.Name,
-            Architecture = request.Architecture,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-        
-        return CreatedAtAction(nameof(GetById), new { name = repository.Name }, repository);
+        return CreatedAtAction(nameof(GetById), new { name = result.Name }, result);
     }
 
     /// <summary>
