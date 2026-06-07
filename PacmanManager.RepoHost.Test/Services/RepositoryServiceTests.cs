@@ -15,7 +15,6 @@ using NUnit.Framework;
 namespace PacmanManager.RepoHost.Test.Services;
 
 [TestFixture]
-
 public class RepositoryServiceTests
 {
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
@@ -85,6 +84,46 @@ public class RepositoryServiceTests
     }
 
     [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsRepository_WhenExists()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        var repository = new PacmanRepository 
+        { 
+            Id = repoId, 
+            Name = "existing-id-repo", 
+            Architecture = "x86_64", 
+            CreatedAt = DateTimeOffset.UtcNow, 
+            UpdatedAt = DateTimeOffset.UtcNow 
+        };
+        await _dbContext.PacmanRepositories.AddAsync(repository);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Id, Is.EqualTo(repoId));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsNull_WhenRepositoryDoesNotExist()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
     public async Task GetRepositoryByNameAsync_ReturnsRepository_WhenExists()
     {
         // Arrange
@@ -109,19 +148,6 @@ public class RepositoryServiceTests
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo(repoName));
         });
-    }
-
-    [Test]
-    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenRepositoryDoesNotExist()
-    {
-        // Arrange
-        var repoName = "non-existent-repo";
-
-        // Act
-        var result = await _service.GetRepositoryByNameAsync(repoName);
-
-        // Assert
-        Assert.That(result, Is.Null);
     }
 
     [Test]
@@ -165,7 +191,6 @@ public class RepositoryServiceTests
 
     [Test]
     public async Task CreateRepositoryAsync_RollsBack_OnFailure()
-
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };

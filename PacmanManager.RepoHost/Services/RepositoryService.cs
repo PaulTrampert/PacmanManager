@@ -23,6 +23,12 @@ internal class RepositoryService(
         return Path.Combine(_pacmanConfig.DbPath, "sync", $"{repositoryName}.db.tar.gz");
     }
 
+    public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var repository = await dbContext.PacmanRepositories.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+        return repository is not null ? Repository.FromPacmanRepository(repository) : null;
+    }
+
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var repository = await dbContext.PacmanRepositories.SingleOrDefaultAsync(r => r.Name == name, cancellationToken);

@@ -33,12 +33,17 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<Repository> GetById(Guid id)
+    public async Task<ActionResult<Repository>> GetById(Guid id, CancellationToken ct = default)
     {
         logger.LogInformation("Getting repository {RepositoryId}", id);
         
-        // TODO: Implement repository retrieval
-        return NotFound();
+        var repository = await repositoryService.GetRepositoryByIdAsync(id, ct);
+        if (repository == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(repository);
     }
 
     /// <summary>

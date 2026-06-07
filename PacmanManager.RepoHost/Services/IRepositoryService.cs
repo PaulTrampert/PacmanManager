@@ -9,6 +9,14 @@ namespace PacmanManager.RepoHost.Services;
 public interface IRepositoryService
 {
     /// <summary>
+    /// Retrieves a repository by its ID.
+    /// </summary>
+    /// <param name="id">The ID of the repository.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The repository if found; otherwise, null.</returns>
+    Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves a repository by its name.
     /// </summary>
     /// <param name="name">The name of the repository.</param>
@@ -40,3 +48,4 @@ public interface IRepositoryService
     /// <returns>A paginated response containing repositories.</returns>
     Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default);
 }
+
