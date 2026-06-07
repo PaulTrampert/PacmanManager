@@ -179,6 +179,33 @@ public class RepositoryServiceTests
 
 
     [Test]
+    public async Task GetRepositoryFileByIdAsync_ReturnsStream_WhenFileExists()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var repository = new PacmanRepository
+        {
+            Id = repoId,
+            Name = "existing-id-file-repo",
+            Architecture = "x86_64",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        await _dbContext.PacmanRepositories.AddAsync(repository);
+        await _dbContext.SaveChangesAsync();
+
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
+
+        // Act
+        var result = await _service.GetRepositoryFileByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
     public async Task GetRepositoryFileByNameAsync_ReturnsNull_WhenRepositoryDoesNotExist()
     {
         // Arrange
