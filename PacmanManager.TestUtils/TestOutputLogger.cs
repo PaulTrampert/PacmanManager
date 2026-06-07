@@ -103,6 +103,8 @@ public class TestOutputLogger : ILogger
     }
 }
 
+public class TestOutputLogger<T>() : TestOutputLogger(typeof(T).FullName!), ILogger<T>;
+
 /// <summary>
 /// An ILoggerProvider implementation that creates TestOutputLogger instances.
 /// </summary>

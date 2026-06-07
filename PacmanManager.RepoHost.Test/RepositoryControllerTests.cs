@@ -31,7 +31,7 @@ public class RepositoryControllerTests
     #region GetAll Tests
 
     [Test]
-    public async Task GetAll_ReturnsOkStatus()
+    public async Task Get_ReturnsOkStatus()
     {
         // Act
         var response = await _client.GetAsync("/api/v1/repository");
@@ -41,27 +41,15 @@ public class RepositoryControllerTests
     }
 
     [Test]
-    public async Task GetAll_ReturnsListOfRepositories()
+    public async Task Get_ReturnsListOfRepositories()
     {
         // Act
         var response = await _client.GetAsync("/api/v1/repository");
-        var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
         Assert.That(response.IsSuccessStatusCode, Is.True);
         Assert.That(repositories, Is.Not.Null);
-    }
-
-    [Test]
-    public async Task GetAll_InitiallyReturnsEmptyList()
-    {
-        // Act
-        var response = await _client.GetAsync("/api/v1/repository");
-        var repositories = await response.Content.ReadFromJsonAsync<List<Repository>>();
-
-        // Assert
-        Assert.That(repositories, Is.Not.Null);
-        Assert.That(repositories, Is.Empty);
     }
 
     #endregion
@@ -69,27 +57,27 @@ public class RepositoryControllerTests
     #region GetById Tests
 
     [Test]
-    public async Task GetById_WithNonExistentName_ReturnsNotFound()
+    public async Task GetById_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var name = "non-existent-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public async Task GetById_WithValidName_ReturnsOkResult()
+    public async Task GetById_WithValidId_ReturnsOkResult()
     {
         // This test will be updated when repository storage is implemented
         // Arrange
-        var name = "test-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{id}");
 
         // Assert
         // Currently returns NotFound until storage is implemented
@@ -104,7 +92,7 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_ReturnsCreatedStatus()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo",
             Architecture = "x86_64"
@@ -121,7 +109,7 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_ReturnsRepositoryWithName()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-2",
             Architecture = "x86_64"
@@ -140,10 +128,10 @@ public class RepositoryControllerTests
     public async Task Create_WithValidRequest_SetsPropertiesCorrectly()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "custom-repo",
-            Architecture = "aarch64"
+            Architecture = "any"
         };
 
         // Act
@@ -160,7 +148,7 @@ public class RepositoryControllerTests
     public async Task Create_SetsTimestamps()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-timestamps"
         };
@@ -183,7 +171,7 @@ public class RepositoryControllerTests
     public async Task Create_ReturnsLocationHeader()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test-repo-location"
         };
@@ -194,14 +182,14 @@ public class RepositoryControllerTests
 
         // Assert
         Assert.That(response.Headers.Location, Is.Not.Null);
-        Assert.That(response.Headers.Location!.ToString(), Does.Contain(repository!.Name));
+        Assert.That(response.Headers.Location!.ToString(), Does.Contain(repository!.Id.ToString()));
     }
 
     [Test]
     public async Task Create_WithMinimalRequest_UsesDefaults()
     {
         // Arrange
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "minimal-repo"
         };
@@ -224,7 +212,7 @@ public class RepositoryControllerTests
     {
         // Arrange
         var name = "non-existent-repo";
-        var request = new UpdateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
@@ -242,7 +230,7 @@ public class RepositoryControllerTests
         // This test will be updated when repository storage is implemented
         // Arrange
         var name = "test-repo";
-        var request = new UpdateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
@@ -252,21 +240,6 @@ public class RepositoryControllerTests
 
         // Assert
         // Currently returns NotFound until storage is implemented
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-    }
-
-    [Test]
-    public async Task Update_WithEmptyRequest_IsValid()
-    {
-        // Arrange
-        var name = "test-repo";
-        var request = new UpdateRepositoryRequest();
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
-
-        // Assert
-        // Should not throw, currently returns NotFound
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
@@ -310,7 +283,7 @@ public class RepositoryControllerTests
     public void CreateRepositoryRequest_HasRequiredProperties()
     {
         // Arrange & Act
-        var request = new CreateRepositoryRequest
+        var request = new WriteRepositoryRequest
         {
             Name = "test"
         };
@@ -320,22 +293,12 @@ public class RepositoryControllerTests
     }
 
     [Test]
-    public void UpdateRepositoryRequest_AllPropertiesOptional()
-    {
-        // Arrange & Act
-        var request = new UpdateRepositoryRequest();
-
-        // Assert
-        Assert.That(request.Name, Is.Null);
-        Assert.That(request.Architecture, Is.Null);
-    }
-
-    [Test]
     public void Repository_HasAllRequiredFields()
     {
         // Arrange & Act
         var repository = new Repository
         {
+            Id = Guid.CreateVersion7(),
             Name = "test",
             Architecture = "x86_64",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -355,6 +318,7 @@ public class RepositoryControllerTests
         // Arrange
         var repository = new Repository
         {
+            Id = Guid.CreateVersion7(),
             Name = "custom-repo",
             Architecture = "aarch64"
         };
@@ -373,6 +337,7 @@ public class RepositoryControllerTests
         // Arrange
         var repository = new Repository
         {
+            Id =  Guid.CreateVersion7(),
             Name = "test-repo",
             Architecture = "x86_64"
         };

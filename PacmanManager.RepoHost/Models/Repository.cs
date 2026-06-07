@@ -1,3 +1,5 @@
+using PacmanManager.Entities;
+
 namespace PacmanManager.RepoHost.Models;
 
 /// <summary>
@@ -5,6 +7,12 @@ namespace PacmanManager.RepoHost.Models;
 /// </summary>
 public record Repository
 {
+    /// <summary>
+    /// Internal database Id for the repository. Can be used for API calls but
+    /// pacman is unaware of this value.
+    /// </summary>
+    public required Guid Id { get; init; }
+    
     /// <summary>
     /// Repository name (e.g., "core", "extra", "custom-repo").
     /// </summary>
@@ -33,5 +41,22 @@ public record Repository
     public string GetPath(string baseRepositoryPath)
     {
         return Path.Combine(baseRepositoryPath, Name, Architecture);
+    }
+
+    /// <summary>
+    /// Creates a new repository model from the underlying db object.
+    /// </summary>
+    /// <param name="repository">Repository to create db object from</param>
+    /// <returns>New Repository api model.</returns>
+    public static Repository FromPacmanRepository(PacmanRepository repository)
+    {
+        return new Repository
+        {
+            Id = repository.Id,
+            Name = repository.Name,
+            Architecture = repository.Architecture,
+            CreatedAt = repository.CreatedAt,
+            UpdatedAt = repository.UpdatedAt,
+        };
     }
 }
