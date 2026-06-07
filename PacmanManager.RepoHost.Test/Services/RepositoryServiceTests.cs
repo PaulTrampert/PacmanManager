@@ -154,10 +154,11 @@ public class RepositoryServiceTests
     public async Task GetRepositoryFileByNameAsync_ReturnsStream_WhenFileExists()
     {
         // Arrange
+        var repoId = Guid.NewGuid();
         var repoName = "existing-file-repo";
         var repository = new PacmanRepository 
         { 
-            Id = Guid.NewGuid(), 
+            Id = repoId, 
             Name = repoName, 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
@@ -166,7 +167,7 @@ public class RepositoryServiceTests
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
 
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoName}.db.tar.gz");
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
@@ -175,6 +176,7 @@ public class RepositoryServiceTests
         // Assert
         Assert.That(result, Is.Not.Null);
     }
+
 
     [Test]
     public async Task GetRepositoryFileByNameAsync_ReturnsNull_WhenRepositoryDoesNotExist()
@@ -197,16 +199,17 @@ public class RepositoryServiceTests
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
-        var expectedRepoPath = Path.Combine("/tmp/pacman/libalpm", "sync", "fail-repo.db.tar.gz");
-        _mockFileSystem.Setup(f => f.Exists(expectedRepoPath)).Returns(true);
+        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("sync")))).Returns(true);
 
         // Act & Assert
         Assert.Multiple(() =>
         {
             Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
-            _mockFileSystem.Verify(f => f.Delete(expectedRepoPath), Times.Once);
+            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("sync"))), Times.Once);
         });
     }
+
+
 
     [Test]
     public async Task GetRepositoriesAsync_ReturnsEmptyResponse_WhenNoRepositoriesExist()

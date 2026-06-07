@@ -18,9 +18,9 @@ internal class RepositoryService(
 {
     private PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
 
-    private string GetRepositoryFileName(string repositoryName)
+    private string GetRepositoryFileName(Guid id)
     {
-        return Path.Combine(_pacmanConfig.DbPath, "sync", $"{repositoryName}.db.tar.gz");
+        return Path.Combine(_pacmanConfig.DbPath, "sync", $"{id}.db.tar.gz");
     }
 
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -35,16 +35,26 @@ internal class RepositoryService(
         return repository is not null ? Repository.FromPacmanRepository(repository) : null;
     }
 
+    public async Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var repository = await GetRepositoryByIdAsync(id, cancellationToken);
+        if (repository is null)
+            return null;
+        
+        var repoFileName = GetRepositoryFileName(repository.Id);
+        return fileSystem.OpenRead(repoFileName);
+    }
+
     public async Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var repository = await GetRepositoryByNameAsync(name, cancellationToken);
         if (repository is null)
             return null;
         
-        var repoFileName = GetRepositoryFileName(repository.Name);
+        var repoFileName = GetRepositoryFileName(repository.Id);
         return fileSystem.OpenRead(repoFileName);
     }
-    
+
     public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -62,14 +72,14 @@ internal class RepositoryService(
         {
             await dbContext.PacmanRepositories.AddAsync(repository, cancellationToken);
 
-            await cliRunner.RunToolAsync(new RepoAdd(repository.Name, _pacmanConfig.DbPath), cancellationToken);
+            await cliRunner.RunToolAsync(new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath), cancellationToken);
             
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception e)
         {
             logger.LogError(e, "Failed to create repository: {@Request}", request);
-            var expectedRepoPath = GetRepositoryFileName(repository.Name);
+            var expectedRepoPath = GetRepositoryFileName(repository.Id);
             if (fileSystem.Exists(expectedRepoPath))
             {
                 fileSystem.Delete(expectedRepoPath);
