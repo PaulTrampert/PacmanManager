@@ -37,7 +37,7 @@ public interface IRepositoryService
     /// </summary>
     /// <param name="name">The name of the repository.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A stream to the repository file by its name.</returns>
+    /// <returns>A stream to the repository file if found; otherwise, null.</returns>
     Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
