@@ -26,16 +26,16 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     }
 
     /// <summary>
-    /// Get a specific repository by name.
+    /// Get a specific repository by ID.
     /// </summary>
-    /// <param name="name">Repository name.</param>
+    /// <param name="id">Repository ID.</param>
     /// <returns>The requested repository.</returns>
-    [HttpGet("{name}")]
+    [HttpGet("{id}")]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<Repository> GetById(string name)
+    public ActionResult<Repository> GetById(Guid id)
     {
-        logger.LogInformation("Getting repository {RepositoryName}", name);
+        logger.LogInformation("Getting repository {RepositoryId}", id);
         
         // TODO: Implement repository retrieval
         return NotFound();
@@ -56,7 +56,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
 
         var result = await repositoryService.CreateRepositoryAsync(request, ct);
         
-        return CreatedAtAction(nameof(GetById), new { name = result.Name }, result);
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     /// <summary>

@@ -57,27 +57,27 @@ public class RepositoryControllerTests
     #region GetById Tests
 
     [Test]
-    public async Task GetById_WithNonExistentName_ReturnsNotFound()
+    public async Task GetById_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var name = "non-existent-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public async Task GetById_WithValidName_ReturnsOkResult()
+    public async Task GetById_WithValidId_ReturnsOkResult()
     {
         // This test will be updated when repository storage is implemented
         // Arrange
-        var name = "test-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{name}");
+        var response = await _client.GetAsync($"/api/v1/repository/{id}");
 
         // Assert
         // Currently returns NotFound until storage is implemented
@@ -182,7 +182,7 @@ public class RepositoryControllerTests
 
         // Assert
         Assert.That(response.Headers.Location, Is.Not.Null);
-        Assert.That(response.Headers.Location!.ToString(), Does.Contain(repository!.Name));
+        Assert.That(response.Headers.Location!.ToString(), Does.Contain(repository!.Id.ToString()));
     }
 
     [Test]
