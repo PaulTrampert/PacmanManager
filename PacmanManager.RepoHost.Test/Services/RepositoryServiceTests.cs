@@ -226,13 +226,13 @@ public class RepositoryServiceTests
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
-        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("sync")))).Returns(true);
-
+        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz")))).Returns(true);
+ 
         // Act & Assert
         Assert.Multiple(() =>
         {
             Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
-            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("sync"))), Times.Once);
+            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))), Times.Once);
         });
     }
 
