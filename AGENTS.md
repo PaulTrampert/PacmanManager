@@ -41,6 +41,10 @@ The system relies on Docker Compose for its full stack. Use `docker compose up -
 - `PacmanManager.AurClient`: Client for interacting with the Arch User Repository.
 - `PacmanManager.CliTools`: Helper library for interacting with external command line tools.
 
+## Version Control Standards
+- Branches should start with `feature/` or `bugfix/` depending on what kind of change is being made.
+- Commit early, often. If you have made a meaningful change that successfully builds, then you have probably reached a good point to commit.
+- *NEVER* commit directly to `main`. Always commit to a branch.
+
 ### Opencode Specific Instructions
-- Do not use the `edit` tool to modify code.
-- Instead, use the `write` tool for all code changes.
+- Be extremely precise using the `edit` tool. The `beforeString` must match the target site *exactly*.
