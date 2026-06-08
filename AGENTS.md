@@ -41,3 +41,6 @@ The system relies on Docker Compose for its full stack. Use `docker compose up -
 - `PacmanManager.AurClient`: Client for interacting with the Arch User Repository.
 - `PacmanManager.CliTools`: Helper library for interacting with external command line tools.
 
+### Opencode Specific Instructions
+- Do not use the `edit` tool to modify code.
+- Instead, use the `write` tool for all code changes.

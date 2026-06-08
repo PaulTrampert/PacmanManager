@@ -25,6 +25,14 @@ public interface IRepositoryService
     Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Retrieves the file stream for a repository by its ID.
+    /// </summary>
+    /// <param name="id">The ID of the repository.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>A stream to the repository file if found; otherwise, null.</returns>
+    Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves the file stream for a repository by its name.
     /// </summary>
     /// <param name="name">The name of the repository.</param>
@@ -48,4 +56,3 @@ public interface IRepositoryService
     /// <returns>A paginated response containing repositories.</returns>
     Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default);
 }
-
