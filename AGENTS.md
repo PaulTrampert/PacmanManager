@@ -26,7 +26,7 @@ For .NET projects, checking for compilation errors via `dotnet build` serves as 
 
 ## Infrastructure and Environment
 
-The system relies on Docker Compose for its full stack. Use `docker compose up -d` to start the required services.
+The system relies on Docker Compose for its full stack. Use `docker compose up -d --build` to start the required services.
 
 ### Services
 - **pacmanmanager.repohost**: The primary application service.
