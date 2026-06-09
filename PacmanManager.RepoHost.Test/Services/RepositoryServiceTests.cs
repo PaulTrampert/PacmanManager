@@ -91,6 +91,7 @@ public class RepositoryServiceTests
         var repository = new PacmanRepository 
         { 
             Id = repoId, 
+            OwnerId = "unknown",
             Name = "existing-id-repo", 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
@@ -131,6 +132,7 @@ public class RepositoryServiceTests
         var repository = new PacmanRepository 
         { 
             Id = Guid.NewGuid(), 
+            OwnerId = "unknown",
             Name = repoName, 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
@@ -159,6 +161,7 @@ public class RepositoryServiceTests
         var repository = new PacmanRepository 
         { 
             Id = repoId, 
+            OwnerId = "unknown",
             Name = repoName, 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
@@ -187,6 +190,7 @@ public class RepositoryServiceTests
         var repository = new PacmanRepository
         {
             Id = repoId,
+            OwnerId = "unknown",
             Name = "existing-id-file-repo",
             Architecture = "x86_64",
             CreatedAt = now,
@@ -259,9 +263,9 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsPaginatedResults_WithFiltering()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
-        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
         
         await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
         await _dbContext.SaveChangesAsync();
@@ -284,9 +288,9 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_AppliesOffsetAndPageSize()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
-        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
         
         await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
         await _dbContext.SaveChangesAsync();
@@ -310,7 +314,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsEmpty_WhenOffsetIsAtOrBeyondTotal()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
         await _dbContext.PacmanRepositories.AddAsync(repo1);
         await _dbContext.SaveChangesAsync();
 
@@ -331,7 +335,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_HandlesEmptySearchTerm()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
         await _dbContext.PacmanRepositories.AddAsync(repo1);
         await _dbContext.SaveChangesAsync();
 
@@ -352,7 +356,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_HandlesNullSearchTerm()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), OwnerId = "unknown", Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
         await _dbContext.PacmanRepositories.AddAsync(repo1);
         await _dbContext.SaveChangesAsync();
 
@@ -378,6 +382,7 @@ public class RepositoryServiceTests
         {
             Id = repoId,
             Name = "original-name",
+            OwnerId = "unknown", 
             Architecture = "x86_64",
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow

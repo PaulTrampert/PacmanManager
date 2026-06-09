@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PacmanManager.Entities;
 
-[Index(nameof(Name), nameof(Architecture), IsUnique = true)]
+[Index(nameof(OwnerId),  nameof(Name), nameof(Architecture), IsUnique = true)]
 public record PacmanRepository
 {
     [Key]
@@ -17,6 +17,12 @@ public record PacmanRepository
     [Required]
     [MaxLength(PacmanRepositoryValidationConstants.ArchitectureMaxLength)]
     public required string Architecture { get; set; } = "x86_64";
+
+    [Required]
+    [MaxLength(PacmanRepositoryValidationConstants.NameMaxLength)]
+    public required string OwnerId { get; set; }
+    
+    public bool IsPublic { get; set; }
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     

@@ -63,6 +63,7 @@ internal class RepositoryService(
         {
             Id = Guid.CreateVersion7(),
             Name = request.Name,
+            OwnerId = "unknown", // TODO: set the real owner
             Architecture = request.Architecture,
             CreatedAt = now,
             UpdatedAt = now,
