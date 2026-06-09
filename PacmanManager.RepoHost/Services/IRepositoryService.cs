@@ -49,6 +49,15 @@ public interface IRepositoryService
     Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates an existing repository.
+    /// </summary>
+    /// <param name="id">The ID of the repository to update.</param>
+    /// <param name="update">The update request containing new details.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The updated repository, or null if not found.</returns>
+    Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves a paginated list of repositories.
     /// </summary>
     /// <param name="paginationParams">The pagination parameters.</param>

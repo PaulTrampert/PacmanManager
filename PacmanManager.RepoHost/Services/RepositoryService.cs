@@ -90,6 +90,23 @@ internal class RepositoryService(
         return Repository.FromPacmanRepository(repository);
     }
 
+    public async Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default)
+    {
+        var repository = await dbContext.PacmanRepositories.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (repository is null)
+        {
+            return null;
+        }
+
+        repository.Name = update.Name;
+        repository.Architecture = update.Architecture;
+        repository.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Repository.FromPacmanRepository(repository);
+    }
+
     public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default)
     {
         var query = dbContext.PacmanRepositories.AsNoTracking();
