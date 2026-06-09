@@ -1,6 +1,7 @@
 ---
 description: Implement a GitHub issue by number
-agent: general
+agent: build
+subtask: false
 ---
 Implement the fixes or features described in GitHub issue [#$ARGUMENTS](https://github.com/PaulTrampert/PrivatePacmanRepo/issues/$ARGUMENTS).
 
