@@ -12,13 +12,13 @@ public record PacmanRepository
     [Required]
     [MaxLength(PacmanRepositoryValidationConstants.NameMaxLength)]
     [MinLength(PacmanRepositoryValidationConstants.NameMinLength)]
-    public required string Name { get; init; }
+    public required string Name { get; set; }
     
     [Required]
     [MaxLength(PacmanRepositoryValidationConstants.ArchitectureMaxLength)]
-    public string Architecture { get; init; } = "x86_64";
-    
+    public required string Architecture { get; set; } = "x86_64";
+
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     
-    public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

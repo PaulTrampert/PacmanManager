@@ -208,39 +208,39 @@ public class RepositoryControllerTests
     #region Update Tests
 
     [Test]
-    public async Task Update_WithNonExistentName_ReturnsNotFound()
+    public async Task Update_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var name = "non-existent-repo";
+        var id = Guid.NewGuid();
         var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
+        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{id}", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public async Task Update_WithValidName_ReturnsOkResult()
+    public async Task Update_WithValidId_ReturnsOkResult()
     {
-        // This test will be updated when repository storage is implemented
         // Arrange
-        var name = "test-repo";
         var request = new WriteRepositoryRequest
         {
             Name = "updated-name"
         };
+        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var repository = await response.Content.ReadFromJsonAsync<Repository>();
+        var id = repository!.Id;
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{name}", request);
+        var updateResponse = await _client.PutAsJsonAsync($"/api/v1/repository/{id}", request);
 
         // Assert
-        // Currently returns NotFound until storage is implemented
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(updateResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
     #endregion
