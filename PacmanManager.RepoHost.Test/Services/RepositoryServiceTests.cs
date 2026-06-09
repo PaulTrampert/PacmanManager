@@ -71,16 +71,16 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.CreateRepositoryAsync(request);
 
-        // Assert
-        Assert.Multiple(() =>
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("new-repo"));
-            Assert.That(result.Architecture, Is.EqualTo("x86_64"));
-            
-            var dbRepo = _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo").GetAwaiter().GetResult();
-            Assert.That(dbRepo, Is.Not.Null);
-        });
+            // Assert
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result!.Name, Is.EqualTo("new-repo"));
+                Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+                
+                var dbRepo = _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo").GetAwaiter().GetResult();
+                Assert.That(dbRepo, Is.Not.Null);
+            });
     }
 
     [Test]
@@ -370,25 +370,59 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_ReturnsCorrectTotalCountWithFiltering()
+    public async Task UpdateRepositoryAsync_ReturnsUpdatedRepository_WhenExists()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2);
+        var repoId = Guid.NewGuid();
+        var repository = new PacmanRepository
+        {
+            Id = repoId,
+            Name = "original-name",
+            Architecture = "x86_64",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
 
-        var paginationParams = new PaginationParams { SearchTerm = "repo-a", Offset = 0, PageSize = 10 };
+        var updateRequest = new WriteRepositoryRequest
+        {
+            Name = "updated-name",
+            Architecture = "arm64"
+        };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.UpdateRepositoryAsync(repoId, updateRequest);
 
         // Assert
-        Assert.Multiple(() =>
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.That(result.Total, Is.EqualTo(1));
-            Assert.That(result.Results.First().Name, Is.EqualTo("repo-a"));
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Name, Is.EqualTo("updated-name"));
+            Assert.That(result.Architecture, Is.EqualTo("arm64"));
+
+            var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Id == repoId);
+            Assert.That(dbRepo.Name, Is.EqualTo("updated-name"));
+            Assert.That(dbRepo.Architecture, Is.EqualTo("arm64"));
         });
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_ReturnsNull_WhenRepositoryDoesNotExist()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        var updateRequest = new WriteRepositoryRequest
+        {
+            Name = "non-existent",
+            Architecture = "x86_64"
+        };
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(repoId, updateRequest);
+
+        // Assert
+        Assert.That(result, Is.Null);
     }
 
     private int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
