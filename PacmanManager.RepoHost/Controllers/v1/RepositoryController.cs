@@ -67,19 +67,26 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     /// <summary>
     /// Update an existing repository.
     /// </summary>
-    /// <param name="name">Repository name.</param>
+    /// <param name="id">Repository ID.</param>
     /// <param name="request">Repository update request.</param>
+    /// <param name="ct">Cancellation Token</param>
     /// <returns>The updated repository.</returns>
-    [HttpPut("{name}")]
+    [HttpPut("{id}")]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<Repository> Update(string name, [FromBody] WriteRepositoryRequest request)
+    public async Task<ActionResult<Repository>> Update(Guid id, [FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
-        logger.LogInformation("Updating repository {RepositoryName}", name);
-        
-        // TODO: Implement repository update
-        return NotFound();
+        logger.LogInformation("Updating repository {RepositoryId}", id);
+
+        var result = await repositoryService.UpdateRepositoryAsync(id, request, ct);
+
+        if (result == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
     }
 
     /// <summary>

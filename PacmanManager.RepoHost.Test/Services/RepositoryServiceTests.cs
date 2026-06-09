@@ -71,16 +71,16 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.CreateRepositoryAsync(request);
 
-            // Assert
-            Assert.Multiple(() =>
-            {
-                Assert.That(result, Is.Not.Null);
-                Assert.That(result!.Name, Is.EqualTo("new-repo"));
-                Assert.That(result.Architecture, Is.EqualTo("x86_64"));
-                
-                var dbRepo = _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo").GetAwaiter().GetResult();
-                Assert.That(dbRepo, Is.Not.Null);
-            });
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Name, Is.EqualTo("new-repo"));
+            Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+            
+            var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo");
+            Assert.That(dbRepo, Is.Not.Null);
+        });
     }
 
     [Test]
