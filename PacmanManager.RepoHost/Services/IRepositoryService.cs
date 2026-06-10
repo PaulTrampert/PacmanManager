@@ -43,10 +43,12 @@ public interface IRepositoryService
     /// <summary>
     /// Creates a new repository.
     /// </summary>
+    /// <param name="ownerId"></param>
     /// <param name="request">The request object containing repository details.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The newly created repository.</returns>
-    Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default);
+    Task<Repository> CreateRepositoryAsync(string ownerId, WriteRepositoryRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates an existing repository.

@@ -59,7 +59,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     {
         logger.LogInformation("Creating repository {RepositoryName}", request.Name);
 
-        var result = await repositoryService.CreateRepositoryAsync(request, ct);
+        var result = await repositoryService.CreateRepositoryAsync(User.Identity.Name, request, ct);
         
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }

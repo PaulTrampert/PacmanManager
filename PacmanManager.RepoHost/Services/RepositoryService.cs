@@ -55,7 +55,8 @@ internal class RepositoryService(
         return fileSystem.OpenRead(repoFileName);
     }
 
-    public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
+    public async Task<Repository> CreateRepositoryAsync(string ownerId, WriteRepositoryRequest request,
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -63,7 +64,7 @@ internal class RepositoryService(
         {
             Id = Guid.CreateVersion7(),
             Name = request.Name,
-            OwnerId = "unknown", // TODO: set the real owner
+            OwnerId = ownerId,
             Architecture = request.Architecture,
             CreatedAt = now,
             UpdatedAt = now,

@@ -69,7 +69,7 @@ public class RepositoryServiceTests
             .ReturnsAsync(0);
 
         // Act
-        var result = await _service.CreateRepositoryAsync(request);
+        var result = await _service.CreateRepositoryAsync("abc123", request);
 
         // Assert
         await Assert.MultipleAsync(async () =>
@@ -235,7 +235,7 @@ public class RepositoryServiceTests
         // Act & Assert
         Assert.Multiple(() =>
         {
-            Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
+            Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync("abc123", request));
             _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))), Times.Once);
         });
     }

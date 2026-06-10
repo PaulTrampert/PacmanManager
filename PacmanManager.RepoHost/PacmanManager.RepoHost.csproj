@@ -35,4 +35,8 @@
       <ProjectReference Include="..\PacmanManager.Entities\PacmanManager.Entities.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Authorization\" />
+    </ItemGroup>
+
 </Project>
