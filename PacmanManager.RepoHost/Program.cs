@@ -7,6 +7,7 @@ using LibAlpmSharp.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost;
@@ -70,6 +71,7 @@ try
             opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
+    JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer();
     builder.Services.AddAuthorization();
@@ -114,7 +116,7 @@ try
                 opts.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
                     description.GroupName.ToUpperInvariant());
 
-            opts.OAuthClientId(swaggerConfig.SwaggerClientId ?? "budgy-swagger");
+            opts.OAuthClientId(swaggerConfig.SwaggerClientId ?? "pacman-manager-swagger");
             opts.OAuthUsePkce();
             opts.EnablePersistAuthorization();
         });
