@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace PacmanManager.Entities;
 
+[Index(nameof(ExternalAuthority), nameof(ExternalId), IsUnique = true)]
 public record ExternalProviderUserMapping
 {
     public Guid Id { get; init; } = Guid.CreateVersion7();
