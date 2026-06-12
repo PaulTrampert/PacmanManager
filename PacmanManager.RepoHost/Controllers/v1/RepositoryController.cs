@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
@@ -55,6 +56,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     [HttpPost]
     [ProducesResponseType(typeof(Repository), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Authorize]
     public async Task<ActionResult<Repository>> Create([FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
         logger.LogInformation("Creating repository {RepositoryName}", request.Name);
@@ -75,6 +77,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     [ProducesResponseType(typeof(Repository), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Authorize]
     public async Task<ActionResult<Repository>> Update(Guid id, [FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
         logger.LogInformation("Updating repository {RepositoryId}", id);
@@ -97,6 +100,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     [HttpDelete("{name}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Authorize]
     public ActionResult Delete(string name)
     {
         logger.LogInformation("Deleting repository {RepositoryName}", name);
