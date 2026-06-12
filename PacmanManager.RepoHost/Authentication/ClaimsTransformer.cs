@@ -15,23 +15,23 @@ public class ClaimsTransformer(IUserService userService) : IClaimsTransformation
             return principal;
         }
         
-        var subject = principal.Claims.Single(c => c.Type == AuthnConstants.SubClaimType);
-        var authority = principal.Claims.Single(c => c.Type == AuthnConstants.AuthorityClaimType);
-        var email = principal.Claims.Single(c => c.Type == AuthnConstants.EmailClaimType);
-        var name = principal.Claims.Single(c => c.Type == AuthnConstants.DisplayNameClaimType);
+         var subject = principal.Claims.FirstOrDefault(c => c.Type == AuthnConstants.SubClaimType);
+         var authority = principal.Claims.FirstOrDefault(c => c.Type == AuthnConstants.AuthorityClaimType);
+         var email = principal.Claims.FirstOrDefault(c => c.Type == AuthnConstants.EmailClaimType);
+         var name = principal.Claims.FirstOrDefault(c => c.Type == AuthnConstants.DisplayNameClaimType);
 
-        var user = await userService.GetUserByExternalIdAsync(authority.Value, subject.Value);
-        if (user == null)
-        {
-            user = await userService.GetUserByEmailAsync(email.Value) ?? await userService.CreateUserAsync(new User
-            {
-                DisplayName = name.Value,
-                Email = email.Value
-            });
-            await userService.LinkToIdentityAsync(user, authority.Value, subject.Value);
-        }
+         if (subject == null || authority == null || email == null)
+         {
+             return principal;
+         }
 
-        identity.AddClaim(new  Claim(AuthnConstants.AppUserIdClaimType, user.Id.ToString()));
-        return principal;
+         var user = await userService.GetUserByExternalIdAsync(authority.Value, subject.Value);
+         if (user == null)
+         {
+             user = await userService.EnsureUserLinkedAsync(email.Value, name?.Value ?? string.Empty, authority.Value, subject.Value);
+         }
+
+         identity.AddClaim(new Claim(AuthnConstants.AppUserIdClaimType, user.Id.ToString()));
+         return principal;
     }
 }
