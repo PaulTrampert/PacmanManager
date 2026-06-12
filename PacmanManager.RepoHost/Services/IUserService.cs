@@ -13,4 +13,6 @@ public interface IUserService
         string authority, 
         string subject,
         CancellationToken ct = default);
+
+    Task<User> EnsureUserLinkedAsync(string email, string displayName, string authority, string subject, CancellationToken ct = default);
 }
