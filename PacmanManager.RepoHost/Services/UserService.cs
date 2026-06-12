@@ -3,8 +3,13 @@ using PacmanManager.Entities;
 
 namespace PacmanManager.RepoHost.Services;
 
-public class UserService(PacmanManagerDbContext dbContext, ILogger<UserService> logger) : IUserService
+/// <summary>
+/// Implementation of <see cref="IUserService"/> for managing users and their identity links.
+/// </summary>
+/// <param name="dbContext">The database context used for user and mapping operations.</param>
+public class UserService(PacmanManagerDbContext dbContext) : IUserService
 {
+    /// <inheritdoc />
     public Task<User?> GetUserByExternalIdAsync(string authority, string subject, CancellationToken ct = default)
     {
         return dbContext.UserMappings
@@ -13,6 +18,7 @@ public class UserService(PacmanManagerDbContext dbContext, ILogger<UserService> 
             .SingleOrDefaultAsync(ct);
     }
 
+    /// <inheritdoc />
     public Task<User?> GetUserByEmailAsync(string email, CancellationToken ct = default)
     {
         return dbContext.Users
@@ -20,6 +26,7 @@ public class UserService(PacmanManagerDbContext dbContext, ILogger<UserService> 
             .SingleOrDefaultAsync(ct);
     }
 
+    /// <inheritdoc />
     public async Task<User> CreateUserAsync(User user, CancellationToken ct = default)
     {
         var result = await dbContext.Users.AddAsync(user, ct);
@@ -27,6 +34,7 @@ public class UserService(PacmanManagerDbContext dbContext, ILogger<UserService> 
         return result.Entity;
     }
 
+    /// <inheritdoc />
     public async Task<User> LinkToIdentityAsync(
         User user, 
         string authority, 
@@ -45,6 +53,7 @@ public class UserService(PacmanManagerDbContext dbContext, ILogger<UserService> 
         return user;
     }
 
+    /// <inheritdoc />
     public async Task<User> EnsureUserLinkedAsync(string email, string displayName, string authority, string subject, CancellationToken ct = default)
     {
         using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
