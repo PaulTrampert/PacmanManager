@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using PacmanManager.Entities;
 using PacmanManager.RepoHost.Services;
 
 namespace PacmanManager.RepoHost.Authentication;
