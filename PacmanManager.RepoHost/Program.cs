@@ -4,6 +4,7 @@ using Asp.Versioning;
 using Asp.Versioning.Conventions;
 using LibAlpmSharp;
 using LibAlpmSharp.Config;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost;
+using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Services;
@@ -46,7 +48,8 @@ try
         .AddCliOutputLogger();
 
     builder.Services.AddSingleton<IFileSystem, PhysicalFileSystem>();
-    
+
+    builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
 
     builder.Services.AddApiVersioning(opts =>
@@ -74,6 +77,7 @@ try
     JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer();
+    builder.Services.AddScoped<IClaimsTransformation, ClaimsTransformer>();
     builder.Services.AddAuthorization();
 
     builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
