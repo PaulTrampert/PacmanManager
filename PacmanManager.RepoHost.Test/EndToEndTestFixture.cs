@@ -15,6 +15,7 @@ public class EndToEndTestFixture : IAsyncDisposable
 {
     private INetwork? _testNetwork;
     private DatabaseContainer? _dbContainer;
+    public KeycloakContainer? AuthContainer { get; private set; }
     private IContainer? _apiContainer;
     private HttpClient? _httpClient;
 
@@ -75,12 +76,15 @@ public class EndToEndTestFixture : IAsyncDisposable
             await Task.WhenAll(apiImage.CreateAsync(), migrationImage.CreateAsync());
 
             _dbContainer = new DatabaseContainer(_testNetwork);
+            AuthContainer = new KeycloakContainer(_testNetwork, solutionDirectory);
             
-            await _dbContainer.StartAsync(migrationImage);
+            await Task.WhenAll(_dbContainer.StartAsync(migrationImage), AuthContainer.StartAsync());
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
+                .WithEnvironment("Auth__Authority", AuthContainer.Authority)
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
