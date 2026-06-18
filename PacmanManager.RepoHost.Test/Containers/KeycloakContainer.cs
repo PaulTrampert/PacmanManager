@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json.Serialization;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
@@ -20,12 +21,16 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
     private const string DefaultHostname = "keycloak";
     private readonly ILogger _logger = new TestOutputLogger(nameof(KeycloakContainer));
 
-    private readonly IContainer _container = new ContainerBuilder(new DockerImage("quay.io/keycloak/keycloak:24.0.1"))
+    private readonly IContainer _container = new ContainerBuilder(new DockerImage("quay.io/keycloak/keycloak"))
         .WithNetwork(network)
         .WithNetworkAliases(hostname ?? DefaultHostname)
         .WithBindMount(Path.Combine(solutionRoot, "keycloak/localdev.json"), "/opt/keycloak/data/import/localdev.json")
+        .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
+        .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
+        .WithEnvironment("KC_HOSTNAME", "http://localhost:8080")
+        .WithEnvironment("KC_HOSTNAME_BACKCHANNEL_DYNAMIC", "true")
         .WithCommand("start-dev", "--import-realm")
-        .WithPortBinding(8080, true)
+        .WithPortBinding(8080, false)
         .WithWaitStrategy(Wait.ForUnixContainer()
             .UntilHttpRequestIsSucceeded(r => r
                 .ForPort(8080)
@@ -104,5 +109,9 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
         Client.Dispose();
     }
 
-    private record KeycloakTokenResponse(string AccessToken);
+    private record KeycloakTokenResponse
+    {
+        [JsonPropertyName("access_token")] 
+        public required string AccessToken { get; init; }
+    }
 }
