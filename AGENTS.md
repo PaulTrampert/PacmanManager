@@ -47,4 +47,4 @@ The system relies on Docker Compose for its full stack. Use `docker compose up -
 - *NEVER* commit directly to `main`. Always commit to a branch.
 
 ### Opencode Specific Instructions
-- Be extremely precise using the `edit` tool. The `beforeString` must match the target site *exactly*.
+- Be extremely precise using the `edit` tool. The `oldString` must match the target site *exactly*.
