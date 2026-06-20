@@ -33,6 +33,7 @@ public class DatabaseContainer(INetwork network, string? hostname = null) : IAsy
     public const string Username = "pacmanmanager";
     public const string Password = "password";
     public string ConnectionString => $"Server={Hostname};User Id={Username};Password={Password};";
+    public string LocalConnectionString => $"Server=localhost:{_container.GetMappedPublicPort(5432)};User Id={Username};Password={Password};";
 
     public async Task StartAsync(IImage migrationsImage)
     {
