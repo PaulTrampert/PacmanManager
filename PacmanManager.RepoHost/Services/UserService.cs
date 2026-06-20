@@ -56,7 +56,7 @@ public class UserService(PacmanManagerDbContext dbContext) : IUserService
     /// <inheritdoc />
     public async Task<User> EnsureUserLinkedAsync(string email, string displayName, string authority, string subject, CancellationToken ct = default)
     {
-        using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         try
         {
             var user = await GetUserByEmailAsync(email, ct);
