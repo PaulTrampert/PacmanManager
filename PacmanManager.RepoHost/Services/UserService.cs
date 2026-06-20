@@ -81,7 +81,7 @@ public class UserService(PacmanManagerDbContext dbContext) : IUserService
             await transaction.CommitAsync(ct);
             return user;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync(ct);
             throw;

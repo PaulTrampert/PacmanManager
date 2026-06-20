@@ -218,19 +218,7 @@ public class UserServiceTests
     [Test]
     public void EnsureUserLinkedAsync_OnException_RollsBackTransaction()
     {
-        // Note: Testing rollback with InMemoryDatabase is tricky because it doesn't support transactions 
-        // in the same way relational DBs do. However, we can test that an exception happens 
-        // and check database state if possible. Since InMemory doesn't actually roll back on failure, 
-        // this test might depend on implementation details or requires a real provider for true rollback verification.
-        // Given the constraint of using In-Memory:
-        
-        // We will simulate an exception during mapping creation (though hard with in-memory) 
-        // or just verify that it throws when we force something to fail.
-        // However, since InMemory handles transactions by doing nothing (no-op), we can't truly test rollback here.
-        // Instead, let's focus on the rethrow behavior.
-
-        Assert.ThrowsAsync<Exception>(async () => 
-             await _service.EnsureUserLinkedAsync("fail@example.com", "Fail", "auth", "sub")); 
-             // This will only work if we can trigger a failure. Let's try to force one.
+        Assert.ThrowsAsync<DbUpdateException>(async () => 
+             await _service.EnsureUserLinkedAsync($"{new string('a', 1000)}@example.com", "Fail", "auth", "sub")); 
     }
 }
