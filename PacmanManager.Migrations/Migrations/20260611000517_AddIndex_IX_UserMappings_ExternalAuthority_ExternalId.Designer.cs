@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PacmanManager.Entities;
@@ -11,9 +12,11 @@ using PacmanManager.Entities;
 namespace PacmanManager.Migrations.Migrations
 {
     [DbContext(typeof(PacmanManagerDbContext))]
-    partial class PacmanManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260611000517_AddIndex_IX_UserMappings_ExternalAuthority_ExternalId")]
+    partial class AddIndex_IX_UserMappings_ExternalAuthority_ExternalId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

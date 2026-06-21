@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PacmanManager.Entities;
@@ -11,9 +12,11 @@ using PacmanManager.Entities;
 namespace PacmanManager.Migrations.Migrations
 {
     [DbContext(typeof(PacmanManagerDbContext))]
-    partial class PacmanManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610200747_AddTable_Users")]
+    partial class AddTable_Users
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,33 +24,6 @@ namespace PacmanManager.Migrations.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("PacmanManager.Entities.ExternalProviderUserMapping", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ExternalAuthority")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ExternalId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ExternalAuthority", "ExternalId")
-                        .IsUnique();
-
-                    b.ToTable("UserMappings");
-                });
 
             modelBuilder.Entity("PacmanManager.Entities.PacmanRepository", b =>
                 {
@@ -101,17 +77,6 @@ namespace PacmanManager.Migrations.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
-                });
-
-            modelBuilder.Entity("PacmanManager.Entities.ExternalProviderUserMapping", b =>
-                {
-                    b.HasOne("PacmanManager.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 #pragma warning restore 612, 618
         }

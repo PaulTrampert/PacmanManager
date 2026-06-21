@@ -15,6 +15,7 @@ public class EndToEndTestFixture : IAsyncDisposable
 {
     private INetwork? _testNetwork;
     private DatabaseContainer? _dbContainer;
+    public KeycloakContainer? AuthContainer { get; private set; }
     private IContainer? _apiContainer;
     private HttpClient? _httpClient;
 
@@ -45,7 +46,7 @@ public class EndToEndTestFixture : IAsyncDisposable
         try
         {
             // Find the solution directory by searching upwards for the .sln file
-            var solutionDirectory = FindSolutionDirectory();
+            var solutionDirectory = DirUtils.FindSolutionDirectory();
             logger.LogInformation($"Building Docker image from: {solutionDirectory}");
 
             _testNetwork = new NetworkBuilder()
@@ -75,12 +76,15 @@ public class EndToEndTestFixture : IAsyncDisposable
             await Task.WhenAll(apiImage.CreateAsync(), migrationImage.CreateAsync());
 
             _dbContainer = new DatabaseContainer(_testNetwork);
+            AuthContainer = new KeycloakContainer(_testNetwork, solutionDirectory);
             
-            await _dbContainer.StartAsync(migrationImage);
+            await Task.WhenAll(_dbContainer.StartAsync(migrationImage), AuthContainer.StartAsync());
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
+                .WithEnvironment("Auth__Authority", AuthContainer.Authority)
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
@@ -136,29 +140,5 @@ public class EndToEndTestFixture : IAsyncDisposable
         }
 
         GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Finds the solution directory by searching upwards from the current directory for a .sln file.
-    /// </summary>
-    /// <returns>The path to the solution directory.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the solution directory cannot be found.</exception>
-    private static string FindSolutionDirectory()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory != null)
-        {
-            // Check if this directory contains a .sln file
-            if (directory.GetFiles("*.sln").Length > 0)
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException(
-            "Could not find solution directory. Searched upwards from: " + AppContext.BaseDirectory);
     }
 }

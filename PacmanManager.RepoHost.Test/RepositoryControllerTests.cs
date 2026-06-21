@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using PacmanManager.RepoHost.Models;
 
@@ -20,6 +21,9 @@ public class RepositoryControllerTests
         _fixture = new EndToEndTestFixture();
         await _fixture.StartAsync();
         _client = _fixture.HttpClient;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            await _fixture.AuthContainer!.GetBearerTokenAsync(_fixture.AuthContainer.DefaultCredentials));
     }
 
     [OneTimeTearDown]
