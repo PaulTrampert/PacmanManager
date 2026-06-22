@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PacmanManager.Entities;
 
-[Index(nameof(Name), nameof(Architecture), IsUnique = true)]
+[Index(nameof(OwnerId), nameof(Name), nameof(Architecture), IsUnique = true)]
 public record PacmanRepository
 {
     [Key]
@@ -13,6 +13,11 @@ public record PacmanRepository
     [MaxLength(PacmanRepositoryValidationConstants.NameMaxLength)]
     [MinLength(PacmanRepositoryValidationConstants.NameMinLength)]
     public required string Name { get; set; }
+    
+    [Required]
+    public Guid OwnerId { get; set; }
+    
+    public virtual User Owner { get; set; }
     
     [Required]
     [MaxLength(PacmanRepositoryValidationConstants.ArchitectureMaxLength)]
