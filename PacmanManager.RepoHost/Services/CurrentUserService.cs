@@ -14,7 +14,7 @@ namespace PacmanManager.RepoHost.Services
     public class CurrentUserService(IHttpContextAccessor httpContext, PacmanManagerDbContext dbContext, ILogger<CurrentUserService> logger) : ICurrentUserService
     {
         /// <inheritdoc />
-        public Task<User?> GetCurrentUserAsync()
+        public Task<User?> GetCurrentUserAsync(CancellationToken ct = default)
         {
             var userIdClaim = httpContext.HttpContext?.User.Claims
                 .SingleOrDefault(c => c.Type == AuthnConstants.AppUserIdClaimType);
@@ -26,16 +26,17 @@ namespace PacmanManager.RepoHost.Services
 
             if (!Guid.TryParse(userIdClaim.Value, out var userId))
             {
-                logger.LogWarning("Could not parse user id from {@UserIdClaimValue}", userIdClaim.Value);
+                logger.LogWarning("Could not parse user id from '{@UserIdClaimValue}'", userIdClaim.Value);
+                return Task.FromResult<User?>(null);
             }
 
-            return dbContext.Users.SingleOrDefaultAsync(u => u.Id == userId);
+            return dbContext.Users.SingleOrDefaultAsync(u => u.Id == userId, ct);
         }
 
         /// <inheritdoc />
-        public async Task<User> RequireCurrentUserAsync()
+        public async Task<User> RequireCurrentUserAsync(CancellationToken ct = default)
         {
-            var user = await GetCurrentUserAsync();
+            var user = await GetCurrentUserAsync(ct);
         
             return user ?? throw new NoCurrentUserException();
         }

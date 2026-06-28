@@ -1,9 +1,12 @@
+using System.Security.Claims;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using PacmanManager.Entities;
+using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
@@ -18,10 +21,12 @@ public class CurrentUserServiceTests
     private Mock<IHttpContextAccessor> _mockContext;
 
     private PacmanManagerDbContext _dbContext;
-
+    
     private TestOutputLogger<CurrentUserService> _logger;
 
     private CurrentUserService _subject;
+
+    private Guid _existingUserId;
 
     [OneTimeSetUp]
     public async Task OneTimeSetup()
@@ -38,6 +43,12 @@ public class CurrentUserServiceTests
                 .Build();
         await migrationsImage.CreateAsync();
         await _database.StartAsync(migrationsImage);
+
+        var existingUser = new User
+        {
+            Email = "test@example.com",
+            DisplayName = "Test User"
+        };
     }
 
     [OneTimeTearDown]
@@ -50,5 +61,68 @@ public class CurrentUserServiceTests
     [SetUp]
     public void Setup()
     {
+        var optionsBuilder = new DbContextOptionsBuilder<PacmanManagerDbContext>();
+        optionsBuilder.UseNpgsql(_database.LocalConnectionString);
+        _dbContext = new PacmanManagerDbContext(optionsBuilder.Options);
+
+        _mockContext = new Mock<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext();
+        _mockContext.Setup(x => x.HttpContext).Returns(httpContext);
+
+        _logger = new TestOutputLogger<CurrentUserService>();
+        _subject = new CurrentUserService(_mockContext.Object, _dbContext, _logger);
+    }
+
+    [TearDown]
+    public async Task TearDown()
+    {
+        await _dbContext.DisposeAsync();
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenNoUserIdClaim_ReturnsNull()
+    {
+        var result = await _subject.GetCurrentUserAsync();
+        
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenNoUser_LogsThatThereIsNoUserIdClaim()
+    {
+        await _subject.GetCurrentUserAsync();
+
+        var logEvent = _logger.LogEvents.Single(l => l.Message == "No userIdClaim found.");
+        Assert.That(logEvent.LogLevel, Is.EqualTo(LogLevel.Warning));
+    }
+    
+    [Test]
+    public async Task GetCurrentUserAsync_WhenUserIdClaimCannotBeParsed_ReturnsNull()
+    {
+        _mockContext.SetupGet(c => c.HttpContext)
+            .Returns(new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(AuthnConstants.AppUserIdClaimType, "abc")]))
+            });
+        
+        var result = await _subject.GetCurrentUserAsync();
+        
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenUserIdClaimCannotBeParsed_LogsThatThereIsNoUserIdClaim()
+    {
+        _mockContext.SetupGet(c => c.HttpContext)
+            .Returns(new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(AuthnConstants.AppUserIdClaimType, "abc")]))
+            });
+        
+        await _subject.GetCurrentUserAsync();
+
+        var logEvent = _logger.LogEvents.Single(l => l.Message == "Could not parse user id from 'abc'");
+        
+        Assert.That(logEvent.LogLevel, Is.EqualTo(LogLevel.Warning));
     }
 }

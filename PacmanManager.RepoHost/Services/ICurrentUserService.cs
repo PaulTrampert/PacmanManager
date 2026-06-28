@@ -12,12 +12,12 @@ public interface ICurrentUserService
     /// Get the current user, or null if there is none.
     /// </summary>
     /// <returns>The current user, or null if there is none.</returns>
-    Task<User?> GetCurrentUserAsync();
+    Task<User?> GetCurrentUserAsync(CancellationToken ct = default);
     
     /// <summary>
     /// Get the current user, or throw if there is none.
     /// </summary>
     /// <returns>The current user.</returns>
     /// <exception cref="NoCurrentUserException">Thrown if there is no current user.</exception>
-    Task<User> RequireCurrentUserAsync();
+    Task<User> RequireCurrentUserAsync(CancellationToken ct = default);
 }
