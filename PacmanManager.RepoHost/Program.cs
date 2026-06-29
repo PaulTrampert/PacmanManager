@@ -51,6 +51,7 @@ try
 
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
+    builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
     builder.Services.AddApiVersioning(opts =>
         {
