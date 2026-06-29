@@ -26,7 +26,7 @@ public class CurrentUserServiceTests
 
     private CurrentUserService _subject;
 
-    private Guid _existingUserId;
+    private User _existingUser;
 
     [OneTimeSetUp]
     public async Task OneTimeSetup()
@@ -49,6 +49,13 @@ public class CurrentUserServiceTests
             Email = "test@example.com",
             DisplayName = "Test User"
         };
+        
+        var optionsBuilder = new DbContextOptionsBuilder<PacmanManagerDbContext>();
+        optionsBuilder.UseNpgsql(_database.LocalConnectionString);
+        await using var dbContext = new PacmanManagerDbContext(optionsBuilder.Options);
+
+        _existingUser = (await dbContext.Users.AddAsync(existingUser)).Entity;
+        await dbContext.SaveChangesAsync();
     }
 
     [OneTimeTearDown]
@@ -124,5 +131,33 @@ public class CurrentUserServiceTests
         var logEvent = _logger.LogEvents.Single(l => l.Message == "Could not parse user id from 'abc'");
         
         Assert.That(logEvent.LogLevel, Is.EqualTo(LogLevel.Warning));
+    }
+    
+    [Test]
+    public async Task GetCurrentUserAsync_WhenUserIdClaimExists_ReturnsExistingUser()
+    {
+        _mockContext.SetupGet(c => c.HttpContext)
+            .Returns(new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(AuthnConstants.AppUserIdClaimType, _existingUser.Id.ToString())]))
+            });
+        
+        var result = await _subject.GetCurrentUserAsync();
+        
+        Assert.That(result, Is.EqualTo(_existingUser));
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenUserIdClaimExists_NothingIsLogged()
+    {
+        _mockContext.SetupGet(c => c.HttpContext)
+            .Returns(new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(AuthnConstants.AppUserIdClaimType, _existingUser.Id.ToString())]))
+            });
+        
+        await _subject.GetCurrentUserAsync();
+
+        Assert.That(_logger.LogEvents.Any(), Is.False);
     }
 }
