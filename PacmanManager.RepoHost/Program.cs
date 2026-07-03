@@ -48,6 +48,7 @@ try
         .AddCliOutputLogger();
 
     builder.Services.AddSingleton<IFileSystem, PhysicalFileSystem>();
+    builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
