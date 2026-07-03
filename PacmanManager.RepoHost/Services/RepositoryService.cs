@@ -12,6 +12,7 @@ namespace PacmanManager.RepoHost.Services;
 internal class RepositoryService(
     PacmanManagerDbContext dbContext, 
     ICliToolRunner cliRunner, 
+    ICurrentUserService currentUserService,
     IOptionsSnapshot<PacmanConfigSettings> pacmanSettings, 
     ILogger<RepositoryService> logger,
     IFileSystem fileSystem) : IRepositoryService
@@ -58,6 +59,7 @@ internal class RepositoryService(
     public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
+        var currentUser = await currentUserService.RequireCurrentUserAsync(cancellationToken);
 
         var repository = new PacmanRepository
         {
@@ -66,6 +68,7 @@ internal class RepositoryService(
             Architecture = request.Architecture,
             CreatedAt = now,
             UpdatedAt = now,
+            OwnerId = currentUser.Id
         };
         
         try

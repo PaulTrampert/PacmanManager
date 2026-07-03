@@ -11,6 +11,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 using NUnit.Framework;
+using PacmanManager.RepoHost.Exceptions;
 
 namespace PacmanManager.RepoHost.Test.Services;
 
@@ -20,10 +21,12 @@ public class RepositoryServiceTests
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private Mock<ICliToolRunner> _mockCliRunner;
     private Mock<IOptionsSnapshot<PacmanConfigSettings>> _mockPacmanSettings;
+    private Mock<ICurrentUserService> _mockCurrentUserService;
     private TestOutputLogger<RepositoryService> _logger;
     private Mock<IFileSystem> _mockFileSystem;
     private PacmanManagerDbContext _dbContext;
     private RepositoryService _service;
+    private User _existingUser;
 
     [SetUp]
     public void SetUp()
@@ -33,8 +36,18 @@ public class RepositoryServiceTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
+        var user = new User
+        {
+            DisplayName = "tester",
+            Email = "test@test.com"
+        };
+        _existingUser = _dbContext.Add(user).Entity;
+        _dbContext.SaveChanges();
 
         _mockCliRunner = new Mock<ICliToolRunner>();
+        _mockCurrentUserService = new Mock<ICurrentUserService>();
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ThrowsAsync(new NoCurrentUserException());
         _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 
@@ -48,6 +61,7 @@ public class RepositoryServiceTests
         _service = new RepositoryService(
             _dbContext,
             _mockCliRunner.Object,
+            _mockCurrentUserService.Object,
             _mockPacmanSettings.Object,
             _logger,
             _mockFileSystem.Object);
@@ -64,6 +78,8 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_CreatesRepository_Successfully()
     {
         // Arrange
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ReturnsAsync(_existingUser);
         var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
@@ -222,6 +238,8 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_RollsBack_OnFailure()
     {
         // Arrange
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ReturnsAsync(_existingUser);
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
             .ThrowsAsync(new Exception("Failed to run tool"));
@@ -236,7 +254,15 @@ public class RepositoryServiceTests
         });
     }
 
+    [Test]
+    public async Task CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
 
+        // Act & Assert
+        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+    }
 
     [Test]
     public async Task GetRepositoriesAsync_ReturnsEmptyResponse_WhenNoRepositoriesExist()
