@@ -124,6 +124,7 @@ internal class RepositoryService(
             .OrderByDescending(r => r.CreatedAt)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
+            .Include(r => r.Owner)
             .ToListAsync(cancellationToken);
 
         return new PaginatedResponse<Repository>
