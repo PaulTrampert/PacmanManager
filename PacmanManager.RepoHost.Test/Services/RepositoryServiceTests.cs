@@ -11,6 +11,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 using NUnit.Framework;
+using PacmanManager.RepoHost.Exceptions;
 
 namespace PacmanManager.RepoHost.Test.Services;
 
@@ -20,10 +21,12 @@ public class RepositoryServiceTests
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private Mock<ICliToolRunner> _mockCliRunner;
     private Mock<IOptionsSnapshot<PacmanConfigSettings>> _mockPacmanSettings;
+    private Mock<ICurrentUserService> _mockCurrentUserService;
     private TestOutputLogger<RepositoryService> _logger;
     private Mock<IFileSystem> _mockFileSystem;
     private PacmanManagerDbContext _dbContext;
     private RepositoryService _service;
+    private User _existingUser;
 
     [SetUp]
     public void SetUp()
@@ -33,8 +36,18 @@ public class RepositoryServiceTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
+        var user = new User
+        {
+            DisplayName = "tester",
+            Email = "test@test.com"
+        };
+        _existingUser = _dbContext.Add(user).Entity;
+        _dbContext.SaveChanges();
 
         _mockCliRunner = new Mock<ICliToolRunner>();
+        _mockCurrentUserService = new Mock<ICurrentUserService>();
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ThrowsAsync(new NoCurrentUserException());
         _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 
@@ -48,6 +61,7 @@ public class RepositoryServiceTests
         _service = new RepositoryService(
             _dbContext,
             _mockCliRunner.Object,
+            _mockCurrentUserService.Object,
             _mockPacmanSettings.Object,
             _logger,
             _mockFileSystem.Object);
@@ -64,6 +78,8 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_CreatesRepository_Successfully()
     {
         // Arrange
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ReturnsAsync(_existingUser);
         var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
@@ -94,7 +110,8 @@ public class RepositoryServiceTests
             Name = "existing-id-repo", 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
-            UpdatedAt = DateTimeOffset.UtcNow 
+            UpdatedAt = DateTimeOffset.UtcNow,
+            Owner = _existingUser
         };
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
@@ -128,14 +145,15 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoName = "existing-repo";
-        var repository = new PacmanRepository 
-        { 
-            Id = Guid.NewGuid(), 
-            Name = repoName, 
-            Architecture = "x86_64", 
-            CreatedAt = DateTimeOffset.UtcNow, 
-            UpdatedAt = DateTimeOffset.UtcNow 
-        };
+         var repository = new PacmanRepository 
+         { 
+             Id = Guid.NewGuid(), 
+             Name = repoName, 
+             Architecture = "x86_64", 
+             CreatedAt = DateTimeOffset.UtcNow, 
+             UpdatedAt = DateTimeOffset.UtcNow,
+             Owner = _existingUser
+         };
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
 
@@ -162,7 +180,8 @@ public class RepositoryServiceTests
             Name = repoName, 
             Architecture = "x86_64", 
             CreatedAt = DateTimeOffset.UtcNow, 
-            UpdatedAt = DateTimeOffset.UtcNow 
+            UpdatedAt = DateTimeOffset.UtcNow,
+            Owner = _existingUser
         };
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
@@ -184,14 +203,15 @@ public class RepositoryServiceTests
         // Arrange
         var repoId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var repository = new PacmanRepository
-        {
-            Id = repoId,
-            Name = "existing-id-file-repo",
-            Architecture = "x86_64",
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+         var repository = new PacmanRepository
+         {
+             Id = repoId,
+             Name = "existing-id-file-repo",
+             Architecture = "x86_64",
+             CreatedAt = now,
+             UpdatedAt = now,
+             Owner = _existingUser
+         };
         await _dbContext.PacmanRepositories.AddAsync(repository);
         await _dbContext.SaveChangesAsync();
 
@@ -222,6 +242,8 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_RollsBack_OnFailure()
     {
         // Arrange
+        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
+            .ReturnsAsync(_existingUser);
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
             .ThrowsAsync(new Exception("Failed to run tool"));
@@ -236,7 +258,15 @@ public class RepositoryServiceTests
         });
     }
 
+    [Test]
+    public async Task CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
 
+        // Act & Assert
+        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+    }
 
     [Test]
     public async Task GetRepositoriesAsync_ReturnsEmptyResponse_WhenNoRepositoriesExist()
@@ -259,9 +289,9 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsPaginatedResults_WithFiltering()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
-        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
+         var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1), Owner = _existingUser };
+         var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Owner = _existingUser };
         
         await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
         await _dbContext.SaveChangesAsync();
@@ -284,9 +314,9 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_AppliesOffsetAndPageSize()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
-        var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
+         var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1), Owner = _existingUser };
+         var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Owner = _existingUser };
         
         await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
         await _dbContext.SaveChangesAsync();
@@ -310,9 +340,9 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsEmpty_WhenOffsetIsAtOrBeyondTotal()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
-        await _dbContext.PacmanRepositories.AddAsync(repo1);
-        await _dbContext.SaveChangesAsync();
+         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
+         await _dbContext.PacmanRepositories.AddAsync(repo1);
+         await _dbContext.SaveChangesAsync();
 
         var paginationParams = new PaginationParams { Offset = 1, PageSize = 10 };
 
@@ -331,7 +361,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_HandlesEmptySearchTerm()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser};
         await _dbContext.PacmanRepositories.AddAsync(repo1);
         await _dbContext.SaveChangesAsync();
 
@@ -352,7 +382,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_HandlesNullSearchTerm()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow };
+        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser};
         await _dbContext.PacmanRepositories.AddAsync(repo1);
         await _dbContext.SaveChangesAsync();
 
@@ -379,6 +409,7 @@ public class RepositoryServiceTests
             Id = repoId,
             Name = "original-name",
             Architecture = "x86_64",
+            Owner = _existingUser,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

@@ -24,6 +24,11 @@ public record Repository
     public string Architecture { get; init; } = "x86_64";
     
     /// <summary>
+    /// The owner of the repository.
+    /// </summary>
+    public PublicUserInfo Owner { get; init; }
+    
+    /// <summary>
     /// When the repository was created.
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
@@ -55,6 +60,7 @@ public record Repository
             Id = repository.Id,
             Name = repository.Name,
             Architecture = repository.Architecture,
+            Owner = PublicUserInfo.FromUser(repository.Owner),
             CreatedAt = repository.CreatedAt,
             UpdatedAt = repository.UpdatedAt,
         };
