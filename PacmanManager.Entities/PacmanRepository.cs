@@ -23,6 +23,8 @@ public record PacmanRepository
     [MaxLength(PacmanRepositoryValidationConstants.ArchitectureMaxLength)]
     public required string Architecture { get; set; } = "x86_64";
 
+    public bool IsPublic { get; set; } = false;
+
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

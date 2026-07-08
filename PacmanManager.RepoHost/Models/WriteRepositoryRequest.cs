@@ -24,4 +24,9 @@ public record WriteRepositoryRequest
     [DefaultValue("x86_64")]
     [AllowedValues("x86_64", "any")]
     public string Architecture { get; init; } = "x86_64";
+
+    /// <summary>
+    /// Whether the repository is public.
+    /// </summary>
+    public bool IsPublic { get; init; } = false;
 }

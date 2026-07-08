@@ -22,6 +22,11 @@ public record Repository
     /// Repository architecture (e.g., "x86_64", "any").
     /// </summary>
     public string Architecture { get; init; } = "x86_64";
+
+    /// <summary>
+    /// Whether the repository is public.
+    /// </summary>
+    public bool IsPublic { get; init; } = false;
     
     /// <summary>
     /// The owner of the repository.
@@ -60,6 +65,7 @@ public record Repository
             Id = repository.Id,
             Name = repository.Name,
             Architecture = repository.Architecture,
+            IsPublic = repository.IsPublic,
             Owner = PublicUserInfo.FromUser(repository.Owner),
             CreatedAt = repository.CreatedAt,
             UpdatedAt = repository.UpdatedAt,

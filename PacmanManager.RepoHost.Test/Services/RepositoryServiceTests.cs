@@ -80,7 +80,7 @@ public class RepositoryServiceTests
         // Arrange
         _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
             .ReturnsAsync(_existingUser);
-        var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64", IsPublic = true};
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
@@ -93,6 +93,7 @@ public class RepositoryServiceTests
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("new-repo"));
             Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+            Assert.That(result.IsPublic, Is.True);
             
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo");
             Assert.That(dbRepo, Is.Not.Null);
@@ -109,6 +110,7 @@ public class RepositoryServiceTests
             Id = repoId, 
             Name = "existing-id-repo", 
             Architecture = "x86_64", 
+            IsPublic = true,
             CreatedAt = DateTimeOffset.UtcNow, 
             UpdatedAt = DateTimeOffset.UtcNow,
             Owner = _existingUser
@@ -124,6 +126,11 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Id, Is.EqualTo(repoId));
+            Assert.That(result.Architecture, Is.EqualTo(repository.Architecture));
+            Assert.That(result.IsPublic, Is.True);
+            Assert.That(result.CreatedAt, Is.EqualTo(repository.CreatedAt));
+            Assert.That(result.UpdatedAt, Is.EqualTo(repository.UpdatedAt));
+            Assert.That(result.Owner, Is.EqualTo(PublicUserInfo.FromUser(_existingUser)));
         });
     }
 
@@ -409,6 +416,7 @@ public class RepositoryServiceTests
             Id = repoId,
             Name = "original-name",
             Architecture = "x86_64",
+            IsPublic = false,
             Owner = _existingUser,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -419,7 +427,8 @@ public class RepositoryServiceTests
         var updateRequest = new WriteRepositoryRequest
         {
             Name = "updated-name",
-            Architecture = "arm64"
+            Architecture = "arm64",
+            IsPublic = true
         };
 
         // Act
@@ -431,10 +440,12 @@ public class RepositoryServiceTests
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("updated-name"));
             Assert.That(result.Architecture, Is.EqualTo("arm64"));
+            Assert.That(result.IsPublic, Is.True);
 
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Id == repoId);
             Assert.That(dbRepo.Name, Is.EqualTo("updated-name"));
             Assert.That(dbRepo.Architecture, Is.EqualTo("arm64"));
+            Assert.That(dbRepo.IsPublic, Is.True);
         });
     }
 
