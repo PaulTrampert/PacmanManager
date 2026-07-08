@@ -65,6 +65,7 @@ public record Repository
             Id = repository.Id,
             Name = repository.Name,
             Architecture = repository.Architecture,
+            IsPublic = repository.IsPublic,
             Owner = PublicUserInfo.FromUser(repository.Owner),
             CreatedAt = repository.CreatedAt,
             UpdatedAt = repository.UpdatedAt,

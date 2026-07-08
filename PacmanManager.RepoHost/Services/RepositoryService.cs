@@ -66,6 +66,7 @@ internal class RepositoryService(
             Id = Guid.CreateVersion7(),
             Name = request.Name,
             Architecture = request.Architecture,
+            IsPublic = request.IsPublic,
             CreatedAt = now,
             UpdatedAt = now,
             OwnerId = currentUser.Id
@@ -102,6 +103,7 @@ internal class RepositoryService(
         }
 
         repository.Name = update.Name;
+        repository.IsPublic = update.IsPublic;
         repository.Architecture = update.Architecture;
         repository.UpdatedAt = DateTimeOffset.UtcNow;
 
