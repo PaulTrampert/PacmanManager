@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace PacmanManager.RepoHost.Models;
@@ -44,10 +43,4 @@ public record RepositoryFilter
     /// caller. Convenient for clients that do not know their own user id.
     /// </summary>
     public bool MineOnly { get; init; }
-
-    /// <summary>
-    /// The order to return results in.
-    /// </summary>
-    [DefaultValue(RepositorySort.CreatedDesc)]
-    public RepositorySort Sort { get; init; } = RepositorySort.CreatedDesc;
 }

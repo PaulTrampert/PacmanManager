@@ -23,6 +23,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     /// </summary>
     /// <param name="paging">Where in the result set to start and how much to return.</param>
     /// <param name="filter">Criteria for narrowing the listing.</param>
+    /// <param name="sort">The order to return results in.</param>
     /// <param name="ct">Cancellation Token</param>
     /// <returns>A page of repositories. Anonymous callers see public repositories only.</returns>
     [HttpGet]
@@ -31,11 +32,12 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     public async Task<ActionResult<PaginatedResponse<Repository>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] RepositoryFilter filter,
+        [FromQuery] RepositorySort sort,
         CancellationToken ct = default)
     {
-        logger.LogInformation("Listing repositories with filter {@Filter}", filter);
+        logger.LogInformation("Listing repositories with filter {@Filter} sorted by {@Sort}", filter, sort);
 
-        var result = await repositoryService.GetRepositoriesAsync(paging, filter, ct);
+        var result = await repositoryService.GetRepositoriesAsync(paging, filter, sort, ct);
         return Ok(result);
     }
 

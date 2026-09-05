@@ -219,6 +219,7 @@ internal class RepositoryService(
     public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
+        RepositorySort? sort = null,
         CancellationToken cancellationToken = default)
     {
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
@@ -230,7 +231,7 @@ internal class RepositoryService(
 
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .ApplySort(filter?.Sort ?? RepositorySort.CreatedDesc)
+            .ApplySort(sort ?? new RepositorySort())
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Repository.Projection)

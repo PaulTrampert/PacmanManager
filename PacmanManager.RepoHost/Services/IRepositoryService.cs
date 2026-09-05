@@ -94,10 +94,12 @@ public interface IRepositoryService
     /// </summary>
     /// <param name="paginationParams">The pagination parameters.</param>
     /// <param name="filter">Caller-supplied criteria, which can only narrow the visible set.</param>
+    /// <param name="sort">The order to return results in. Defaults to newest first.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A paginated response containing repositories.</returns>
     Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
+        RepositorySort? sort = null,
         CancellationToken cancellationToken = default);
 }

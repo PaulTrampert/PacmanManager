@@ -65,13 +65,13 @@ internal static class RepositoryQueryExtensions
         this IQueryable<PacmanRepository> query,
         RepositorySort sort)
     {
-        var ordered = sort switch
+        var ordered = sort.Order switch
         {
-            RepositorySort.CreatedAsc => query.OrderBy(r => r.CreatedAt),
-            RepositorySort.UpdatedDesc => query.OrderByDescending(r => r.UpdatedAt),
-            RepositorySort.UpdatedAsc => query.OrderBy(r => r.UpdatedAt),
-            RepositorySort.NameAsc => query.OrderBy(r => r.Name),
-            RepositorySort.NameDesc => query.OrderByDescending(r => r.Name),
+            RepositorySortOrder.CreatedAsc => query.OrderBy(r => r.CreatedAt),
+            RepositorySortOrder.UpdatedDesc => query.OrderByDescending(r => r.UpdatedAt),
+            RepositorySortOrder.UpdatedAsc => query.OrderBy(r => r.UpdatedAt),
+            RepositorySortOrder.NameAsc => query.OrderBy(r => r.Name),
+            RepositorySortOrder.NameDesc => query.OrderByDescending(r => r.Name),
             _ => query.OrderByDescending(r => r.CreatedAt),
         };
 

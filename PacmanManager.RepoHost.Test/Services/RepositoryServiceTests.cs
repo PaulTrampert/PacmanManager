@@ -384,7 +384,7 @@ public class RepositoryServiceTests
         var filter = new RepositoryFilter { NameContains = "repo-b" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, filter, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, filter, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -446,7 +446,7 @@ public class RepositoryServiceTests
         var filter = new RepositoryFilter { NameContains = "" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, filter, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, filter, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -463,7 +463,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(name: "repo-a");
 
         // Act
-        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, null, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, null, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -782,7 +782,7 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { Sort = RepositorySort.NameAsc });
+            sort: new RepositorySort { Order = RepositorySortOrder.NameAsc });
 
         // Assert
         Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));

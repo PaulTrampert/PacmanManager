@@ -1,25 +1,20 @@
+using System.ComponentModel;
+
 namespace PacmanManager.RepoHost.Models;
 
 /// <summary>
-/// The orderings a repository listing may be requested in.
+/// Caller-supplied ordering for a repository listing.
 /// </summary>
-public enum RepositorySort
+/// <remarks>
+/// Ordering is kept apart from <see cref="RepositoryFilter"/> because the two answer different
+/// questions: a filter decides which repositories are in the result set, this decides only the
+/// sequence they come back in. Nothing here can change which repositories a caller sees.
+/// </remarks>
+public record RepositorySort
 {
-    /// <summary>Newest first. The default.</summary>
-    CreatedDesc,
-
-    /// <summary>Oldest first.</summary>
-    CreatedAsc,
-
-    /// <summary>Most recently updated first.</summary>
-    UpdatedDesc,
-
-    /// <summary>Least recently updated first.</summary>
-    UpdatedAsc,
-
-    /// <summary>Alphabetical by name.</summary>
-    NameAsc,
-
-    /// <summary>Reverse alphabetical by name.</summary>
-    NameDesc,
+    /// <summary>
+    /// The order to return results in.
+    /// </summary>
+    [DefaultValue(RepositorySortOrder.CreatedDesc)]
+    public RepositorySortOrder Order { get; init; } = RepositorySortOrder.CreatedDesc;
 }
