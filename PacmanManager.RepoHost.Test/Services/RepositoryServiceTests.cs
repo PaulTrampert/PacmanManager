@@ -782,10 +782,28 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            sort: new RepositorySort { Order = RepositorySortOrder.NameAsc });
+            sort: new RepositorySort { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending });
 
         // Assert
         Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByNameDescending()
+    {
+        // The direction is chosen independently of the property, so the same field sorts both ways.
+        // Arrange
+        await GivenRepositoryAsync(name: "charlie");
+        await GivenRepositoryAsync(name: "alpha");
+        await GivenRepositoryAsync(name: "bravo");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new RepositorySort { SortBy = RepositorySortField.Name, Direction = SortDirection.Descending });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "charlie", "bravo", "alpha" }));
     }
 
     [Test]

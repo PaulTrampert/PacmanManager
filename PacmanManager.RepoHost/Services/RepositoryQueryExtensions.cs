@@ -65,13 +65,15 @@ internal static class RepositoryQueryExtensions
         this IQueryable<PacmanRepository> query,
         RepositorySort sort)
     {
-        var ordered = sort.Order switch
+        // Matched on the pair rather than composed, because the key selectors have different
+        // types and erasing that to object would stop the ordering translating to SQL.
+        var ordered = (sort.SortBy, sort.Direction) switch
         {
-            RepositorySortOrder.CreatedAsc => query.OrderBy(r => r.CreatedAt),
-            RepositorySortOrder.UpdatedDesc => query.OrderByDescending(r => r.UpdatedAt),
-            RepositorySortOrder.UpdatedAsc => query.OrderBy(r => r.UpdatedAt),
-            RepositorySortOrder.NameAsc => query.OrderBy(r => r.Name),
-            RepositorySortOrder.NameDesc => query.OrderByDescending(r => r.Name),
+            (RepositorySortField.Name, SortDirection.Ascending) => query.OrderBy(r => r.Name),
+            (RepositorySortField.Name, _) => query.OrderByDescending(r => r.Name),
+            (RepositorySortField.Updated, SortDirection.Ascending) => query.OrderBy(r => r.UpdatedAt),
+            (RepositorySortField.Updated, _) => query.OrderByDescending(r => r.UpdatedAt),
+            (_, SortDirection.Ascending) => query.OrderBy(r => r.CreatedAt),
             _ => query.OrderByDescending(r => r.CreatedAt),
         };
 
