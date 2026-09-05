@@ -54,6 +54,12 @@ try
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
     builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// Services enforce authorization against whatever actor the host supplies. This is the web host,
+// so the actor comes from the authenticated principal; a CLI tool or background job would register
+// a FixedActorAccessor instead. Nothing is registered by default, so a host that forgets to choose
+// fails to start rather than running as an unidentified caller.
+    builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
+
     builder.Services.AddApiVersioning(opts =>
         {
             opts.ReportApiVersions = true;
