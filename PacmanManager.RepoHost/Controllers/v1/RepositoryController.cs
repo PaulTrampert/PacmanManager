@@ -21,17 +21,21 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     /// <summary>
     /// List the repositories visible to the caller.
     /// </summary>
-    /// <param name="query">Where in the result set to start and how much to return.</param>
+    /// <param name="paging">Where in the result set to start and how much to return.</param>
+    /// <param name="filter">Criteria for narrowing the listing.</param>
     /// <param name="ct">Cancellation Token</param>
     /// <returns>A page of repositories. Anonymous callers see public repositories only.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PaginatedResponse<Repository>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<ActionResult<PaginatedResponse<Repository>>> Get([FromQuery] PaginationParams query, CancellationToken ct = default)
+    public async Task<ActionResult<PaginatedResponse<Repository>>> Get(
+        [FromQuery] PaginationParams paging,
+        [FromQuery] RepositoryFilter filter,
+        CancellationToken ct = default)
     {
-        logger.LogInformation("Listing repositories");
+        logger.LogInformation("Listing repositories with filter {@Filter}", filter);
 
-        var result = await repositoryService.GetRepositoriesAsync(query, ct);
+        var result = await repositoryService.GetRepositoriesAsync(paging, filter, ct);
         return Ok(result);
     }
 

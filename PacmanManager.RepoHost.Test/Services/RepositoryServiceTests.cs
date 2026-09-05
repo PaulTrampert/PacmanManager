@@ -326,10 +326,11 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(name: "repo-b", createdAt: DateTimeOffset.UtcNow.AddMinutes(-1));
         await GivenRepositoryAsync(name: "repo-c", createdAt: DateTimeOffset.UtcNow.AddMinutes(-2));
 
-        var paginationParams = new PaginationParams { Offset = 0, PageSize = 10, SearchTerm = "repo-b" };
+        var paginationParams = new PaginationParams { Offset = 0, PageSize = 10 };
+        var filter = new RepositoryFilter { NameContains = "repo-b" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, filter, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -383,15 +384,15 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_HandlesEmptySearchTerm()
+    public async Task GetRepositoriesAsync_HandlesEmptyNameFilter()
     {
         // Arrange
         await GivenRepositoryAsync(name: "repo-a");
 
-        var paginationParams = new PaginationParams { PageSize = 10, SearchTerm = "" };
+        var filter = new RepositoryFilter { NameContains = "" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, filter, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -402,15 +403,13 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_HandlesNullSearchTerm()
+    public async Task GetRepositoriesAsync_HandlesNullFilter()
     {
         // Arrange
         await GivenRepositoryAsync(name: "repo-a");
 
-        var paginationParams = new PaginationParams { PageSize = 10, SearchTerm = null };
-
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, null, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -601,6 +600,138 @@ public class RepositoryServiceTests
             Assert.That(result.Results.Select(r => r.Name),
                 Is.EquivalentTo(new[] { "mine-private", "mine-public", "theirs-public" }));
         });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_PrivateFilter_CannotRevealSomeoneElsesPrivateRepositories()
+    {
+        // The visibility rule is ANDed onto the caller's criteria, so asking for private
+        // repositories can only ever return the caller's own.
+        // Arrange
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { IsPublic = false });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("mine-private"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_PrivateFilter_ReturnsNothingForAnonymousCallers()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { IsPublic = false });
+
+        // Assert
+        Assert.That(result.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_OwnerIdFilter_CannotRevealSomeoneElsesPrivateRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { OwnerId = _otherUser.Id });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("theirs-public"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_MineOnly_ReturnsOnlyTheCallersRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { MineOnly = true });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("mine-private"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_MineOnly_ReturnsNothingForAnonymousCallers()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { MineOnly = true });
+
+        // Assert
+        Assert.That(result.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_FiltersByArchitecture()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "x86-repo", architecture: "x86_64");
+        await GivenRepositoryAsync(name: "any-repo", architecture: "any");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { Architecture = "any" });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("any-repo"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByName()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "charlie");
+        await GivenRepositoryAsync(name: "alpha");
+        await GivenRepositoryAsync(name: "bravo");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { Sort = RepositorySort.NameAsc });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
     }
 
     [Test]

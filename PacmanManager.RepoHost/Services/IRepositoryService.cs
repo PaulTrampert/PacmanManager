@@ -88,7 +88,11 @@ public interface IRepositoryService
     /// Retrieves a paginated list of the repositories visible to the current actor.
     /// </summary>
     /// <param name="paginationParams">The pagination parameters.</param>
+    /// <param name="filter">Caller-supplied criteria, which can only narrow the visible set.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A paginated response containing repositories.</returns>
-    Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default);
+    Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
+        PaginationParams paginationParams,
+        RepositoryFilter? filter = null,
+        CancellationToken cancellationToken = default);
 }

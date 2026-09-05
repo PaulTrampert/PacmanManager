@@ -364,6 +364,42 @@ public class RepositoryControllerTests
     }
 
     [Test]
+    public async Task Get_MineOnlyFilter_WithoutAuthentication_ReturnsNothing()
+    {
+        // Arrange
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "mine-only-public-repo",
+            IsPublic = true
+        });
+
+        // Act
+        var response = await AnonymousClient().GetAsync("/api/v1/repository?mineOnly=true");
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+
+        // Assert
+        Assert.That(repositories!.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Get_PrivateFilter_WithoutAuthentication_ReturnsNothing()
+    {
+        // Arrange
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "private-filter-repo",
+            IsPublic = false
+        });
+
+        // Act
+        var response = await AnonymousClient().GetAsync("/api/v1/repository?isPublic=false");
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+
+        // Assert
+        Assert.That(repositories!.Total, Is.EqualTo(0));
+    }
+
+    [Test]
     public async Task Update_WithoutAuthentication_ReturnsUnauthorized()
     {
         // Arrange

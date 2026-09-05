@@ -214,18 +214,22 @@ internal class RepositoryService(
         return true;
     }
 
-    public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default)
+    public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
+        PaginationParams paginationParams,
+        RepositoryFilter? filter = null,
+        CancellationToken cancellationToken = default)
     {
-        var query = (await VisibleAsync(cancellationToken)).AsNoTracking();
+        var actor = await actorAccessor.GetActorAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(paginationParams.SearchTerm))
-        {
-            query = query.Where(r => r.Name.Contains(paginationParams.SearchTerm));
-        }
+        // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
+        // ever remove rows from the visible set.
+        var query = (await VisibleAsync(cancellationToken))
+            .AsNoTracking()
+            .ApplyFilter(filter ?? new RepositoryFilter(), actor);
 
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .OrderByDescending(r => r.CreatedAt)
+            .ApplySort(filter?.Sort ?? RepositorySort.CreatedDesc)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Repository.Projection)
