@@ -86,7 +86,6 @@ internal class RepositoryService(
     {
         var visible = await VisibleAsync(cancellationToken);
         return await visible
-            .AsNoTracking()
             .Where(r => r.Id == id)
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
@@ -100,7 +99,6 @@ internal class RepositoryService(
         // so this matches at most one row and needs no tie-break.
         var (ownerId, name, architecture) = (key.OwnerId, key.Name, key.Architecture);
         return await visible
-            .AsNoTracking()
             .Where(r => r.OwnerId == ownerId && r.Name == name && r.Architecture == architecture)
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
@@ -228,7 +226,6 @@ internal class RepositoryService(
         // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
         // ever remove rows from the visible set.
         var query = (await VisibleAsync(cancellationToken))
-            .AsNoTracking()
             .ApplyFilter(filter ?? new RepositoryFilter(), actor);
 
         var total = await query.CountAsync(cancellationToken);
