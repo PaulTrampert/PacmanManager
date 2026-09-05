@@ -59,6 +59,7 @@ try
 // a FixedActorAccessor instead. Nothing is registered by default, so a host that forgets to choose
 // fails to start rather than running as an unidentified caller.
     builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
+    builder.Services.AddSingleton<RepositoryAccessPolicy>();
 
     builder.Services.AddApiVersioning(opts =>
         {
