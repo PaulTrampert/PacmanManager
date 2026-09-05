@@ -26,14 +26,20 @@ internal class RepositoryService(
 
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var repository = await dbContext.PacmanRepositories.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
-        return repository is not null ? Repository.FromPacmanRepository(repository) : null;
+        return await dbContext.PacmanRepositories
+            .AsNoTracking()
+            .Where(r => r.Id == id)
+            .Select(Repository.Projection)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        var repository = await dbContext.PacmanRepositories.SingleOrDefaultAsync(r => r.Name == name, cancellationToken);
-        return repository is not null ? Repository.FromPacmanRepository(repository) : null;
+        return await dbContext.PacmanRepositories
+            .AsNoTracking()
+            .Where(r => r.Name == name)
+            .Select(Repository.Projection)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -122,16 +128,16 @@ internal class RepositoryService(
         }
 
         var total = await query.CountAsync(cancellationToken);
-        var entities = await query
+        var results = await query
             .OrderByDescending(r => r.CreatedAt)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
-            .Include(r => r.Owner)
+            .Select(Repository.Projection)
             .ToListAsync(cancellationToken);
 
         return new PaginatedResponse<Repository>
         {
-            Results = entities.Select(Repository.FromPacmanRepository),
+            Results = results,
             Offset = paginationParams.Offset,
             Total = total
         };
