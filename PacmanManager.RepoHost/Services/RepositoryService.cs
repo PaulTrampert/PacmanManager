@@ -185,6 +185,35 @@ internal class RepositoryService(
         return Repository.FromPacmanRepository(repository);
     }
 
+    public async Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var repository = await LoadForWriteAsync(id, cancellationToken);
+        if (repository is null)
+        {
+            return false;
+        }
+
+        dbContext.Remove(repository);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // The row is the source of truth. A file left behind is inert once nothing points at it,
+        // so failing to remove it is worth a warning but not worth failing the delete.
+        var repoFileName = GetRepositoryFileName(id);
+        try
+        {
+            if (fileSystem.Exists(repoFileName))
+            {
+                fileSystem.Delete(repoFileName);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Deleted repository {RepositoryId} but could not remove {RepositoryFile}", id, repoFileName);
+        }
+
+        return true;
+    }
+
     public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default)
     {
         var query = (await VisibleAsync(cancellationToken)).AsNoTracking();

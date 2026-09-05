@@ -470,6 +470,37 @@ public class RepositoryServiceTests
         Assert.That(result, Is.Null);
     }
 
+    [Test]
+    public async Task DeleteRepositoryAsync_RemovesRepositoryAndFile_WhenOwner()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "doomed-repo");
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        _mockFileSystem.Setup(f => f.Exists(repoFileName)).Returns(true);
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.False);
+            _mockFileSystem.Verify(f => f.Delete(repoFileName), Times.Once);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_ReturnsFalse_WhenRepositoryDoesNotExist()
+    {
+        // Act
+        var result = await _service.DeleteRepositoryAsync(Guid.NewGuid());
+
+        // Assert
+        Assert.That(result, Is.False);
+    }
+
     #region Authorization
 
     [Test]
@@ -631,6 +662,37 @@ public class RepositoryServiceTests
 
         // Assert
         Assert.That(result!.Name, Is.EqualTo("renamed"));
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_ReturnsFalse_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.False);
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
+            _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_Throws_WhenPublicAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act & Assert
+        Assert.ThrowsAsync<RepositoryForbiddenException>(async () => await _service.DeleteRepositoryAsync(repoId));
+        Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
     }
 
     #endregion

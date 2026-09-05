@@ -107,19 +107,23 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     }
 
     /// <summary>
-    /// Delete a repository.
+    /// Delete a repository. Only its owner may do so.
     /// </summary>
-    /// <param name="name">Repository name.</param>
+    /// <param name="id">Repository ID.</param>
+    /// <param name="ct">Cancellation Token</param>
     /// <returns>No content on success.</returns>
-    [HttpDelete("{name}")]
+    [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Authorize]
-    public ActionResult Delete(string name)
+    public async Task<ActionResult> Delete(Guid id, CancellationToken ct = default)
     {
-        logger.LogInformation("Deleting repository {RepositoryName}", name);
+        logger.LogInformation("Deleting repository {RepositoryId}", id);
 
-        // TODO: Implement repository deletion
-        return NotFound();
+        return await repositoryService.DeleteRepositoryAsync(id, ct)
+            ? NoContent()
+            : NotFound();
     }
 }

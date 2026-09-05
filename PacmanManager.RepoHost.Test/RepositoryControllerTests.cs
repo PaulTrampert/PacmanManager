@@ -252,30 +252,50 @@ public class RepositoryControllerTests
     #region Delete Tests
 
     [Test]
-    public async Task Delete_WithNonExistentName_ReturnsNotFound()
+    public async Task Delete_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var name = "non-existent-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public async Task Delete_WithValidName_ReturnsNoContent()
+    public async Task Delete_WithValidId_ReturnsNoContent()
     {
-        // This test will be updated when repository storage is implemented
         // Arrange
-        var name = "test-repo";
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "test-repo-to-delete"
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
 
         // Assert
-        // Currently returns NotFound until storage is implemented
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+    }
+
+    [Test]
+    public async Task Delete_ThenGet_ReturnsNotFound()
+    {
+        // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "test-repo-deleted-then-fetched"
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
+        await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repository/{repository.Id}");
+
+        // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 

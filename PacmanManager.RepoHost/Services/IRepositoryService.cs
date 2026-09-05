@@ -75,6 +75,16 @@ public interface IRepositoryService
     Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes a repository and its backing database file.
+    /// </summary>
+    /// <param name="id">The ID of the repository to delete.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>True if the repository was deleted; false if it does not exist or is not visible to the current actor.</returns>
+    /// <exception cref="NoCurrentUserException">Thrown when the operation requires an identity and there is none.</exception>
+    /// <exception cref="RepositoryForbiddenException">Thrown when the actor may see the repository but does not own it.</exception>
+    Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves a paginated list of the repositories visible to the current actor.
     /// </summary>
     /// <param name="paginationParams">The pagination parameters.</param>
