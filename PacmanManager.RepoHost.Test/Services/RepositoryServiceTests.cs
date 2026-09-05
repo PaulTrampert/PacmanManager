@@ -169,7 +169,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(name: repoName);
 
         // Act
-        var result = await _service.GetRepositoryByNameAsync(repoName);
+        var result = await _service.GetRepositoryByNameAsync(KeyFor(repoName));
 
         // Assert
         Assert.Multiple(() =>
@@ -180,18 +180,70 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoryByNameAsync_PrefersTheCallersOwnRepository_WhenNamesCollide()
+    public async Task GetRepositoryByNameAsync_DistinguishesRepositoriesOfDifferentOwners()
     {
         // Names are unique per owner, so two users can both own "shared-name".
         // Arrange
-        await GivenRepositoryAsync(name: "shared-name", owner: _otherUser, isPublic: true);
+        var theirs = await GivenRepositoryAsync(name: "shared-name", owner: _otherUser, isPublic: true);
         var mine = await GivenRepositoryAsync(name: "shared-name", owner: _existingUser);
 
         // Act
-        var result = await _service.GetRepositoryByNameAsync("shared-name");
+        var mineResult = await _service.GetRepositoryByNameAsync(KeyFor("shared-name", owner: _existingUser));
+        var theirsResult = await _service.GetRepositoryByNameAsync(KeyFor("shared-name", owner: _otherUser));
 
         // Assert
-        Assert.That(result!.Id, Is.EqualTo(mine.Id));
+        Assert.Multiple(() =>
+        {
+            Assert.That(mineResult!.Id, Is.EqualTo(mine.Id));
+            Assert.That(theirsResult!.Id, Is.EqualTo(theirs.Id));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_DistinguishesRepositoriesOfDifferentArchitectures()
+    {
+        // One owner may hold the same name for more than one architecture.
+        // Arrange
+        var x86 = await GivenRepositoryAsync(name: "multi-arch", architecture: "x86_64");
+        var any = await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
+
+        // Act
+        var x86Result = await _service.GetRepositoryByNameAsync(KeyFor("multi-arch", architecture: "x86_64"));
+        var anyResult = await _service.GetRepositoryByNameAsync(KeyFor("multi-arch", architecture: "any"));
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(x86Result!.Id, Is.EqualTo(x86.Id));
+            Assert.That(anyResult!.Id, Is.EqualTo(any.Id));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenTheNameBelongsToADifferentOwner()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoryByNameAsync(KeyFor("theirs", owner: _existingUser));
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // Naming the owner explicitly must not become a way around the visibility rules.
+        // Arrange
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoryByNameAsync(KeyFor("theirs-private", owner: _otherUser));
+
+        // Assert
+        Assert.That(result, Is.Null);
     }
 
     [Test]
@@ -206,7 +258,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName);
+        var result = await _service.GetRepositoryFileByNameAsync(KeyFor(repoName));
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -236,7 +288,7 @@ public class RepositoryServiceTests
         var repoName = "non-existent-repo";
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName);
+        var result = await _service.GetRepositoryFileByNameAsync(KeyFor(repoName));
 
         // Assert
         Assert.That(result, Is.Null);
@@ -854,6 +906,13 @@ public class RepositoryServiceTests
         await _dbContext.SaveChangesAsync();
         return repository;
     }
+
+    private RepositoryKey KeyFor(string name, User? owner = null, string architecture = "x86_64") => new()
+    {
+        OwnerId = (owner ?? _existingUser).Id,
+        Name = name,
+        Architecture = architecture,
+    };
 
     private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
 

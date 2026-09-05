@@ -79,10 +79,25 @@ An arbitrary dynamic query language (OData, `System.Linq.Dynamic.Core`) was cons
 rejected: composing user-supplied expressions with a security predicate is difficult to reason
 about, and the domain's filter surface is small and knowable.
 
+## Looking a repository up by name
+
+A repository name on its own identifies nothing. The database enforces uniqueness over
+`(OwnerId, Name, Architecture)`, so two users may each own a repository called `custom`, and one
+user may own both an `x86_64` and an `any` repository under that name.
+
+`GetRepositoryByNameAsync` therefore takes a `RepositoryKey` — that same triple — rather than a
+bare string, which means the lookup matches at most one row and needs no tie-breaking rule.
+Supplying an owner is not a way around the visibility rules: the key selects a row from the
+already-visible set, so naming someone else's private repository still returns nothing.
+
+Note that the owner is identified by user id. A friendlier URL form (`{owner}/{name}/{arch}`, as
+pacman's `Server` setting would want) needs a stable, unique, user-facing name on `User`, which
+does not exist yet.
+
 ## Known gaps
 
-*   Repository names are unique per owner, not globally, so `GetRepositoryByNameAsync` can match
-    several visible repositories. It currently prefers the caller's own and then falls back to the
-    oldest visible match. A proper fix is an owner-qualified route (`{owner}/{name}`).
 *   Deleting a repository removes the database row and then the backing `.db.tar.gz`. A failure to
     remove the file is logged and ignored, leaving an orphaned file that nothing references.
+*   Renaming a repository into a collision with the `(OwnerId, Name, Architecture)` index surfaces
+    as a `DbUpdateException`, and so a `500`, rather than a `409`. `ItemExistsException` exists for
+    this but is not yet raised anywhere.

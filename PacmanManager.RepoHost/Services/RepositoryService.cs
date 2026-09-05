@@ -92,22 +92,18 @@ internal class RepositoryService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<Repository?> GetRepositoryByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default)
     {
-        var actor = await actorAccessor.GetActorAsync(cancellationToken);
         var visible = await VisibleAsync(cancellationToken);
 
-        // Names are unique per owner, so several visible repositories can share one. Prefer the
-        // actor's own, then fall back to the oldest match so the answer is at least deterministic.
-        var actorId = actor.User?.Id;
+        // The three parts of the key are exactly the database's unique index over repositories,
+        // so this matches at most one row and needs no tie-break.
+        var (ownerId, name, architecture) = (key.OwnerId, key.Name, key.Architecture);
         return await visible
             .AsNoTracking()
-            .Where(r => r.Name == name)
-            .OrderBy(r => r.OwnerId == actorId ? 0 : 1)
-            .ThenBy(r => r.CreatedAt)
-            .ThenBy(r => r.Id)
+            .Where(r => r.OwnerId == ownerId && r.Name == name && r.Architecture == architecture)
             .Select(Repository.Projection)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -120,9 +116,9 @@ internal class RepositoryService(
         return fileSystem.OpenRead(repoFileName);
     }
 
-    public async Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<Stream?> GetRepositoryFileByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default)
     {
-        var repository = await GetRepositoryByNameAsync(name, cancellationToken);
+        var repository = await GetRepositoryByNameAsync(key, cancellationToken);
         if (repository is null)
             return null;
 
