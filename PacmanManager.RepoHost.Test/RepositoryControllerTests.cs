@@ -252,32 +252,176 @@ public class RepositoryControllerTests
     #region Delete Tests
 
     [Test]
-    public async Task Delete_WithNonExistentName_ReturnsNotFound()
+    public async Task Delete_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var name = "non-existent-repo";
+        var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public async Task Delete_WithValidName_ReturnsNoContent()
+    public async Task Delete_WithValidId_ReturnsNoContent()
     {
-        // This test will be updated when repository storage is implemented
         // Arrange
-        var name = "test-repo";
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "test-repo-to-delete"
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{name}");
+        var response = await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
 
         // Assert
-        // Currently returns NotFound until storage is implemented
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+    }
+
+    [Test]
+    public async Task Delete_ThenGet_ReturnsNotFound()
+    {
+        // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "test-repo-deleted-then-fetched"
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
+        await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repository/{repository.Id}");
+
+        // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
+
+    #endregion
+
+    #region Authorization Tests
+
+    [Test]
+    public async Task Create_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "anonymous-repo" };
+
+        // Act
+        var response = await AnonymousClient().PostAsJsonAsync("/api/v1/repository", request);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task Get_WithoutAuthentication_ReturnsOnlyPublicRepositories()
+    {
+        // Arrange
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "visibility-private-repo",
+            IsPublic = false
+        });
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "visibility-public-repo",
+            IsPublic = true
+        });
+
+        // Act
+        var response = await AnonymousClient().GetAsync("/api/v1/repository?pageSize=500");
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+
+        // Assert
+        var names = repositories!.Results.Select(r => r.Name).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(names, Does.Contain("visibility-public-repo"));
+            Assert.That(names, Does.Not.Contain("visibility-private-repo"));
+            Assert.That(repositories.Results.Select(r => r.IsPublic), Is.All.True);
+        });
+    }
+
+    [Test]
+    public async Task GetById_WithoutAuthentication_HidesPrivateRepositories()
+    {
+        // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "hidden-from-anonymous",
+            IsPublic = false
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
+
+        // Act
+        var response = await AnonymousClient().GetAsync($"/api/v1/repository/{repository!.Id}");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task Get_MineOnlyFilter_WithoutAuthentication_ReturnsNothing()
+    {
+        // Arrange
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "mine-only-public-repo",
+            IsPublic = true
+        });
+
+        // Act
+        var response = await AnonymousClient().GetAsync("/api/v1/repository?mineOnly=true");
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+
+        // Assert
+        Assert.That(repositories!.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Get_PrivateFilter_WithoutAuthentication_ReturnsNothing()
+    {
+        // Arrange
+        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "private-filter-repo",
+            IsPublic = false
+        });
+
+        // Act
+        var response = await AnonymousClient().GetAsync("/api/v1/repository?isPublic=false");
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+
+        // Assert
+        Assert.That(repositories!.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Update_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "update-requires-auth",
+            IsPublic = true
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
+
+        // Act
+        var response = await AnonymousClient()
+            .PutAsJsonAsync($"/api/v1/repository/{repository!.Id}", new WriteRepositoryRequest { Name = "hijacked" });
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    /// <summary>
+    /// A client pointed at the same application but carrying no bearer token.
+    /// </summary>
+    private HttpClient AnonymousClient() => new() { BaseAddress = new Uri(_fixture.BaseUrl) };
 
     #endregion
 

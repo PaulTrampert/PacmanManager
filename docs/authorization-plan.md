@@ -1,8 +1,9 @@
-# Repository Authorization Implementation Plan
+# Repository Authorization
 
 ## Overview
 
-This document outlines the plan for implementing a robust authorization policy for pacman repositories. The goal is to ensure secure access while adhering to strict information-leakage prevention principles.
+This document describes how authorization is enforced for pacman repositories, and why the
+enforcement lives where it does.
 
 ### Authorization Rules
 
@@ -14,127 +15,74 @@ This document outlines the plan for implementing a robust authorization policy f
 | **Write/Delete** | Private | Owner | `200/201/204 OK` |
 | **Write/Delete** | Private | Not Owner | `404 Not Found` (Hide existence) |
 | **Write/Delete** | Public | Not Owner | `403 Forbidden` (Identify as public, deny access) |
+| **Create** | n/a | Unauthenticated | `401 Unauthorized` |
 
-## Architecture Strategy: Resource-Based Authorization Filter
+## Architecture Strategy: Enforcement in the Service Layer
 
-To maintain consistent HTTP semantics and avoid leaking whether a repository exists, we will implement a **Resource-Based Authorization Filter** using ASP.NET Core's `IAsyncAuthorizationFilter`.
+An earlier draft of this plan proposed an `IAsyncAuthorizationFilter` attribute applied to
+controller actions. That was rejected because it only protects HTTP callers: CLI tools and
+background jobs talk to `IRepositoryService` directly and would bypass it entirely.
 
-### Why this approach?
-1.  **Decoupling**: Controller logic remains focused on business operations, assuming authorization is handled by the middleware/filter layer.
-2.  **Uniformity**: Ensures that the "404 vs 403" requirement is applied identically across all endpoints (package management, metadata, etc.).
-3.  **DRY (Don't Repeat Yourself)**: Developers can protect new routes simply by decorating them with a single attribute.
+Instead, `RepositoryService` itself enforces the rules, against an **actor** that the host
+supplies. Its public methods take no user, principal or permission argument, so no caller — a
+controller, a CLI tool, a job — has to reason about authorization to use it correctly.
 
----
+### The pieces
 
-## Implementation Roadmap
+*   **`Actor`** (`Authentication/Actor.cs`) — the identity a unit of work runs as. Either
+    anonymous, a specific `User`, or a trusted system host (optionally acting for a user, which is
+    what lets a system host create owned repositories).
+*   **`IActorAccessor`** (`Services/IActorAccessor.cs`) — supplies the actor for the current
+    scope. `HttpContextActorAccessor` derives it from the authenticated principal;
+    `FixedActorAccessor` is for CLI tools, background jobs and tests. Nothing is registered by
+    default, so a host that fails to choose one fails at dependency resolution rather than
+    silently running unauthenticated.
+*   **`RepositoryAccessPolicy`** (`Services/RepositoryAccessPolicy.cs`) — the single definition of
+    the rules table above. It has no database, HTTP or logging dependency, so every row of that
+    table is a plain unit test in `RepositoryAccessPolicyTests`. `VisibleTo` returns an expression
+    that composes into an EF Core query; `CheckWrite` and `CheckCreate` return a
+    `RepositoryAccess` verdict.
 
-### Phase 1: Data Model Updates
-Update the underlying database schema and API models to support ownership and visibility.
-*   Modify `PacmanRepository` entity to include `Guid OwnerId` and `bool IsPublic`.
-*   Update `Repository` API model to reflect these properties.
-*   Generate Entity Framework Core migrations.
+### Why this is hard to get wrong
 
-### Phase 2: Service Layer Enhancements
-Enhance `IRepositoryService` to support permission-aware lookups.
-*   The service must provide a way to fetch repository metadata by ID or Name efficiently.
-*   Ensure the service layer acts as the "Source of Truth" for ownership and visibility status.
+`RepositoryService` has exactly one private method — `VisibleAsync` — that touches
+`DbContext.PacmanRepositories`, and it applies `VisibleTo` before returning the query. Every read
+and every write starts there. A method that skips the rules therefore has to name the `DbSet`
+itself, which is conspicuous in review and is asserted against by
+`RepositoryServiceEnforcementTests`.
 
-### Phase 3: The Authorization Filter
-Implement `RepositoryAuthorizationFilter`. This filter will:
-1.  Intercept the request using `RouteData` to extract the repository identifier.
-2.  Resolve the `IRepositoryService` from the DI container.
-3.  Fetch metadata for the target repository.
-4.  Apply the logic defined in the **Authorization Rules** table above, short-circuiting the request with `NotFoundResult` or `ForbidResult` where necessary.
+Writes then run through `LoadForWriteAsync`, which loads from the visible set and translates the
+policy verdict into the result the caller expects. A private repository owned by someone else
+never reaches the check — it is already absent from the visible set — so the 404-versus-403
+distinction falls out of the structure rather than being restated per operation.
 
-### Phase 4: Integration and Testing
-*   Apply the new attribute to `RepositoryController`.
-*   Implement comprehensive unit tests for the service layer and filter logic.
-*   Perform integration testing using `WebApplicationFactory` to verify correct HTTP response codes are returned in all security edge cases.
+### HTTP semantics
 
----
+Services do not know about HTTP, so they signal the two non-`null` outcomes with exceptions:
+`NoCurrentUserException` and `RepositoryForbiddenException`. `AuthorizationExceptionHandler`
+(registered as an `IExceptionHandler`) maps them to `401` and `403`. Everything else is expressed
+as a `null` or `false` return, which controllers turn into `404`.
 
-## Reference Implementation (Prototypes)
+## Filtering
 
-### RepositoryAuthorizationFilter Prototype
+`GET /api/v1/repository` accepts a `RepositoryFilter` bound from the query string:
+`nameContains`, `architecture`, `isPublic`, `ownerId`, `mineOnly` and `sort`. Paging is separate,
+in `PaginationParams` (`offset`, `pageSize`).
 
-```csharp
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
-using System;
-using System.Threading.Tasks;
+The filter is applied to the already-visible query and ANDed onto it, so **no combination of
+filter values can widen what a caller sees**. Asking for `isPublic=false` returns the caller's own
+private repositories and nothing else; an anonymous caller asking the same gets an empty page.
+`mineOnly=true` yields nothing for an anonymous caller rather than degrading into "no owner
+restriction". These properties are covered by tests named after them in `RepositoryServiceTests`.
 
-namespace PacmanManager.RepoHost.Attributes;
+An arbitrary dynamic query language (OData, `System.Linq.Dynamic.Core`) was considered and
+rejected: composing user-supplied expressions with a security predicate is difficult to reason
+about, and the domain's filter surface is small and knowable.
 
-/// <summary>
-/// An attribute used to trigger repository-level authorization checks.
-/// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class CheckRepositoryAccessAttribute : Attribute, IAsyncAuthorizationFilter
-{
-    private readonly string _routeParameterName;
+## Known gaps
 
-    public CheckRepositoryAccessAttribute(string routeParameterName = "id")
-    {
-        _routeParameterName = routeParameterName;
-    }
-
-    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
-    {
-        var routeData = context.RouteData;
-
-        if (!routeData.Values.TryGetValue(_routeParameterName, out var value) || value == null)
-        {
-            context.Result = new BadRequestObjectResult($"Missing route parameter: {_routeParameterName}");
-            return;
-        }
-
-        Guid repositoryId;
-        if (value is Guid guidValue)
-        {
-            repositoryId = guidValue;
-        }
-        else if (Guid.TryParse(value.ToString(), out var parsedGuid))
-        {
-            repositoryId = parsedGuid;
-        }
-        else
-        {
-            context.Result = new BadRequestObjectResult($"Invalid format for parameter: {_routeParameterName}");
-            return;
-        }
-
-        // TODO: 
-        // 1. Resolve IRepositoryService from context.HttpContext.RequestServices
-        // 2. Fetch repository metadata using 'repositoryId'
-        // 3. Evaluate permissions (is owner? is public?)
-        // 4. Set context.Result to NotFound() or Forbid() if required
-    }
-}
-```
-
-### Controller Usage Example
-
-```csharp
-[ApiController]
-[Route("api/v1/[controller]")]
-public class RepositoryController : ControllerBase
-{
-    [HttpGet("{id}")]
-    [CheckRepositoryAccess("id")] 
-    public async Task<IActionResult> GetRepository(Guid id)
-    {
-        // If this code is reached, the filter has already guaranteed:
-        // 1. The repository exists.
-        // 2. The user has permission to read it.
-        return Ok(_service.GetById(id));
-    }
-
-    [HttpDelete("{id}")]
-    [CheckRepositoryAccess("id")]
-    public async Task<IActionResult> DeleteRepository(Guid id)
-    {
-        // Handled by filter: 404 if private/not-owner, 403 if public/not-owner.
-        return NoContent();
-    }
-}
-```
+*   Repository names are unique per owner, not globally, so `GetRepositoryByNameAsync` can match
+    several visible repositories. It currently prefers the caller's own and then falls back to the
+    oldest visible match. A proper fix is an owner-qualified route (`{owner}/{name}`).
+*   Deleting a repository removes the database row and then the backing `.db.tar.gz`. A failure to
+    remove the file is logged and ignored, leaving an orphaned file that nothing references.

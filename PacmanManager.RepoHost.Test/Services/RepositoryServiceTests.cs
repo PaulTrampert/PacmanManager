@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
+using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
@@ -21,12 +21,13 @@ public class RepositoryServiceTests
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private Mock<ICliToolRunner> _mockCliRunner;
     private Mock<IOptionsSnapshot<PacmanConfigSettings>> _mockPacmanSettings;
-    private Mock<ICurrentUserService> _mockCurrentUserService;
+    private TestActorAccessor _actors;
     private TestOutputLogger<RepositoryService> _logger;
     private Mock<IFileSystem> _mockFileSystem;
     private PacmanManagerDbContext _dbContext;
     private RepositoryService _service;
     private User _existingUser;
+    private User _otherUser;
 
     [SetUp]
     public void SetUp()
@@ -36,18 +37,22 @@ public class RepositoryServiceTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
-        var user = new User
+        _existingUser = _dbContext.Add(new User
         {
             DisplayName = "tester",
             Email = "test@test.com"
-        };
-        _existingUser = _dbContext.Add(user).Entity;
+        }).Entity;
+        _otherUser = _dbContext.Add(new User
+        {
+            DisplayName = "somebody else",
+            Email = "other@test.com"
+        }).Entity;
         _dbContext.SaveChanges();
 
         _mockCliRunner = new Mock<ICliToolRunner>();
-        _mockCurrentUserService = new Mock<ICurrentUserService>();
-        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
-            .ThrowsAsync(new NoCurrentUserException());
+        // Most tests care about what the owner of a repository can do, so that is the default
+        // actor. Tests that exercise the authorization rules override it.
+        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser) };
         _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 
@@ -61,7 +66,8 @@ public class RepositoryServiceTests
         _service = new RepositoryService(
             _dbContext,
             _mockCliRunner.Object,
-            _mockCurrentUserService.Object,
+            _actors,
+            new RepositoryAccessPolicy(),
             _mockPacmanSettings.Object,
             _logger,
             _mockFileSystem.Object);
@@ -78,8 +84,6 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_CreatesRepository_Successfully()
     {
         // Arrange
-        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
-            .ReturnsAsync(_existingUser);
         var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64", IsPublic = true};
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
@@ -94,9 +98,30 @@ public class RepositoryServiceTests
             Assert.That(result!.Name, Is.EqualTo("new-repo"));
             Assert.That(result.Architecture, Is.EqualTo("x86_64"));
             Assert.That(result.IsPublic, Is.True);
-            
+
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo");
             Assert.That(dbRepo, Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_AssignsOwnershipToCurrentUser()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "owned-repo", Architecture = "x86_64" };
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(request);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result.Owner, Is.EqualTo(PublicUserInfo.FromUser(_existingUser)));
+
+            var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "owned-repo");
+            Assert.That(dbRepo.OwnerId, Is.EqualTo(_existingUser.Id));
         });
     }
 
@@ -105,18 +130,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        var repository = new PacmanRepository 
-        { 
-            Id = repoId, 
-            Name = "existing-id-repo", 
-            Architecture = "x86_64", 
-            IsPublic = true,
-            CreatedAt = DateTimeOffset.UtcNow, 
-            UpdatedAt = DateTimeOffset.UtcNow,
-            Owner = _existingUser
-        };
-        await _dbContext.PacmanRepositories.AddAsync(repository);
-        await _dbContext.SaveChangesAsync();
+        var repository = await GivenRepositoryAsync(id: repoId, name: "existing-id-repo", isPublic: true);
 
         // Act
         var result = await _service.GetRepositoryByIdAsync(repoId);
@@ -152,17 +166,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoName = "existing-repo";
-         var repository = new PacmanRepository 
-         { 
-             Id = Guid.NewGuid(), 
-             Name = repoName, 
-             Architecture = "x86_64", 
-             CreatedAt = DateTimeOffset.UtcNow, 
-             UpdatedAt = DateTimeOffset.UtcNow,
-             Owner = _existingUser
-         };
-        await _dbContext.PacmanRepositories.AddAsync(repository);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(name: repoName);
 
         // Act
         var result = await _service.GetRepositoryByNameAsync(repoName);
@@ -176,22 +180,27 @@ public class RepositoryServiceTests
     }
 
     [Test]
+    public async Task GetRepositoryByNameAsync_PrefersTheCallersOwnRepository_WhenNamesCollide()
+    {
+        // Names are unique per owner, so two users can both own "shared-name".
+        // Arrange
+        await GivenRepositoryAsync(name: "shared-name", owner: _otherUser, isPublic: true);
+        var mine = await GivenRepositoryAsync(name: "shared-name", owner: _existingUser);
+
+        // Act
+        var result = await _service.GetRepositoryByNameAsync("shared-name");
+
+        // Assert
+        Assert.That(result!.Id, Is.EqualTo(mine.Id));
+    }
+
+    [Test]
     public async Task GetRepositoryFileByNameAsync_ReturnsStream_WhenFileExists()
     {
         // Arrange
         var repoId = Guid.NewGuid();
         var repoName = "existing-file-repo";
-        var repository = new PacmanRepository 
-        { 
-            Id = repoId, 
-            Name = repoName, 
-            Architecture = "x86_64", 
-            CreatedAt = DateTimeOffset.UtcNow, 
-            UpdatedAt = DateTimeOffset.UtcNow,
-            Owner = _existingUser
-        };
-        await _dbContext.PacmanRepositories.AddAsync(repository);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(id: repoId, name: repoName);
 
         var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
@@ -203,24 +212,12 @@ public class RepositoryServiceTests
         Assert.That(result, Is.Not.Null);
     }
 
-
     [Test]
     public async Task GetRepositoryFileByIdAsync_ReturnsStream_WhenFileExists()
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
-         var repository = new PacmanRepository
-         {
-             Id = repoId,
-             Name = "existing-id-file-repo",
-             Architecture = "x86_64",
-             CreatedAt = now,
-             UpdatedAt = now,
-             Owner = _existingUser
-         };
-        await _dbContext.PacmanRepositories.AddAsync(repository);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(id: repoId, name: "existing-id-file-repo");
 
         var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
@@ -246,17 +243,35 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_RollsBack_OnFailure()
+    public async Task GetRepositoryFileByIdAsync_ReturnsNull_WhenPrivateAndNotOwner()
     {
         // Arrange
-        _mockCurrentUserService.Setup(cu => cu.RequireCurrentUserAsync())
-            .ReturnsAsync(_existingUser);
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "someone-elses", owner: _otherUser);
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
+
+        // Act
+        var result = await _service.GetRepositoryFileByIdAsync(repoId);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public void CreateRepositoryAsync_RollsBack_OnFailure()
+    {
+        // Arrange
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
         _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz")))).Returns(true);
- 
+
         // Act & Assert
         Assert.Multiple(() =>
         {
@@ -266,10 +281,23 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
+    public void CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
     {
         // Arrange
+        _actors.Actor = Actor.Anonymous;
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+    }
+
+    [Test]
+    public void CreateRepositoryAsync_WhenActorIsSystemWithNoUser_Fails()
+    {
+        // A system actor bypasses authorization, but a repository still needs an owner.
+        // Arrange
+        _actors.Actor = Actor.System;
+        var request = new WriteRepositoryRequest { Name = "ownerless-repo", Architecture = "x86_64" };
 
         // Act & Assert
         Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
@@ -282,7 +310,7 @@ public class RepositoryServiceTests
         var paginationParams = new PaginationParams { Offset = 0, PageSize = 10 };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -296,17 +324,15 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsPaginatedResults_WithFiltering()
     {
         // Arrange
-         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
-         var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-b", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1), Owner = _existingUser };
-         var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-c", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Owner = _existingUser };
-        
-        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(name: "repo-a");
+        await GivenRepositoryAsync(name: "repo-b", createdAt: DateTimeOffset.UtcNow.AddMinutes(-1));
+        await GivenRepositoryAsync(name: "repo-c", createdAt: DateTimeOffset.UtcNow.AddMinutes(-2));
 
-        var paginationParams = new PaginationParams { SearchTerm = "repo-b", Offset = 0, PageSize = 10 };
+        var paginationParams = new PaginationParams { Offset = 0, PageSize = 10 };
+        var filter = new RepositoryFilter { NameContains = "repo-b" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, filter, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -321,18 +347,15 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_AppliesOffsetAndPageSize()
     {
         // Arrange
-         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
-         var repo2 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-2", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1), Owner = _existingUser };
-         var repo3 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-3", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Owner = _existingUser };
-        
-        await _dbContext.PacmanRepositories.AddRangeAsync(repo1, repo2, repo3);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(name: "repo-1");
+        await GivenRepositoryAsync(name: "repo-2", createdAt: DateTimeOffset.UtcNow.AddMinutes(-1));
+        await GivenRepositoryAsync(name: "repo-3", createdAt: DateTimeOffset.UtcNow.AddMinutes(-2));
 
         // Order is descending by CreatedAt: repo-1, repo-2, repo-3
         var paginationParams = new PaginationParams { Offset = 1, PageSize = 1 };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -347,14 +370,12 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_ReturnsEmpty_WhenOffsetIsAtOrBeyondTotal()
     {
         // Arrange
-         var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-1", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser };
-         await _dbContext.PacmanRepositories.AddAsync(repo1);
-         await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(name: "repo-1");
 
         var paginationParams = new PaginationParams { Offset = 1, PageSize = 10 };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(paginationParams, cancellationToken: CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -365,17 +386,15 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_HandlesEmptySearchTerm()
+    public async Task GetRepositoriesAsync_HandlesEmptyNameFilter()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser};
-        await _dbContext.PacmanRepositories.AddAsync(repo1);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(name: "repo-a");
 
-        var paginationParams = new PaginationParams { SearchTerm = "", Offset = 0, PageSize = 10 };
+        var filter = new RepositoryFilter { NameContains = "" };
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, filter, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -386,17 +405,13 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_HandlesNullSearchTerm()
+    public async Task GetRepositoriesAsync_HandlesNullFilter()
     {
         // Arrange
-        var repo1 = new PacmanRepository { Id = Guid.NewGuid(), Name = "repo-a", Architecture = "x86_64", CreatedAt = DateTimeOffset.UtcNow, Owner = _existingUser};
-        await _dbContext.PacmanRepositories.AddAsync(repo1);
-        await _dbContext.SaveChangesAsync();
-
-        var paginationParams = new PaginationParams { SearchTerm = null, Offset = 0, PageSize = 10 };
+        await GivenRepositoryAsync(name: "repo-a");
 
         // Act
-        var result = await _service.GetRepositoriesAsync(paginationParams, CancellationToken.None);
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 10 }, null, CancellationToken.None);
 
         // Assert
         Assert.Multiple(() =>
@@ -411,18 +426,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        var repository = new PacmanRepository
-        {
-            Id = repoId,
-            Name = "original-name",
-            Architecture = "x86_64",
-            IsPublic = false,
-            Owner = _existingUser,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-        await _dbContext.PacmanRepositories.AddAsync(repository);
-        await _dbContext.SaveChangesAsync();
+        await GivenRepositoryAsync(id: repoId, name: "original-name");
 
         var updateRequest = new WriteRepositoryRequest
         {
@@ -467,5 +471,399 @@ public class RepositoryServiceTests
         Assert.That(result, Is.Null);
     }
 
-    private int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
+    [Test]
+    public async Task DeleteRepositoryAsync_RemovesRepositoryAndFile_WhenOwner()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "doomed-repo");
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        _mockFileSystem.Setup(f => f.Exists(repoFileName)).Returns(true);
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.False);
+            _mockFileSystem.Verify(f => f.Delete(repoFileName), Times.Once);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_ReturnsFalse_WhenRepositoryDoesNotExist()
+    {
+        // Act
+        var result = await _service.DeleteRepositoryAsync(Guid.NewGuid());
+
+        // Assert
+        Assert.That(result, Is.False);
+    }
+
+    #region Authorization
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsRepository_WhenPublicAndAnonymous()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "public-repo", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result!.Id, Is.EqualTo(repoId));
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsNull_WhenPrivateAndAnonymous()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "private-repo", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "private-repo", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_ReturnsRepository_WhenPrivateAndActorIsSystem()
+    {
+        // Arrange
+        _actors.Actor = Actor.System;
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "private-repo", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result!.Id, Is.EqualTo(repoId));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_AnonymousActor_SeesOnlyPublicRepositories()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 50 });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("theirs-public"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_AuthenticatedActor_SeesOwnAndPublicRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "mine-public", owner: _existingUser, isPublic: true);
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 50 });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(3));
+            Assert.That(result.Results.Select(r => r.Name),
+                Is.EquivalentTo(new[] { "mine-private", "mine-public", "theirs-public" }));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_PrivateFilter_CannotRevealSomeoneElsesPrivateRepositories()
+    {
+        // The visibility rule is ANDed onto the caller's criteria, so asking for private
+        // repositories can only ever return the caller's own.
+        // Arrange
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { IsPublic = false });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("mine-private"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_PrivateFilter_ReturnsNothingForAnonymousCallers()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { IsPublic = false });
+
+        // Assert
+        Assert.That(result.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_OwnerIdFilter_CannotRevealSomeoneElsesPrivateRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { OwnerId = _otherUser.Id });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("theirs-public"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_MineOnly_ReturnsOnlyTheCallersRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { MineOnly = true });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("mine-private"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_MineOnly_ReturnsNothingForAnonymousCallers()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { MineOnly = true });
+
+        // Assert
+        Assert.That(result.Total, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_FiltersByArchitecture()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "x86-repo", architecture: "x86_64");
+        await GivenRepositoryAsync(name: "any-repo", architecture: "any");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { Architecture = "any" });
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Total, Is.EqualTo(1));
+            Assert.That(result.Results.Single().Name, Is.EqualTo("any-repo"));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByName()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "charlie");
+        await GivenRepositoryAsync(name: "alpha");
+        await GivenRepositoryAsync(name: "bravo");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { Sort = RepositorySort.NameAsc });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // A repository the caller cannot see must behave as though it is not there.
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "hijacked" });
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.Null);
+            var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Id == repoId);
+            Assert.That(dbRepo.Name, Is.EqualTo("theirs-private"));
+        });
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Throws_WhenPublicAndOwnedBySomeoneElse()
+    {
+        // The caller already knows a public repository exists, so refusing outright leaks nothing.
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act & Assert
+        Assert.ThrowsAsync<RepositoryForbiddenException>(
+            async () => await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "hijacked" }));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Throws_WhenPublicAndAnonymous()
+    {
+        // Arrange
+        _actors.Actor = Actor.Anonymous;
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act & Assert
+        Assert.ThrowsAsync<NoCurrentUserException>(
+            async () => await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "hijacked" }));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Succeeds_WhenActorIsSystem()
+    {
+        // Arrange
+        _actors.Actor = Actor.System;
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "renamed" });
+
+        // Assert
+        Assert.That(result!.Name, Is.EqualTo("renamed"));
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_ReturnsFalse_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-private", owner: _otherUser);
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.False);
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
+            _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_Throws_WhenPublicAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
+
+        // Act & Assert
+        Assert.ThrowsAsync<RepositoryForbiddenException>(async () => await _service.DeleteRepositoryAsync(repoId));
+        Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
+    }
+
+    #endregion
+
+    private async Task<PacmanRepository> GivenRepositoryAsync(
+        Guid? id = null,
+        string name = "a-repo",
+        User? owner = null,
+        bool isPublic = false,
+        string architecture = "x86_64",
+        DateTimeOffset? createdAt = null)
+    {
+        var timestamp = createdAt ?? DateTimeOffset.UtcNow;
+        var repository = new PacmanRepository
+        {
+            Id = id ?? Guid.NewGuid(),
+            Name = name,
+            Architecture = architecture,
+            IsPublic = isPublic,
+            Owner = owner ?? _existingUser,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+
+        await _dbContext.PacmanRepositories.AddAsync(repository);
+        await _dbContext.SaveChangesAsync();
+        return repository;
+    }
+
+    private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
+
+    /// <summary>
+    /// An <see cref="IActorAccessor"/> whose actor can be swapped between arrangement and action.
+    /// </summary>
+    private sealed class TestActorAccessor : IActorAccessor
+    {
+        public Actor Actor { get; set; } = Actor.Anonymous;
+
+        public ValueTask<Actor> GetActorAsync(CancellationToken ct = default) => ValueTask.FromResult(Actor);
+    }
 }
