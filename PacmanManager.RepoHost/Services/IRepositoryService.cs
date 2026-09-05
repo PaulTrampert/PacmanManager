@@ -31,12 +31,17 @@ public interface IRepositoryService
     Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves a repository by its name.
+    /// Retrieves a repository by its natural key.
     /// </summary>
-    /// <param name="name">The name of the repository.</param>
+    /// <param name="key">The owner, name and architecture identifying the repository.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The repository if it exists and is visible to the current actor; otherwise, null.</returns>
-    Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default);
+    /// <remarks>
+    /// A name alone does not identify a repository, because names are unique only per owner and
+    /// architecture. Taking the whole <see cref="RepositoryKey"/> means this lookup always has at
+    /// most one answer.
+    /// </remarks>
+    Task<Repository?> GetRepositoryByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the file stream for a repository by its ID.
@@ -47,12 +52,12 @@ public interface IRepositoryService
     Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves the file stream for a repository by its name.
+    /// Retrieves the file stream for a repository by its natural key.
     /// </summary>
-    /// <param name="name">The name of the repository.</param>
+    /// <param name="key">The owner, name and architecture identifying the repository.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A stream to the repository file if it is visible to the current actor; otherwise, null.</returns>
-    Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default);
+    Task<Stream?> GetRepositoryFileByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new repository owned by the current actor's user.
