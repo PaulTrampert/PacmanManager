@@ -61,6 +61,9 @@ try
     builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
     builder.Services.AddSingleton<RepositoryAccessPolicy>();
 
+    builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();
+
     builder.Services.AddApiVersioning(opts =>
         {
             opts.ReportApiVersions = true;
@@ -113,6 +116,7 @@ try
 
     var app = builder.Build();
     app.UseSerilogRequestLogging();
+    app.UseExceptionHandler();
     
     var pacmanConfig = app.Services.GetRequiredService<PacmanConfig>();
     Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "sync"));
