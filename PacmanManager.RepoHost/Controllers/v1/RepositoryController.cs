@@ -32,7 +32,7 @@ public class RepositoryController(IRepositoryService repositoryService, ILogger<
     public async Task<ActionResult<PaginatedResponse<Repository>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] RepositoryFilter filter,
-        [FromQuery] RepositorySort sort,
+        [FromQuery] SortOptions<RepositorySortField> sort,
         CancellationToken ct = default)
     {
         logger.LogInformation("Listing repositories with filter {@Filter} sorted by {@Sort}", filter, sort);

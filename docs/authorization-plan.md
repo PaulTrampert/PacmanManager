@@ -67,9 +67,14 @@ as a `null` or `false` return, which controllers turn into `404`.
 
 `GET /api/v1/repository` accepts a `RepositoryFilter` bound from the query string:
 `nameContains`, `architecture`, `isPublic` and `ownerId`. Ordering is separate, in
-`RepositorySort` (`sortBy`, `direction`), as is paging, in `PaginationParams` (`offset`,
-`pageSize`): a filter decides which repositories are in the result set, a sort only the sequence
-they come back in.
+`SortOptions<RepositorySortField>` (`sortBy`, `direction`), as is paging, in `PaginationParams`
+(`offset`, `pageSize`): a filter decides which repositories are in the result set, a sort only the
+sequence they come back in.
+
+`SortOptions<TSortFields>` is generic so that every listing spells ordering the same way. Only the
+set of sortable properties differs between endpoints, so only that is a type parameter, and
+`sortBy`/`direction` mean the same thing everywhere by construction. The first member of the
+sort-field enum is the default, since an omitted parameter binds to the enum's zero value.
 
 Each criterion is annotated with a `PTrampert.QueryObjects` attribute saying how it narrows the
 query, and the library turns the filter into the predicate. There is deliberately no "only mine"

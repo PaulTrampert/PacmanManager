@@ -220,7 +220,7 @@ internal class RepositoryService(
     public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
-        RepositorySort? sort = null,
+        SortOptions<RepositorySortField>? sort = null,
         CancellationToken cancellationToken = default)
     {
         // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
@@ -230,7 +230,7 @@ internal class RepositoryService(
 
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .ApplySort(sort ?? new RepositorySort())
+            .ApplySort(sort ?? new SortOptions<RepositorySortField>())
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Repository.Projection)

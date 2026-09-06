@@ -100,6 +100,6 @@ public interface IRepositoryService
     Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
-        RepositorySort? sort = null,
+        SortOptions<RepositorySortField>? sort = null,
         CancellationToken cancellationToken = default);
 }

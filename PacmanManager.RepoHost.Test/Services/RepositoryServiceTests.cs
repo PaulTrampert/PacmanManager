@@ -767,7 +767,7 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            sort: new RepositorySort { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending });
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending });
 
         // Assert
         Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
@@ -785,7 +785,7 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            sort: new RepositorySort { SortBy = RepositorySortField.Name, Direction = SortDirection.Descending });
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Descending });
 
         // Assert
         Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "charlie", "bravo", "alpha" }));

@@ -4,7 +4,7 @@ using PacmanManager.RepoHost.Models;
 namespace PacmanManager.RepoHost.Services;
 
 /// <summary>
-/// Translates a <see cref="RepositorySort"/> into query operators.
+/// Translates a repository <see cref="SortOptions{TSortFields}"/> into query operators.
 /// </summary>
 internal static class RepositorySortExtensions
 {
@@ -16,7 +16,7 @@ internal static class RepositorySortExtensions
     /// <returns>The ordered query.</returns>
     public static IOrderedQueryable<PacmanRepository> ApplySort(
         this IQueryable<PacmanRepository> query,
-        RepositorySort sort)
+        SortOptions<RepositorySortField> sort)
     {
         // Matched on the pair rather than composed, because the key selectors have different
         // types and erasing that to object would stop the ordering translating to SQL.
