@@ -223,12 +223,10 @@ internal class RepositoryService(
         RepositorySort? sort = null,
         CancellationToken cancellationToken = default)
     {
-        var actor = await actorAccessor.GetActorAsync(cancellationToken);
-
         // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
         // ever remove rows from the visible set.
         var query = (await VisibleAsync(cancellationToken))
-            .Where(new ActorScopedRepositoryFilter(filter ?? new RepositoryFilter(), actor));
+            .Where(filter ?? new RepositoryFilter());
 
         var total = await query.CountAsync(cancellationToken);
         var results = await query

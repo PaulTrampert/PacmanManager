@@ -716,8 +716,9 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_MineOnly_ReturnsOnlyTheCallersRepositories()
+    public async Task GetRepositoriesAsync_FiltersByOwnCallerId_ReturnsOnlyTheCallersRepositories()
     {
+        // "Only mine" is just the caller's own id in OwnerId, private repositories included.
         // Arrange
         await GivenRepositoryAsync(name: "mine-private", owner: _existingUser);
         await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
@@ -725,7 +726,7 @@ public class RepositoryServiceTests
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { MineOnly = true });
+            new RepositoryFilter { OwnerId = _existingUser.Id });
 
         // Assert
         Assert.Multiple(() =>
@@ -733,22 +734,6 @@ public class RepositoryServiceTests
             Assert.That(result.Total, Is.EqualTo(1));
             Assert.That(result.Results.Single().Name, Is.EqualTo("mine-private"));
         });
-    }
-
-    [Test]
-    public async Task GetRepositoriesAsync_MineOnly_ReturnsNothingForAnonymousCallers()
-    {
-        // Arrange
-        _actors.Actor = Actor.Anonymous;
-        await GivenRepositoryAsync(name: "theirs-public", owner: _otherUser, isPublic: true);
-
-        // Act
-        var result = await _service.GetRepositoriesAsync(
-            new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { MineOnly = true });
-
-        // Assert
-        Assert.That(result.Total, Is.EqualTo(0));
     }
 
     [Test]

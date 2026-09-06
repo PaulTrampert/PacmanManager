@@ -364,21 +364,34 @@ public class RepositoryControllerTests
     }
 
     [Test]
-    public async Task Get_MineOnlyFilter_WithoutAuthentication_ReturnsNothing()
+    public async Task Get_OwnerFilter_WithoutAuthentication_ReturnsOnlyThatOwnersPublicRepositories()
     {
+        // Naming an owner narrows the listing; it does not open up their private repositories.
         // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        {
+            Name = "owner-filter-public-repo",
+            IsPublic = true
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
         await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
         {
-            Name = "mine-only-public-repo",
-            IsPublic = true
+            Name = "owner-filter-private-repo",
+            IsPublic = false
         });
 
         // Act
-        var response = await AnonymousClient().GetAsync("/api/v1/repository?mineOnly=true");
+        var response = await AnonymousClient()
+            .GetAsync($"/api/v1/repository?ownerId={repository!.Owner.Id}&pageSize=500");
         var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
-        Assert.That(repositories!.Total, Is.EqualTo(0));
+        var names = repositories!.Results.Select(r => r.Name).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(names, Does.Contain("owner-filter-public-repo"));
+            Assert.That(names, Does.Not.Contain("owner-filter-private-repo"));
+        });
     }
 
     [Test]

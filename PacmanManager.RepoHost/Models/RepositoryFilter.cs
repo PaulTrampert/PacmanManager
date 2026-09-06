@@ -16,8 +16,7 @@ namespace PacmanManager.RepoHost.Models;
 /// <para>
 /// The query attributes say how each criterion narrows the query, and PTrampert.QueryObjects
 /// turns them into the predicate. A criterion left unset contributes nothing, so the declaration
-/// below is the whole story for every member but <see cref="MineOnly"/>, which needs the caller's
-/// identity and is resolved where that is known.
+/// below is the whole story.
 /// </para>
 /// </remarks>
 public record RepositoryFilter
@@ -47,14 +46,9 @@ public record RepositoryFilter
     public bool? IsPublic { get; init; }
 
     /// <summary>
-    /// Matches repositories belonging to this owner.
+    /// Matches repositories belonging to this owner. A caller wanting only their own repositories
+    /// passes their own id here.
     /// </summary>
     [EqualsQuery]
     public Guid? OwnerId { get; init; }
-
-    /// <summary>
-    /// Matches only repositories belonging to the calling user. Yields nothing for an anonymous
-    /// caller. Convenient for clients that do not know their own user id.
-    /// </summary>
-    public bool MineOnly { get; init; }
 }

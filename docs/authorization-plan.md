@@ -66,22 +66,23 @@ as a `null` or `false` return, which controllers turn into `404`.
 ## Filtering
 
 `GET /api/v1/repository` accepts a `RepositoryFilter` bound from the query string:
-`nameContains`, `architecture`, `isPublic`, `ownerId` and `mineOnly`. Ordering is separate, in
+`nameContains`, `architecture`, `isPublic` and `ownerId`. Ordering is separate, in
 `RepositorySort` (`sortBy`, `direction`), as is paging, in `PaginationParams` (`offset`,
 `pageSize`): a filter decides which repositories are in the result set, a sort only the sequence
 they come back in.
 
 Each criterion is annotated with a `PTrampert.QueryObjects` attribute saying how it narrows the
-query, and the library turns the filter into the predicate. `mineOnly` is the one criterion the
-filter cannot translate on its own, because it means "owned by whoever is asking";
-`ActorScopedRepositoryFilter` supplies the caller's id for it, which keeps that id out of the
-bound query string so no request can nominate someone else as the caller.
+query, and the library turns the filter into the predicate. There is deliberately no "only mine"
+criterion: it would mean the same thing as passing the caller's own id in `ownerId`, and a second
+spelling of one criterion is a second thing to keep correct. Callers that do not yet know their
+own id will get an endpoint that tells them.
 
 The filter is applied to the already-visible query and ANDed onto it, so **no combination of
 filter values can widen what a caller sees**. Asking for `isPublic=false` returns the caller's own
 private repositories and nothing else; an anonymous caller asking the same gets an empty page.
-`mineOnly=true` yields nothing for an anonymous caller rather than degrading into "no owner
-restriction". These properties are covered by tests named after them in `RepositoryServiceTests`.
+Naming an owner in `ownerId` likewise narrows the visible set rather than reaching into that
+owner's private repositories. These properties are covered by tests named after them in
+`RepositoryServiceTests`.
 
 An arbitrary dynamic query language (OData, `System.Linq.Dynamic.Core`) was considered and
 rejected: composing user-supplied expressions with a security predicate is difficult to reason
