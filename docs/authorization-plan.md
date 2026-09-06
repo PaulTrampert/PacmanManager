@@ -67,8 +67,15 @@ as a `null` or `false` return, which controllers turn into `404`.
 
 `GET /api/v1/repository` accepts a `RepositoryFilter` bound from the query string:
 `nameContains`, `architecture`, `isPublic`, `ownerId` and `mineOnly`. Ordering is separate, in
-`RepositorySort` (`sortBy`, `direction`), as is paging, in `PaginationParams` (`offset`, `pageSize`): a filter
-decides which repositories are in the result set, a sort only the sequence they come back in.
+`RepositorySort` (`sortBy`, `direction`), as is paging, in `PaginationParams` (`offset`,
+`pageSize`): a filter decides which repositories are in the result set, a sort only the sequence
+they come back in.
+
+Each criterion is annotated with a `PTrampert.QueryObjects` attribute saying how it narrows the
+query, and the library turns the filter into the predicate. `mineOnly` is the one criterion the
+filter cannot translate on its own, because it means "owned by whoever is asking";
+`ActorScopedRepositoryFilter` supplies the caller's id for it, which keeps that id out of the
+bound query string so no request can nominate someone else as the caller.
 
 The filter is applied to the already-visible query and ANDed onto it, so **no combination of
 filter values can widen what a caller sees**. Asking for `isPublic=false` returns the caller's own
@@ -78,7 +85,8 @@ restriction". These properties are covered by tests named after them in `Reposit
 
 An arbitrary dynamic query language (OData, `System.Linq.Dynamic.Core`) was considered and
 rejected: composing user-supplied expressions with a security predicate is difficult to reason
-about, and the domain's filter surface is small and knowable.
+about, and the domain's filter surface is small and knowable. The annotated query object keeps
+that property, because the set of criteria is still fixed by the type.
 
 ## Looking a repository up by name
 

@@ -8,6 +8,7 @@ using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Startup.LibAlpm;
+using PTrampert.QueryObjects;
 
 namespace PacmanManager.RepoHost.Services;
 
@@ -227,7 +228,7 @@ internal class RepositoryService(
         // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
         // ever remove rows from the visible set.
         var query = (await VisibleAsync(cancellationToken))
-            .ApplyFilter(filter ?? new RepositoryFilter(), actor);
+            .Where(new ActorScopedRepositoryFilter(filter ?? new RepositoryFilter(), actor));
 
         var total = await query.CountAsync(cancellationToken);
         var results = await query
