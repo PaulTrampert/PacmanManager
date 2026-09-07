@@ -792,6 +792,44 @@ public class RepositoryServiceTests
     }
 
     [Test]
+    public async Task GetRepositoriesAsync_SortsByNameAscending_WhenNoDirectionIsGiven()
+    {
+        // Name defaults to A→Z rather than to the listing-wide descending default, because which
+        // way round is natural belongs to the field.
+        // Arrange
+        await GivenRepositoryAsync(name: "charlie");
+        await GivenRepositoryAsync(name: "alpha");
+        await GivenRepositoryAsync(name: "bravo");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Name });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByNewestCreatedFirst_WhenNoDirectionIsGiven()
+    {
+        // The dates keep the descending default, so the unsorted listing is unchanged.
+        // Arrange
+        var now = DateTimeOffset.UtcNow;
+        await GivenRepositoryAsync(name: "oldest", createdAt: now.AddDays(-2));
+        await GivenRepositoryAsync(name: "newest", createdAt: now);
+        await GivenRepositoryAsync(name: "middle", createdAt: now.AddDays(-1));
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Created });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "newest", "middle", "oldest" }));
+    }
+
+    [Test]
     public async Task UpdateRepositoryAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
     {
         // A repository the caller cannot see must behave as though it is not there.

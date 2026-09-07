@@ -56,6 +56,37 @@ public class RepositoryControllerTests
         Assert.That(repositories, Is.Not.Null);
     }
 
+    [Test]
+    public async Task Get_SortedByName_DefaultsToAscending()
+    {
+        // The default direction is per sort field, so sortBy=Name runs A->Z while an explicit
+        // direction still wins.
+        // Arrange
+        foreach (var suffix in new[] { "charlie", "alpha", "bravo" })
+        {
+            await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+            {
+                Name = $"sortdefault-{suffix}",
+                IsPublic = true
+            });
+        }
+
+        const string query = "/api/v1/repository?sortBy=Name&nameContains=sortdefault-&pageSize=50";
+
+        // Act
+        var defaulted = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(query);
+        var descending = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+            $"{query}&direction=Descending");
+
+        // Assert
+        var expected = new[] { "sortdefault-alpha", "sortdefault-bravo", "sortdefault-charlie" };
+        Assert.Multiple(() =>
+        {
+            Assert.That(defaulted!.Results.Select(r => r.Name), Is.EqualTo(expected));
+            Assert.That(descending!.Results.Select(r => r.Name), Is.EqualTo(expected.Reverse()));
+        });
+    }
+
     #endregion
 
     #region GetById Tests
