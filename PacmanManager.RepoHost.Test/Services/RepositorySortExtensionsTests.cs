@@ -53,15 +53,16 @@ public class RepositorySortExtensionsTests
     }
 
     [Test]
-    public void ApplySort_DefaultsToNewestCreatedFirst_WhenNothingIsSupplied()
+    public void ApplySort_DefaultsToNameAscending_WhenNothingIsSupplied()
     {
         // The first member of the enum is the default sort field, and its default direction then
-        // decides what an entirely unsorted listing returns.
+        // decides what an entirely unsorted listing returns: Name, and so A->Z. The fixture is
+        // ordered differently by every other property, so this cannot pass by accident.
         // Act
         var ordered = Repositories.AsQueryable().ApplySort(new SortOptions<RepositorySortField>());
 
         // Assert
-        Assert.That(ordered.Select(r => r.Name), Is.EqualTo(new[] { "bravo", "alpha", "charlie" }));
+        Assert.That(ordered.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
     }
 
     [Test]
