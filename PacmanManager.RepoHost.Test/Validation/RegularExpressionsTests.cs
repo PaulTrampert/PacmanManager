@@ -33,4 +33,31 @@ public class RegularExpressionsTests
     {
         Assert.That(Regex.IsMatch(repositoryName, RegularExpressions.RepositoryName), Is.EqualTo(isMatchExpected));
     }
+
+    [TestCase("1.0", true)]
+    [TestCase("1.0-1", true)]
+    [TestCase("1.4.2-1", true)]
+    [TestCase("2:1.4.2-1", true)]
+    [TestCase("0:1.0-1", true)]
+    [TestCase("1.0-1.1", true)]
+    [TestCase("1.0_rc1-1", true)]
+    [TestCase("1.0+git20260101-1", true)]
+    [TestCase("r123.abc0def-1", true)]
+    [TestCase("1", true)]
+    [TestCase("", false)]
+    [TestCase("-1", false)]
+    [TestCase(".1-1", false)]
+    [TestCase("1.0-", false)]
+    [TestCase("1.0-a", false)]
+    [TestCase("1.0-1-1", false)]
+    [TestCase(":1.0-1", false)]
+    [TestCase("a:1.0-1", false)]
+    [TestCase("1:2:1.0-1", false)]
+    [TestCase("1.0 -1", false)]
+    [TestCase("1.0/1-1", false)]
+    [TestCase("1.0-1\n", false)]
+    public void PackageVersion_MatchesRegularExpression(string version, bool isMatchExpected)
+    {
+        Assert.That(Regex.IsMatch(version, RegularExpressions.PackageVersion), Is.EqualTo(isMatchExpected));
+    }
 }
