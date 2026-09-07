@@ -43,6 +43,7 @@ public class ConfigureSwaggerGenOptions(
         var filePath = Path.Combine(AppContext.BaseDirectory, fileName);
         opts.IncludeXmlComments(filePath);
         opts.SupportNonNullableReferenceTypes();
+        opts.ParameterFilter<SortDirectionDefaultParameterFilter>();
 
         opts.MapType<DateOnly>(() => new OpenApiSchema
         {

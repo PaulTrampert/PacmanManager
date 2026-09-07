@@ -403,7 +403,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(name: "repo-2", createdAt: DateTimeOffset.UtcNow.AddMinutes(-1));
         await GivenRepositoryAsync(name: "repo-3", createdAt: DateTimeOffset.UtcNow.AddMinutes(-2));
 
-        // Order is descending by CreatedAt: repo-1, repo-2, repo-3
+        // Order is ascending by Name: repo-1, repo-2, repo-3
         var paginationParams = new PaginationParams { Offset = 1, PageSize = 1 };
 
         // Act
@@ -789,6 +789,62 @@ public class RepositoryServiceTests
 
         // Assert
         Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "charlie", "bravo", "alpha" }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByNameAscending_WhenNoDirectionIsGiven()
+    {
+        // Name defaults to A→Z rather than to the listing-wide descending default, because which
+        // way round is natural belongs to the field.
+        // Arrange
+        await GivenRepositoryAsync(name: "charlie");
+        await GivenRepositoryAsync(name: "alpha");
+        await GivenRepositoryAsync(name: "bravo");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Name });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByNameAscending_WhenNoSortIsGiven()
+    {
+        // The first member of RepositorySortField is the default, so a listing nobody has ordered
+        // comes back by name rather than newest first.
+        // Arrange
+        var now = DateTimeOffset.UtcNow;
+        await GivenRepositoryAsync(name: "charlie", createdAt: now);
+        await GivenRepositoryAsync(name: "alpha", createdAt: now.AddDays(-1));
+        await GivenRepositoryAsync(name: "bravo", createdAt: now.AddDays(-2));
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 50 });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SortsByNewestCreatedFirst_WhenNoDirectionIsGiven()
+    {
+        // The dates keep the descending default, so the unsorted listing is unchanged.
+        // Arrange
+        var now = DateTimeOffset.UtcNow;
+        await GivenRepositoryAsync(name: "oldest", createdAt: now.AddDays(-2));
+        await GivenRepositoryAsync(name: "newest", createdAt: now);
+        await GivenRepositoryAsync(name: "middle", createdAt: now.AddDays(-1));
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Created });
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Name), Is.EqualTo(new[] { "newest", "middle", "oldest" }));
     }
 
     [Test]
