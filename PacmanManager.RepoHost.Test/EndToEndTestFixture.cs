@@ -1,7 +1,9 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 
@@ -23,6 +25,27 @@ public class EndToEndTestFixture : IAsyncDisposable
     /// The package upload ceiling the containerized API is configured with, in bytes.
     /// </summary>
     public const long MaxUploadBytes = 1024 * 1024;
+
+    /// <summary>
+    /// A context over the same database the containerized API is using, reachable from the test
+    /// host.
+    /// </summary>
+    /// <remarks>
+    /// This is for arranging rows directly, where publishing them through the API would test the
+    /// arrangement rather than the endpoint under test, and not for asserting: an assertion belongs
+    /// against the API's own responses. The caller owns the returned context.
+    /// </remarks>
+    /// <returns>A context connected to the test database.</returns>
+    /// <exception cref="InvalidOperationException">The containers have not been started.</exception>
+    public PacmanManagerDbContext CreateDbContext()
+    {
+        if (_dbContainer == null)
+            throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+
+        return new PacmanManagerDbContext(new DbContextOptionsBuilder<PacmanManagerDbContext>()
+            .UseNpgsql(_dbContainer.LocalConnectionString)
+            .Options);
+    }
 
     /// <summary>
     /// Gets the HTTP client for making requests to the containerized API.
@@ -54,9 +77,10 @@ public class EndToEndTestFixture : IAsyncDisposable
             var solutionDirectory = DirUtils.FindSolutionDirectory();
             logger.LogInformation($"Building Docker image from: {solutionDirectory}");
 
-            // Named per fixture instance. A fixed name means the second end to end fixture in a run
-            // collides with whatever the first left behind, which is a failure about Docker rather
-            // than about the code under test.
+            // Named per fixture rather than once for the suite: more than one fixture now runs a
+            // stack of its own, and Docker rejects a second network by an existing name. The
+            // containers address each other by network alias, which is scoped to the network, so
+            // the name itself is never something a test depends on.
             _testNetwork = new NetworkBuilder()
                 .WithName($"pacmanmanager-test-network-{Guid.NewGuid():N}")
                 .WithCleanUp(true)
