@@ -9,10 +9,17 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// status codes.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Services deliberately do not know about HTTP, so they raise
-/// <see cref="NoCurrentUserException"/> and <see cref="RepositoryForbiddenException"/> instead of
-/// returning action results. Mapping them centrally keeps every controller free of the
-/// translation and guarantees the same status code from every route.
+/// <see cref="NoCurrentUserException"/>, <see cref="RepositoryForbiddenException"/> and
+/// <see cref="PackageForbiddenException"/> instead of returning action results. Mapping them
+/// centrally keeps every controller free of the translation and guarantees the same status code
+/// from every route.
+/// </para>
+/// <para>
+/// The switch below leaves every other exception unhandled, so an authorization exception without
+/// an arm here would surface as a <c>500</c> rather than the status it means.
+/// </para>
 /// </remarks>
 /// <param name="problemDetailsService">Writes the response body.</param>
 public class AuthorizationExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
@@ -24,6 +31,7 @@ public class AuthorizationExceptionHandler(IProblemDetailsService problemDetails
         {
             NoCurrentUserException => (StatusCodes.Status401Unauthorized, "Authentication required."),
             RepositoryForbiddenException => (StatusCodes.Status403Forbidden, "You do not own this repository."),
+            PackageForbiddenException => (StatusCodes.Status403Forbidden, "You may not publish to this repository."),
             _ => (0, string.Empty),
         };
 

@@ -60,6 +60,7 @@ try
 // fails to start rather than running as an unidentified caller.
     builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
     builder.Services.AddSingleton<RepositoryAccessPolicy>();
+    builder.Services.AddSingleton<PackageAccessPolicy>();
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();
