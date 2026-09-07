@@ -12,15 +12,20 @@ internal static class RepositorySortExtensions
     /// Orders <paramref name="query"/> as requested, breaking ties by id so that paging is stable.
     /// </summary>
     /// <param name="query">The query to order.</param>
-    /// <param name="sort">The requested ordering.</param>
+    /// <param name="sort">
+    /// The requested ordering. A direction the caller omitted is resolved from the sort field, so
+    /// <see cref="RepositorySortField.Name"/> runs A→Z and the dates newest first.
+    /// </param>
     /// <returns>The ordered query.</returns>
     public static IOrderedQueryable<PacmanRepository> ApplySort(
         this IQueryable<PacmanRepository> query,
         SortOptions<RepositorySortField> sort)
     {
+        var direction = sort.ResolveDirection();
+
         // Matched on the pair rather than composed, because the key selectors have different
         // types and erasing that to object would stop the ordering translating to SQL.
-        var ordered = (sort.SortBy, sort.Direction) switch
+        var ordered = (sort.SortBy, direction) switch
         {
             (RepositorySortField.Name, SortDirection.Ascending) => query.OrderBy(r => r.Name),
             (RepositorySortField.Name, _) => query.OrderByDescending(r => r.Name),

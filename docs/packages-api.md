@@ -316,9 +316,10 @@ enum member as its default, so this is expressed by the member order and nothing
 on the enum must say so, as `RepositorySortField`'s does, because reordering it silently changes
 what every unsorted request returns.
 
-Note that this differs from `RepositorySortField`, which leads with `Created`. A repository listing
-is a short list of things you own and want newest-first; a package listing is a long list you look
-things up in.
+`RepositorySortField` leads with `Name` for the same reason. It originally led with `Created`, on
+the reasoning that a repository listing is a short list of things you own and want newest-first,
+but a listing you read by name is easier to find anything in whichever of the two it is, so both
+listings now default the same way.
 
 **Direction defaults per sort field.** `SortOptions<TSortFields>` currently declares
 `[DefaultValue(SortDirection.Descending)]`, which is right for `Updated`, `Created` and
