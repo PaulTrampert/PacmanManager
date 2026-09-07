@@ -31,7 +31,12 @@ Recorded here so the issues stay bounded; each has a follow-up in
 
 ### Entity
 
-`PacmanManager.Entities.Package`, configured by data annotations like every other entity.
+`PacmanManager.Entities.PacmanPackage`, configured by data annotations like every other entity.
+
+The entity is `PacmanPackage`, not `Package`, mirroring `PacmanRepository`. The public model below
+is `PacmanManager.RepoHost.Models.Package`, and `PackageService` imports both namespaces the way
+`RepositoryService` does; two types called `Package` in scope would be a `CS0104` on every
+unqualified use. The DbSet is `PacmanPackages`, matching `PacmanRepositories`.
 
 | Column | Type | Notes |
 | :--- | :--- | :--- |
@@ -47,12 +52,12 @@ Recorded here so the issues stay bounded; each has a follow-up in
 | `Url` | `string?` | Upstream URL. |
 | `Architecture` | `string` | Package architecture, which is not always the repository's. |
 | `Packager` | `string?` | |
-| `FileName` | `string` | Basename of the stored package file. See [Storage](#storage-layout). |
+| `FileName` | `string` | Basename of the stored package file, derived from the metadata below — never `alpm_pkg_get_filename`. See [Storage](#storage-layout). |
 | `CompressedSize` | `long` | `alpm_pkg_get_size`. |
 | `InstalledSize` | `long` | `alpm_pkg_get_isize`. |
 | `BuildDate` | `DateTimeOffset` | |
-| `Sha256Sum` | `string?` | |
-| `Md5Sum` | `string?` | |
+| `Sha256Sum` | `string` | Computed over the uploaded bytes, not read from libalpm. See [Checksums](#checksums-are-computed-not-read). |
+| `Md5Sum` | `string` | Likewise. Recorded because `repo-add` writes both into the database. |
 | `Licenses`, `Groups`, `Provides`, `Replaces` | `string[]` | Postgres `text[]` via Npgsql. |
 | `Depends`, `OptDepends`, `MakeDepends`, `CheckDepends`, `Conflicts` | `string[]` | Stored in pacman's own spelling (`foo>=1.2`, `bar: reason`) rather than decomposed. |
 | `CreatedAt` | `DateTimeOffset` | When this package first appeared in this repository. |
@@ -77,8 +82,10 @@ a `PackageVersion` expression needs adding for the `[epoch:]pkgver[-pkgrel]` sha
 
 ### Public model
 
-`PacmanManager.RepoHost.Models.Package` mirrors the entity, with `publisher` projected as a summary
-rather than a bare id, following `Repository.Projection`:
+`PacmanManager.RepoHost.Models.Package` mirrors the `PacmanPackage` entity, with `publisher`
+projected as a summary rather than a bare id, following `Repository.Projection`. It keeps the
+unprefixed name for the same reason `Repository` does: the `Pacman` prefix distinguishes the
+storage type, and the wire model is the one callers read about:
 
 ```jsonc
 {
@@ -168,11 +175,11 @@ restating it. `RepositoryAccessPolicy.VisibleTo` already returns
 semi-join rather than rewriting it into a package expression:
 
 ```csharp
-private async ValueTask<IQueryable<Package>> VisibleAsync(CancellationToken ct)
+private async ValueTask<IQueryable<PacmanPackage>> VisibleAsync(CancellationToken ct)
 {
     var actor = await actorAccessor.GetActorAsync(ct);
     var visibleRepositories = dbContext.PacmanRepositories.Where(accessPolicy.VisibleTo(actor));
-    return dbContext.Packages.Where(p => visibleRepositories.Any(r => r.Id == p.RepositoryId));
+    return dbContext.PacmanPackages.Where(p => visibleRepositories.Any(r => r.Id == p.RepositoryId));
 }
 ```
 
@@ -181,8 +188,12 @@ This keeps one definition of repository visibility. Restating it as
 keep in step, which is the thing the existing design goes out of its way to avoid.
 
 `PackageAccessPolicy` then holds only what is genuinely new: `CheckPublish(repository, actor)`,
-returning the existing `RepositoryAccess` verdict enum so `AuthorizationExceptionHandler` needs no
-new mapping. `PackageForbiddenException` mirrors `RepositoryForbiddenException`.
+returning the existing `RepositoryAccess` verdict enum so the *verdict* type is unchanged.
+`PackageForbiddenException` mirrors `RepositoryForbiddenException`, and
+`AuthorizationExceptionHandler` does need a new arm for it: the handler switches on exception type
+(`NoCurrentUserException` → 401, `RepositoryForbiddenException` → 403, everything else unhandled),
+so an unmapped `PackageForbiddenException` would fall through to a `500`. Issue 6 covers the added
+mapping and a title of its own ("You may not publish to this repository.").
 
 Note the signature. Because the permission is repository-scoped, the check needs no package
 argument, and the same method answers for publish, replace and delete. It is nonetheless a separate
@@ -190,8 +201,8 @@ method from `RepositoryAccessPolicy.CheckWrite` even though the two agree today,
 and "may edit the repository itself" are different questions that a grant table will answer
 differently.
 
-As with repositories, `PackageService` must touch `DbContext.Packages` in exactly one place, and a
-`PackageServiceEnforcementTests` asserts it, mirroring `RepositoryServiceEnforcementTests`.
+As with repositories, `PackageService` must touch `DbContext.PacmanPackages` in exactly one place,
+and a `PackageServiceEnforcementTests` asserts it, mirroring `RepositoryServiceEnforcementTests`.
 
 ---
 
@@ -213,8 +224,8 @@ right the first time.
 | `GET` | `/api/v1/packages/{packageId}/content` | Anonymous | `200` file | `404` |
 | `GET` | `/api/v1/repositories/{repositoryId}/packages/{name}/content` | Anonymous | `200` file | `404` |
 | `POST` | `/api/v1/repositories/{repositoryId}/packages` | Required | `201` created, `200` updated | `400`, `401`, `403`, `404`, `409`, `413` |
-| `DELETE` | `/api/v1/packages/{packageId}` | Required | `204` | `401`, `403`, `404` |
-| `DELETE` | `/api/v1/repositories/{repositoryId}/packages/{name}` | Required | `204` | `401`, `403`, `404` |
+| `DELETE` | `/api/v1/packages/{packageId}` | Required | `204` | `401`, `403`, `404`, `409` |
+| `DELETE` | `/api/v1/repositories/{repositoryId}/packages/{name}` | Required | `204` | `401`, `403`, `404`, `409` |
 
 The repository-scoped forms are aliases: they resolve `(repositoryId, name)` to the same package
 and share a service method with the id form. They exist because the natural key is what a build
@@ -222,6 +233,10 @@ script knows — it has just built `my-tool` for repository X and does not know 
 
 `404` covers three cases that must be indistinguishable from outside: the package does not exist,
 the repository does not exist, and the repository is private and belongs to someone else.
+
+`409` on both mutating verbs means the repository database was locked by another writer — see
+[Concurrency](#publishing). Delete mutates the same `.db.tar.gz` that publish does, so it can fail
+the same way and must advertise the same status.
 
 ### Listing
 
@@ -238,17 +253,39 @@ the repository does not exist, and the repository is private and belongs to some
 | `architecture` | `EqualsQuery` | Package architecture. |
 | `nameContains` | `StringContainsQuery` | Substring of the package name. |
 | `updatedSince` | `GreaterThanQuery` on `UpdatedAt` | ISO 8601. Packages published since this instant. |
-| `search` | `IQueryObject<Package>` | Case-insensitive substring over `Name`, `Base` and `Description`. |
+| `search` | `IQueryObject<PacmanPackage>` | Case-insensitive substring over `Name`, `Base` and `Description`. |
 
 Two implementation notes that the issues need to carry:
 
-* **`search` spans columns, so `PackageFilter` implements `IQueryObject<Package>`.** A
+* **`search` spans columns, so `PackageFilter` implements `IQueryObject<PacmanPackage>`.** A
   `PTrampert.QueryObjects` attribute binds one query property to one target column, which `search`
   cannot be. `IQueryObject<T>` is the library's own extension point for exactly this: it declares a
   single `Expression<Func<T, bool>> BuildQueryExpression()`, and `QueryableExtensions.Where` ANDs
   whatever it returns onto the attribute-derived predicate — or skips it when the method returns
   `null`, which is what `PackageFilter` returns when `search` is unset. The body ORs a
   `Contains` over the three columns together with `ExpressionExtensions.OrElse`.
+
+  Two details of that `Contains` are load-bearing and must not be simplified away. `string.Contains`
+  is **case-sensitive** under both Npgsql (it translates to `strpos`/`LIKE`, and the default
+  collation is case-sensitive) and `Microsoft.EntityFrameworkCore.InMemory` (it is
+  `string.Contains`), so a bare `p.Name.Contains(search)` would not deliver the case-insensitive
+  match this table promises. Lower both sides — `p.Name.ToLower().Contains(term)` with `term`
+  lowered once in C# — which Npgsql translates to `lower(…)` and InMemory evaluates directly. And
+  `Base` and `Description` are nullable: `p.Base.Contains(term)` is a null-check-free dereference
+  that Npgsql happens to turn into SQL that yields `NULL` (so the row simply does not match), but
+  that InMemory evaluates in memory and throws `NullReferenceException` on the first package with no
+  `pkgbase`. Guard each nullable column explicitly:
+
+  ```csharp
+  var term = search.ToLowerInvariant();
+  Expression<Func<PacmanPackage, bool>> expr = p =>
+      p.Name.ToLower().Contains(term) ||
+      (p.Base != null && p.Base.ToLower().Contains(term)) ||
+      (p.Description != null && p.Description.ToLower().Contains(term));
+  ```
+
+  The `lower(…)` calls mean no index can serve `search`; nothing indexes these columns today, and
+  the full-text work below is where that stops being acceptable.
 
   This is strictly better than applying `search` outside the filter. `.Where(filter)` stays the one
   call site, so the guarantee that a filter can only narrow the visible set remains structural
@@ -272,10 +309,17 @@ Like `RepositoryFilter`, the filter is ANDed onto the already-visible query and 
 remove rows. Naming a repository in `repositoryIds` that the caller cannot see yields nothing
 rather than an error.
 
-`PackageSortField`: `Updated`, `Created`, `Name`, `Version`, `InstalledSize`. `Updated` is first, so
+`PackageSortField`: `Updated`, `Created`, `Name`, `InstalledSize`. `Updated` is first, so
 an unsorted listing returns most-recently-published first; `SortOptions` defaults `direction` to
 descending. Sorting is applied by a `PackageSortExtensions.ApplySort`, tie-broken by `Id` for stable
 paging, exactly as `RepositorySortExtensions` does.
+
+**There is deliberately no sort by `Version`.** A listing spans packages, and comparing one
+package's version to a different package's version is meaningless — the ordering would answer no
+question anyone has. It would also be wrong on its own terms: `Version` is a string, so a
+lexicographic sort puts `1.10.0-1` before `1.9.0-1`, and ordering it correctly would mean pushing
+pacman's `vercmp` algorithm into SQL. Since a repository holds exactly one version of each package,
+version ordering has no within-package meaning to recover either.
 
 On the repository-scoped alias, `repositoryIds` is not accepted; the path segment supplies it. If a
 caller sends it anyway the request is a `400` rather than being silently ignored.
@@ -302,8 +346,17 @@ reuses a tree the configuration already anticipates.
 **File names are derived, never accepted.** The stored basename is built from metadata libalpm
 reported — `{name}-{version}-{architecture}.pkg.tar.{ext}` — with `ext` determined by sniffing the
 uploaded file's compression magic against an allowlist (`zst`, `xz`, `gz`, `bz2`). A client-supplied
-name is never used to build a path, which removes path traversal as a concern rather than defending
-against it. An unrecognised compression is a `400`.
+name is never used to build a path. That is a real narrowing — the only inputs left are `name`,
+`version` and `architecture`, each already matched against `RegularExpressions.PackageName`, the
+new `PackageVersion` expression and the repository's own architecture — but it is not by itself a
+proof: the metadata still comes out of a file the caller chose. The derivation must therefore
+validate before it formats, and assert that the result contains no path separator, which is what
+issue 4's tests pin down.
+
+`alpm_pkg_get_filename` cannot back this column either. For a package loaded with `alpm_pkg_load`
+libalpm reports back the path it was handed rather than a basename, so for a file sitting in
+`{DATA_DIR}/tmp` it returns that temporary path. It is bound for completeness in issue 2; nothing
+in the publish path may use it.
 
 `IFileSystem` currently exposes `Exists`, `Delete` and `OpenRead`; publishing needs at least
 `OpenWrite`/`Move` and directory creation, added there so the service stays testable.
@@ -328,47 +381,102 @@ delete. Both are `ICliTool` implementations run through `ICliToolRunner`, like t
 
 1. **Authorize before reading the body.** Resolve the repository from the visible set and run
    `CheckPublish` first, so an unauthorized caller is rejected without uploading megabytes.
-2. **Stream the body to a temporary file** under `{DATA_DIR}/tmp`. Package files run to hundreds of
-   megabytes; nothing may buffer the upload in memory, and Kestrel's 30 MB default body limit has to
-   be raised (a configurable maximum, not `DisableRequestSizeLimit`, so the limit is a `413` and not
-   an out-of-disk).
+2. **Stream the body to a temporary file** under `{DATA_DIR}/tmp`, **hashing as it goes** so that
+   `Sha256Sum` and `Md5Sum` come out of the same pass — see
+   [Checksums](#checksums-are-computed-not-read). Package files run to hundreds of megabytes;
+   nothing may buffer the upload in memory, and Kestrel's 30 MB default body limit has to be raised
+   (a configurable maximum, not `DisableRequestSizeLimit`, so the limit is a `413` and not an
+   out-of-disk).
 3. **Extract metadata** with `ILibAlpm.LoadPackageFile` over the temporary file.
 4. **Validate** the extracted values: name and version match the expected shapes, and the package's
    architecture is either the repository's architecture or `any`. A mismatch is a `400`.
-5. **Upsert** on `(repositoryId, name)`. A new row is `201` with a `Location` header; an existing row
-   is updated in place — keeping `Id` and `CreatedAt`, and setting `PublisherId` to the publishing
-   user — and returns `200`. Because a package holds exactly one version, replacement is the normal
-   path, not an edge case.
-6. **Move the file into place** and run `repo-add`. If the replaced version had a different file
-   name, delete the old file.
-7. **Touch the repository's `UpdatedAt`**, since its contents changed.
+5. **Stage the row** on `(repositoryId, name)`, and touch the repository's `UpdatedAt` since its
+   contents changed. A new row is `201` with a `Location` header; an existing row is updated in
+   place — keeping `Id` and `CreatedAt`, and setting `PublisherId` to the publishing user — and
+   returns `200`. Because a package holds exactly one version, replacement is the normal path, not
+   an edge case. Nothing is committed yet.
+6. **Move the file into place, run `repo-add`, then `SaveChangesAsync`.** Side effects first,
+   commit last — the ordering `CreateRepositoryAsync` already uses, so that a failed `repo-add`
+   costs nothing more than a discarded change tracker. If the replaced version had a different file
+   name, delete the old file only *after* the commit succeeds; until then it is what a rollback
+   restores the database to.
+
+### Checksums are computed, not read
+
+`IPackage` gains `GetSha256Sum` and `GetMd5Sum` in issue 2, but neither can populate the columns
+here. libalpm fills those fields from a sync database entry; for a package loaded off disk with
+`alpm_pkg_load` there is no such entry and both come back `NULL`. Reading them would silently store
+nulls for every package this API ever accepts, while `repo-add` wrote real `%MD5SUM%` and
+`%SHA256SUM%` values into the same repository's `.db.tar.gz` — the API and the database a pacman
+client reads would disagree about the same file.
+
+So the service computes them itself, with `IncrementalHash` (or two `CryptoStream`s) over the
+request body as step 2 writes it out, which costs one pass and no extra I/O. The columns are
+non-nullable as a result. Issue 10 owns this; issue 2's `GetSha256Sum`/`GetMd5Sum` exist to complete
+the binding and are documented as null for file-loaded packages.
 
 **Content type.** Recommended: `application/octet-stream` with the raw file as the body. Because the
 stored name is derived from metadata (above), there is nothing a `multipart/form-data` envelope
 would carry that we would trust, and raw-body streaming is markedly simpler to get right. The
 implementing issue should confirm this against how the eventual publish client is expected to work.
 
-**Concurrency.** Two publishes to the same repository must not run `repo-add` against the same
-database concurrently. `repo-add` takes a lock file beside the database and fails rather than
-corrupting it, which is a safe floor but a poor experience. Publishing is therefore serialized per
-repository in-process (a keyed async lock), and a `repo-add` lock failure surfaces as `409`. This is
-correct for a single instance only; a multi-instance deployment needs a Postgres advisory lock, and
-that is [deferred](#deferred-work) along with the note that nothing else about the app is
-horizontally scalable yet.
+**Concurrency.** Two writers must not run `repo-add`/`repo-remove` against the same database
+concurrently. Both tools take the same lock file beside the database and fail rather than corrupting
+it, which is a safe floor but a poor experience. **Every mutation of a repository database is
+therefore serialized per repository in-process** by one keyed async lock, keyed on repository id and
+shared by the publish and delete paths — `repo-remove` mutates the same file as `repo-add`, so a
+lock that only covered publish would leave exactly the race it was added to prevent. The lock is
+held across the side effects and the commit, and a lock-file failure from either tool surfaces as a
+`409` on either route. This is correct for a single instance only; a multi-instance deployment
+needs a Postgres advisory lock, and that is [deferred](#deferred-work) along with the note that
+nothing else about the app is horizontally scalable yet.
 
-**Failure handling.** The database row and the on-disk state have to end up agreeing. Save the row
-and run `repo-add` inside the same try/catch the way `CreateRepositoryAsync` does, and on failure
-remove the newly written package file and let the transaction roll back. The known-gap that already
-applies to repositories applies here too: a file we fail to delete is orphaned but inert.
+**Failure handling.** The row, the package file and the repository database have to end up
+agreeing. All three of step 6's operations sit in one try/catch inside the per-repository lock, and
+there are two distinct failures to unwind:
+
+* **`repo-add` failed.** `SaveChangesAsync` is never reached, so the change tracker is discarded and
+  no row changed. Delete the package file just written; on a replacement, the previous file is still
+  on disk and the database still names it, so the repository is exactly as it was.
+* **`SaveChangesAsync` failed after `repo-add` succeeded.** This is the case
+  `CreateRepositoryAsync`'s pattern does not cover — creating an empty database has no entry to
+  undo, whereas here the `.db.tar.gz` now advertises a package the rows do not know about, and no
+  later code path would ever notice. Compensate explicitly: run `repo-remove {name}`, then, for a
+  new package, delete the file just written; for a replacement, `repo-add` the previous file, which
+  step 6 has not yet deleted for precisely this reason.
+
+If the compensating step itself fails, log at error and let the original exception surface. The
+repository database is then genuinely out of step with the rows, and the only cure is the
+reconciliation in [deferred work](#deferred-work) — which is filed because this window exists, not
+because it is expected to be common. A package file we fail to delete remains orphaned but inert,
+the same known gap repositories already have.
 
 ---
 
 ## Deleting
 
-`DELETE /api/v1/packages/{packageId}` (and the `(repositoryId, name)` alias) removes the row, runs
-`repo-remove` against the repository database, deletes the package file, and touches the
-repository's `UpdatedAt`. As with repository deletion, the row is the source of truth: a file that
-cannot be removed is logged at warning and does not fail the request.
+`DELETE /api/v1/packages/{packageId}` (and the `(repositoryId, name)` alias) resolves the package
+from the visible set, runs `CheckPublish`, and then, **under the same per-repository lock publishing
+uses**, mirrors publish's ordering:
+
+1. Run `repo-remove {repositoryId}.db.tar.gz {name}`.
+2. Remove the row and touch the repository's `UpdatedAt`, then `SaveChangesAsync`.
+3. Delete the package file.
+
+Side effect first, commit second, for the same reason: **a failed `repo-remove` must abort the
+request with nothing committed** rather than delete a row whose entry is still in the database file.
+It surfaces as a `409` when it is the lock file, and otherwise as the same `500` any failed
+`ICliTool` produces; either way the package is still listed and still installable, which is the
+recoverable state. If `SaveChangesAsync` then fails, compensate by re-running `repo-add` against the
+package file — still on disk, because step 3 comes last — and, as in publishing, log at error and
+rethrow if that compensation also fails.
+
+Step 3 is the one operation that may fail harmlessly. As with repository deletion, the row is the
+source of truth: a file that cannot be removed is logged at warning and does not fail the request.
+
+A delete of a package that is not in the visible set is a `404`, and so is a delete of one that was
+already deleted; the operation is idempotent from the caller's point of view only in that a second
+call cannot half-succeed.
 
 ---
 
@@ -393,15 +501,27 @@ reported name, version and architecture; loading a missing or malformed file thr
 `GetMd5Sum`, following the existing `Get*` naming. While in here, fix `GetInstallDate`, which is
 documented as returning null when not installed but currently returns the Unix epoch.
 
+Three of these behave differently for a package loaded from a file than the names suggest, and the
+XML docs must say so, because the packages API is the only caller and every package it sees is
+file-loaded:
+
+* `GetSha256Sum` and `GetMd5Sum` return `null` — libalpm populates them from a sync database entry,
+  and there is none. `PackageService` computes both itself; see
+  [Checksums](#checksums-are-computed-not-read).
+* `GetFileName` returns the path handed to `alpm_pkg_load`, not a basename. Nothing may use it to
+  name a stored file; see [Storage](#storage-layout).
+
 *Acceptance:* each new member is covered in `AlpmPackageTests`; the install-date fix has a test that
-asserts null.
+asserts null; tests pin the file-loaded behaviour of `GetSha256Sum`, `GetMd5Sum` and `GetFileName`
+so that a later libalpm change is caught rather than silently changing what the API stores.
 
 *Depends on:* nothing, but pairs naturally with issue 1.
 
-### 3. `Package` entity and migration — `MINOR`
+### 3. `PacmanPackage` entity and migration — `MINOR`
 
-The entity as tabulated above, `PackageValidationConstants`, `Packages` on `PacmanManagerDbContext`,
-a `RegularExpressions.PackageVersion`, and a migration named `AddTable_Packages`.
+The `PacmanPackage` entity as tabulated above, `PackageValidationConstants`, `PacmanPackages` on
+`PacmanManagerDbContext`, a `RegularExpressions.PackageVersion`, and a migration named
+`AddTable_PacmanPackages`.
 
 *Acceptance:* `dotnet ef migrations list` shows it; applying it against the compose Postgres
 succeeds; the unique index on `(RepositoryId, Name)` exists.
@@ -425,23 +545,28 @@ creation is unchanged.
 ### 6. `PackageAccessPolicy` — `MINOR`
 
 `CheckPublish(repository, actor)` returning `RepositoryAccess`, answering for publish, replace and
-delete alike; `PackageForbiddenException`; `AuthorizationExceptionHandler` extended to map it.
+delete alike; `PackageForbiddenException`; `AuthorizationExceptionHandler` extended with an arm
+mapping it to `403` (without which it would fall through to a `500`).
 
 *Acceptance:* `PackageAccessPolicyTests` covers every row of the rules table above as a plain unit
-test, no database involved, mirroring `RepositoryAccessPolicyTests`.
+test, no database involved, mirroring `RepositoryAccessPolicyTests`; a handler test asserts
+`PackageForbiddenException` produces `403`.
 
 *Depends on:* 3.
 
 ### 7. `IPackageService` read paths — `MINOR`
 
 `GetPackagesAsync`, `GetPackageByIdAsync`, `GetPackageByNameAsync(repositoryId, name)`, plus
-`PackageFilter` (including its `IQueryObject<Package>` implementation for `search`),
+`PackageFilter` (including its `IQueryObject<PacmanPackage>` implementation for `search`),
 `PackageSortField`, `PackageSortExtensions`, and the semi-join `VisibleAsync`.
 
 *Acceptance:* `PackageServiceTests` covers each filter and sort field; tests named for the
 properties assert that no filter value widens the visible set (a private repository's packages stay
 invisible to a non-owner, `repositoryIds` naming an invisible repository returns empty).
-`PackageServiceEnforcementTests` asserts `DbContext.Packages` is named in exactly one method.
+`search` has tests for a term whose case differs from the stored value and for a repository
+containing a package with a null `Base` and null `Description`, both of which fail against the
+naive `Contains`. `PackageServiceEnforcementTests` asserts `DbContext.PacmanPackages` is named in
+exactly one method.
 
 *Depends on:* 3, 6.
 
@@ -464,15 +589,19 @@ a non-owner and `200` to its owner, and an anonymous listing showing public repo
 
 ### 10. Publishing — `MINOR`
 
-`POST /api/v1/repositories/{repositoryId}/packages` end to end: authorize, stream to temp, extract,
-validate, upsert, `repo-add`, per-repository serialization, rollback on failure, configurable size
-limit.
+`POST /api/v1/repositories/{repositoryId}/packages` end to end: authorize, stream to temp while
+hashing, extract, validate, stage the row, `repo-add`, commit, per-repository serialization,
+compensation on failure, configurable size limit.
 
 *Acceptance:* service unit tests for the upsert (new → `201`-shaped result, existing → updated in
-place with `Id`/`CreatedAt` preserved and `PublisherId` reassigned), architecture mismatch rejected,
-`repo-add` failure rolling back both row and file. E2E tests publish a real fixture package and then
-read it back through `GET`, and assert `403` publishing to someone else's public repository and
-`404` to someone else's private one.
+place with `Id`/`CreatedAt` preserved and `PublisherId` reassigned); architecture mismatch rejected;
+`repo-add` failure leaving no row and no new file; and a `SaveChangesAsync` failure after a
+successful `repo-add` invoking the compensating `repo-remove` — plus, on a replacement, the
+`repo-add` that restores the previous file — which is the case that needs an explicitly faked
+commit failure to reach. E2E tests publish a real fixture package and then read it back through
+`GET`, assert the stored `sha256Sum`/`md5Sum` match the uploaded bytes and the `%SHA256SUM%`
+`repo-add` recorded, and assert `403` publishing to someone else's public repository and `404` to
+someone else's private one.
 
 *Depends on:* 1, 2, 3, 4, 5, 6, 7, 13.
 
@@ -488,14 +617,16 @@ visibility behaves as for the metadata routes.
 
 ### 12. Deleting — `MINOR`
 
-`DELETE /api/v1/packages/{packageId}` and its alias: `repo-remove`, file cleanup, repository
-`UpdatedAt`.
+`DELETE /api/v1/packages/{packageId}` and its alias: `repo-remove` then commit then file cleanup,
+repository `UpdatedAt`, under the same per-repository lock publishing takes.
 
 *Acceptance:* service unit tests for the authorization outcomes (the repository owner and, once
 grants exist, any holder of `Publish` → `204`, including over a package someone else published;
-another user on a public repository → `403`; another user on a private one → `404`) and for a file
-deletion failure being logged but not failing the request. E2E test deletes a published package and
-confirms it is gone from the listing.
+another user on a public repository → `403`; another user on a private one → `404`); for a
+`repo-remove` failure leaving the row intact and failing the request, with a lock-file failure
+surfacing as `409`; for a commit failure after a successful `repo-remove` triggering the
+compensating `repo-add`; and for a file deletion failure being logged but not failing the request.
+E2E test deletes a published package and confirms it is gone from the listing.
 
 *Depends on:* 10.
 
@@ -529,6 +660,12 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **Multi-instance publishing.** The per-repository lock is in-process; concurrent publishes from
   two instances would rely on `repo-add`'s own lock file and surface as `409`s. A Postgres advisory
   lock keyed by repository id fixes it.
+* **Reconciling a repository database from the rows.** Publish and delete compensate for a
+  side-effect-succeeded-then-commit-failed window, but if the compensation itself fails the
+  `.db.tar.gz` and the `PacmanPackages` rows disagree with nothing to detect or repair it. Since the
+  rows are the source of truth and every package file is on disk, a database can be rebuilt from
+  them with one `repo-add` per package; a maintenance command that does so — and a check that
+  reports the drift — closes the last gap in the failure handling above.
 * **Quotas.** Nothing bounds how much a user can upload.
 * **`ItemExistsException` is still unused**, as noted in `authorization-plan.md`; a name collision
   in either API surfaces as a `500` rather than a `409`.
