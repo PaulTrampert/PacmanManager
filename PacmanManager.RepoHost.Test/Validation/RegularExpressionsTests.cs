@@ -29,6 +29,9 @@ public class RegularExpressionsTests
     [TestCase("a+1", true)]
     [TestCase("a-1", true)]
     [TestCase("a.1", true)]
+    [TestCase("a\n", false)]
+    [TestCase("a\nb", false)]
+    [TestCase("a\n/etc/passwd", false)]
     public void RepositoryName_MatchesRegularExpression(string repositoryName, bool isMatchExpected)
     {
         Assert.That(Regex.IsMatch(repositoryName, RegularExpressions.RepositoryName), Is.EqualTo(isMatchExpected));
