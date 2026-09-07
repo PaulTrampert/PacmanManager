@@ -7,8 +7,8 @@ them, it says so.
 
 ## Goals
 
-* A repository owner can push a built `.pkg.tar.*` file at a repository over HTTP and have it
-  appear in that repository's `.db.tar.gz`.
+* A user with publish rights on a repository — today, its owner — can push a built `.pkg.tar.*`
+  file at it over HTTP and have the package appear in that repository's `.db.tar.gz`.
 * Anyone who may see a repository may see and download its packages, with no separate visibility
   rules of their own.
 * Package metadata in the API is the metadata libalpm reports for the uploaded file, not anything
@@ -20,7 +20,6 @@ Recorded here so the issues stay bounded; each has a follow-up in
 [Deferred work](#deferred-work).
 
 * Detached package signatures (`.sig`) and signature verification.
-* Retaining more than one version of a package per repository.
 * Postgres full-text search and relevance ranking.
 * Serving a repository in the layout a `pacman` client expects (`Server = …`), which needs the
   `.db.tar.gz` and the package files under one base URL. The `content` route below downloads a
@@ -39,8 +38,8 @@ Recorded here so the issues stay bounded; each has a follow-up in
 | `Id` | `Guid` | Primary key, `Guid.CreateVersion7()`. |
 | `RepositoryId` | `Guid` | FK to `PacmanRepository`, required, cascade delete. |
 | `Repository` | nav | |
-| `OwnerId` | `Guid` | FK to `User`, required. The user who published this version. |
-| `Owner` | nav | |
+| `PublisherId` | `Guid` | FK to `User`, required. The user who most recently published this package. It records who, and confers no rights of its own — see [Authorization](#authorization). |
+| `Publisher` | nav | |
 | `Name` | `string` | From `alpm_pkg_get_name`. |
 | `Version` | `string` | Full `epoch:pkgver-pkgrel`. |
 | `Description` | `string?` | |
@@ -59,9 +58,14 @@ Recorded here so the issues stay bounded; each has a follow-up in
 | `CreatedAt` | `DateTimeOffset` | When this package first appeared in this repository. |
 | `UpdatedAt` | `DateTimeOffset` | When it was last published. Backs `updatedSince`. |
 
-Unique index on `(RepositoryId, Name)`. A repository holds at most one version of a package, which
+Unique index on `(RepositoryId, Name)`. A repository holds exactly one version of a package, which
 is what makes `(repositoryId, name)` a usable route key and what the upsert in
 [Publishing](#publishing) relies on.
+
+This is the model, not a simplification to be revisited later. Pacman rolls forward and has no
+rollback: the only remedy for a bad package is to publish a higher version over it. Keeping previous
+versions would therefore be storage nothing can ever ask for, and it would cost the unique index and
+with it the natural route key.
 
 Dependency lists are string arrays rather than a related table because nothing in this API queries
 into them, and because pacman's own dependency syntax round-trips losslessly as text. Splitting
@@ -73,14 +77,14 @@ a `PackageVersion` expression needs adding for the `[epoch:]pkgver[-pkgrel]` sha
 
 ### Public model
 
-`PacmanManager.RepoHost.Models.Package` mirrors the entity, with `owner` and `repository` projected
-as summaries rather than ids alone, following `Repository.Projection`:
+`PacmanManager.RepoHost.Models.Package` mirrors the entity, with `publisher` projected as a summary
+rather than a bare id, following `Repository.Projection`:
 
 ```jsonc
 {
   "id": "0199…",                       // GUIDv7
   "repositoryId": "0198…",
-  "owner": { "id": "0197…", "displayName": "Paul" },
+  "publisher": { "id": "0197…", "displayName": "Paul" },
   "name": "my-tool",
   "version": "1.4.2-1",
   "description": "…",
@@ -124,22 +128,34 @@ packages, plus the `Publish` action.
 | Operation | Repository | Actor | Result |
 | :--- | :--- | :--- | :--- |
 | Read (list, get, content) | Public | Anyone, including anonymous | `200` |
-| Read | Private | Owner | `200` |
+| Read | Private | Repository owner | `200` |
 | Read | Private | Anyone else | `404` (hide existence) |
-| Publish, new package | Any visible | Repository owner | `201` |
-| Publish, existing package | Any visible | Repository owner or package owner | `200` |
-| Publish | Public | Some other user | `403` |
-| Publish | Private | Not the owner | `404` (already absent from the visible set) |
-| Publish | Any | Unauthenticated | `401` |
-| Delete | Any visible | Repository owner or package owner | `204` |
-| Delete | Public | Some other user | `403` |
-| Delete | Any | Unauthenticated | `401` |
+| Publish (new) | Any visible | Holds `Publish` on the repository | `201` |
+| Publish (replace) | Any visible | Holds `Publish` on the repository | `200` |
+| Delete | Any visible | Holds `Publish` on the repository | `204` |
+| Publish or delete | Public | Anyone else | `403` |
+| Publish or delete | Private | Not the owner | `404` (already absent from the visible set) |
+| Publish or delete | Any | Unauthenticated | `401` |
 
-The repository owner is included in delete (and in publish over an existing package) because they
-own the repository's contents: without it, a repository owner who has granted publish rights to
-someone else could not remove what that person pushed except by deleting the whole repository.
-`Publish` is named as a distinct action, rather than being folded into "owner writes", precisely so
-that a future grant table has somewhere to attach.
+### The `Publish` permission is held over a repository, not over a package
+
+**Anyone holding `Publish` on a repository may publish, replace or remove any package in it.** A
+package's `PublisherId` records who last pushed it and grants that person nothing.
+
+The alternative — giving a package's publisher rights over "their" package — reads as the safer
+design and is not. It makes the act of publishing a claim: the first person to push `my-tool` owns
+it, and anyone else with publish rights who pushes a new build of the same package takes that claim
+over. A repository owner republishing a colleague's package would quietly transfer it to themselves,
+which is a permission change nobody asked for, made as a side effect of a routine build. Deciding
+the question at the repository, where the grant was actually made, means republishing a package is
+only ever an update to a package.
+
+It follows that the person who published a package can also delete it — not because they published
+it, but because publishing it at all required the repository permission that delete needs too.
+
+`Publish` is named as a distinct action, rather than being folded into "repository owner writes", so
+that a future grant table has somewhere to attach. Until that table exists, holding `Publish` on a
+repository means owning it.
 
 ### Where it is enforced
 
@@ -164,10 +180,15 @@ This keeps one definition of repository visibility. Restating it as
 `p.Repository.IsPublic || p.Repository.OwnerId == userId` would be a second copy of the rule to
 keep in step, which is the thing the existing design goes out of its way to avoid.
 
-`PackageAccessPolicy` then holds only what is genuinely new — `CheckPublish(repository, existing,
-actor)` and `CheckDelete(repository, package, actor)`, returning the existing `RepositoryAccess`
-verdict enum so `AuthorizationExceptionHandler` needs no new mapping. `PackageForbiddenException`
-mirrors `RepositoryForbiddenException`.
+`PackageAccessPolicy` then holds only what is genuinely new: `CheckPublish(repository, actor)`,
+returning the existing `RepositoryAccess` verdict enum so `AuthorizationExceptionHandler` needs no
+new mapping. `PackageForbiddenException` mirrors `RepositoryForbiddenException`.
+
+Note the signature. Because the permission is repository-scoped, the check needs no package
+argument, and the same method answers for publish, replace and delete. It is nonetheless a separate
+method from `RepositoryAccessPolicy.CheckWrite` even though the two agree today, because `Publish`
+and "may edit the repository itself" are different questions that a grant table will answer
+differently.
 
 As with repositories, `PackageService` must touch `DbContext.Packages` in exactly one place, and a
 `PackageServiceEnforcementTests` asserts it, mirroring `RepositoryServiceEnforcementTests`.
@@ -208,26 +229,40 @@ the repository does not exist, and the repository is private and belongs to some
 `PaginationParams` (`offset`, `pageSize`), a `PackageFilter` query object, and
 `SortOptions<PackageSortField>` (`sortBy`, `direction`).
 
-`PackageFilter` (every member optional, each annotated with a `PTrampert.QueryObjects` attribute):
+`PackageFilter` (every member optional):
 
-| Parameter | Attribute | Meaning |
+| Parameter | Applied by | Meaning |
 | :--- | :--- | :--- |
 | `repositoryIds` | `AnyOfQuery` | Restrict to these repositories. |
-| `ownerIds` | `AnyOfQuery` | Restrict to packages published by these users. |
+| `publisherIds` | `AnyOfQuery` | Restrict to packages last published by these users. |
 | `architecture` | `EqualsQuery` | Package architecture. |
 | `nameContains` | `StringContainsQuery` | Substring of the package name. |
 | `updatedSince` | `GreaterThanQuery` on `UpdatedAt` | ISO 8601. Packages published since this instant. |
-| `search` | *(applied separately)* | See below. |
+| `search` | `IQueryObject<Package>` | Case-insensitive substring over `Name`, `Base` and `Description`. |
 
 Two implementation notes that the issues need to carry:
 
-* **`search` is not a query-object criterion.** It spans several columns, and `PTrampert.QueryObjects`
-  attributes bind one property to one column. It is applied to the query explicitly, after the
-  filter, as a case-insensitive substring match over `Name`, `Base` and `Description`. This is
-  deliberately not Postgres full-text search: `EF.Functions.ToTsVector` does not translate under
-  `Microsoft.EntityFrameworkCore.InMemory`, so an FTS implementation could only be covered by
-  E2E tests, while a `Contains` match is exercised by the same service-level unit tests as every
-  other criterion. Real FTS is a [deferred](#deferred-work) follow-up.
+* **`search` spans columns, so `PackageFilter` implements `IQueryObject<Package>`.** A
+  `PTrampert.QueryObjects` attribute binds one query property to one target column, which `search`
+  cannot be. `IQueryObject<T>` is the library's own extension point for exactly this: it declares a
+  single `Expression<Func<T, bool>> BuildQueryExpression()`, and `QueryableExtensions.Where` ANDs
+  whatever it returns onto the attribute-derived predicate — or skips it when the method returns
+  `null`, which is what `PackageFilter` returns when `search` is unset. The body ORs a
+  `Contains` over the three columns together with `ExpressionExtensions.OrElse`.
+
+  This is strictly better than applying `search` outside the filter. `.Where(filter)` stays the one
+  call site, so the guarantee that a filter can only narrow the visible set remains structural
+  rather than something `PackageService` has to keep remembering, and the whole filter is still
+  testable as one object.
+
+  It does not stand in the way of true full-text search later. `BuildQueryExpression` returns an
+  expression tree, and an `EF.Functions.ToTsVector(…).Matches(…)` call is expressible in one, so
+  moving to FTS is a change to that method's body and nothing else — no caller, no signature and no
+  query parameter changes. The reason v1 is a substring match is only that
+  `Microsoft.EntityFrameworkCore.InMemory` cannot translate `ToTsVector`, so an FTS implementation
+  would be coverable by E2E tests alone, whereas `Contains` is exercised by the same service-level
+  unit tests as every other criterion. Ranking is the part that genuinely waits for FTS, since it
+  needs a `rank` to sort by. See [deferred work](#deferred-work).
 * **Comma-separated multi-values need a model binder.** ASP.NET Core binds `?repositoryIds=a&repositoryIds=b`
   out of the box but does not split `?repositoryIds=a,b` into a `Guid[]`. Supporting the comma form
   the way this API advertises it needs a small binder, applied to the array properties of the
@@ -301,8 +336,9 @@ delete. Both are `ICliTool` implementations run through `ICliToolRunner`, like t
 4. **Validate** the extracted values: name and version match the expected shapes, and the package's
    architecture is either the repository's architecture or `any`. A mismatch is a `400`.
 5. **Upsert** on `(repositoryId, name)`. A new row is `201` with a `Location` header; an existing row
-   is updated in place — keeping `Id`, `CreatedAt` and, per the rules table, updating `OwnerId` to
-   the publishing user — and returns `200`.
+   is updated in place — keeping `Id` and `CreatedAt`, and setting `PublisherId` to the publishing
+   user — and returns `200`. Because a package holds exactly one version, replacement is the normal
+   path, not an edge case.
 6. **Move the file into place** and run `repo-add`. If the replaced version had a different file
    name, delete the old file.
 7. **Touch the repository's `UpdatedAt`**, since its contents changed.
@@ -388,8 +424,8 @@ creation is unchanged.
 
 ### 6. `PackageAccessPolicy` — `MINOR`
 
-`CheckPublish` and `CheckDelete` returning `RepositoryAccess`; `PackageForbiddenException`;
-`AuthorizationExceptionHandler` extended to map it.
+`CheckPublish(repository, actor)` returning `RepositoryAccess`, answering for publish, replace and
+delete alike; `PackageForbiddenException`; `AuthorizationExceptionHandler` extended to map it.
 
 *Acceptance:* `PackageAccessPolicyTests` covers every row of the rules table above as a plain unit
 test, no database involved, mirroring `RepositoryAccessPolicyTests`.
@@ -399,8 +435,8 @@ test, no database involved, mirroring `RepositoryAccessPolicyTests`.
 ### 7. `IPackageService` read paths — `MINOR`
 
 `GetPackagesAsync`, `GetPackageByIdAsync`, `GetPackageByNameAsync(repositoryId, name)`, plus
-`PackageFilter`, `PackageSortField`, `PackageSortExtensions`, the semi-join `VisibleAsync`, and the
-separately-applied `search` term.
+`PackageFilter` (including its `IQueryObject<Package>` implementation for `search`),
+`PackageSortField`, `PackageSortExtensions`, and the semi-join `VisibleAsync`.
 
 *Acceptance:* `PackageServiceTests` covers each filter and sort field; tests named for the
 properties assert that no filter value widens the visible set (a private repository's packages stay
@@ -412,7 +448,7 @@ invisible to a non-owner, `repositoryIds` naming an invisible repository returns
 ### 8. Comma-separated array model binder — `PATCH`
 
 A binder that accepts both `?ids=a,b` and `?ids=a&ids=b` for array-valued query parameters, applied
-to `repositoryIds` and `ownerIds`.
+to `repositoryIds` and `publisherIds`.
 
 *Acceptance:* unit tests over both forms, the mixed form, and empty/whitespace entries.
 
@@ -433,7 +469,7 @@ validate, upsert, `repo-add`, per-repository serialization, rollback on failure,
 limit.
 
 *Acceptance:* service unit tests for the upsert (new → `201`-shaped result, existing → updated in
-place with `Id`/`CreatedAt` preserved and `OwnerId` reassigned), architecture mismatch rejected,
+place with `Id`/`CreatedAt` preserved and `PublisherId` reassigned), architecture mismatch rejected,
 `repo-add` failure rolling back both row and file. E2E tests publish a real fixture package and then
 read it back through `GET`, and assert `403` publishing to someone else's public repository and
 `404` to someone else's private one.
@@ -455,8 +491,9 @@ visibility behaves as for the metadata routes.
 `DELETE /api/v1/packages/{packageId}` and its alias: `repo-remove`, file cleanup, repository
 `UpdatedAt`.
 
-*Acceptance:* service unit tests for the authorization outcomes (package owner, repository owner,
-other user on a public repository → `403`, other user on a private one → `404`) and for a file
+*Acceptance:* service unit tests for the authorization outcomes (the repository owner and, once
+grants exist, any holder of `Publish` → `204`, including over a package someone else published;
+another user on a public repository → `403`; another user on a private one → `404`) and for a file
 deletion failure being logged but not failing the request. E2E test deletes a published package and
 confirms it is gone from the listing.
 
@@ -484,11 +521,11 @@ Worth filing as issues, but explicitly out of scope for the work above.
   database and every package file resolvable under one base URL by the basename `repo-add` recorded.
   Until that exists, this API can publish packages but nothing can install them.
 * **Postgres full-text search** with a generated `tsvector` column, a GIN index and relevance
-  ranking, replacing the substring `search`.
+  ranking, replacing the substring match inside `PackageFilter.BuildQueryExpression`. Ranking also
+  needs a `Relevance` member on `PackageSortField`, which is the part that cannot be faked with
+  `Contains`.
 * **Detached signatures.** Accepting a `.sig` alongside the package, storing it, passing it to
   `repo-add`, and serving it. Required for any repository with `SigLevel = Required`.
-* **Version retention.** Keeping the previous N versions of a package rather than replacing, which
-  changes the unique index and makes `(repositoryId, name)` no longer a unique route key.
 * **Multi-instance publishing.** The per-repository lock is in-process; concurrent publishes from
   two instances would rely on `repo-add`'s own lock file and surface as `409`s. A Postgres advisory
   lock keyed by repository id fixes it.
