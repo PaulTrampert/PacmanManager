@@ -974,14 +974,4 @@ public class RepositoryServiceTests
     };
 
     private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
-
-    /// <summary>
-    /// An <see cref="IActorAccessor"/> whose actor can be swapped between arrangement and action.
-    /// </summary>
-    private sealed class TestActorAccessor : IActorAccessor
-    {
-        public Actor Actor { get; set; } = Actor.Anonymous;
-
-        public ValueTask<Actor> GetActorAsync(CancellationToken ct = default) => ValueTask.FromResult(Actor);
-    }
 }
