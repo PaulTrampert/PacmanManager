@@ -309,10 +309,41 @@ Like `RepositoryFilter`, the filter is ANDed onto the already-visible query and 
 remove rows. Naming a repository in `repositoryIds` that the caller cannot see yields nothing
 rather than an error.
 
-`PackageSortField`: `Updated`, `Created`, `Name`, `InstalledSize`. `Updated` is first, so
-an unsorted listing returns most-recently-published first; `SortOptions` defaults `direction` to
-descending. Sorting is applied by a `PackageSortExtensions.ApplySort`, tie-broken by `Id` for stable
-paging, exactly as `RepositorySortExtensions` does.
+`PackageSortField`: `Name`, `Updated`, `Created`, `InstalledSize`. **`Name` is first, so an
+unsorted listing is ordered by package name** — the order someone browsing a repository expects,
+and the one that makes paging through a large repository legible. `SortOptions` takes the first
+enum member as its default, so this is expressed by the member order and nothing else; the XML doc
+on the enum must say so, as `RepositorySortField`'s does, because reordering it silently changes
+what every unsorted request returns.
+
+Note that this differs from `RepositorySortField`, which leads with `Created`. A repository listing
+is a short list of things you own and want newest-first; a package listing is a long list you look
+things up in.
+
+**Direction defaults per sort field.** `SortOptions<TSortFields>` currently declares
+`[DefaultValue(SortDirection.Descending)]`, which is right for `Updated`, `Created` and
+`InstalledSize` — newest and biggest first — and wrong for `Name`, where it would make the default
+package listing run Z→A. One default cannot serve both, because which way round is "natural"
+belongs to the field, not to the listing. So `SortOptions.Direction` becomes
+`SortDirection?`, and each listing's `ApplySort` supplies the default when the caller omitted one:
+
+```csharp
+var direction = options.Direction ?? options.SortBy switch
+{
+    PackageSortField.Name => SortDirection.Ascending,
+    _ => SortDirection.Descending,
+};
+```
+
+An explicitly supplied `direction` always wins, so `?sortBy=Name&direction=Descending` still gives
+Z→A. Swagger keeps documenting the effective default per field in the parameter description, since
+a nullable enum cannot carry it in `[DefaultValue]` any more.
+
+This touches the repository listing too: `RepositorySortExtensions` gains the same switch, and
+`GET /api/v1/repositories?sortBy=Name` changes from Z→A to A→Z. That is a change in an existing
+endpoint's default ordering — not a contract break, since the parameter and response shape are
+unchanged and any caller that cared was already sending `direction` — but it is observable, so it
+gets its own issue rather than riding along inside the package work.
 
 **There is deliberately no sort by `Version`.** A listing spans packages, and comparing one
 package's version to a different package's version is meaningless — the ordering would answer no
@@ -568,7 +599,7 @@ containing a package with a null `Base` and null `Description`, both of which fa
 naive `Contains`. `PackageServiceEnforcementTests` asserts `DbContext.PacmanPackages` is named in
 exactly one method.
 
-*Depends on:* 3, 6.
+*Depends on:* 3, 6, 14.
 
 ### 8. Comma-separated array model binder — `PATCH`
 
@@ -639,6 +670,22 @@ any existing client.
 *Acceptance:* existing E2E tests updated to the new path; `/api/v1/repository` no longer resolves.
 
 *Depends on:* nothing. Should land before 9 and 10 so the alias routes are written once.
+
+### 14. Per-field default sort direction — `MINOR`
+
+`SortOptions<TSortFields>.Direction` becomes `SortDirection?`, and `RepositorySortExtensions` (and,
+in issue 7, `PackageSortExtensions`) resolves an omitted direction from the sort field: ascending
+for `Name`, descending for everything else. Swagger parameter descriptions carry the effective
+default now that `[DefaultValue]` cannot.
+
+Changes the repository listing's behaviour for `sortBy=Name`, from descending to ascending, which is
+why it is `MINOR` and separate rather than folded into the package work.
+
+*Acceptance:* unit tests over each sort field with `direction` omitted and with each direction
+supplied explicitly, for both listings; existing `RepositorySortExtensions` tests updated to the new
+`Name` default.
+
+*Depends on:* nothing. Must land before 7.
 
 ---
 
