@@ -5,9 +5,9 @@ using PacmanManager.RepoHost.Models;
 namespace PacmanManager.RepoHost.Services;
 
 /// <summary>
-/// Translates a repository <see cref="SortOptions{TSortFields}"/> into query operators.
+/// Translates a package <see cref="SortOptions{TSortFields}"/> into query operators.
 /// </summary>
-internal static class RepositorySortExtensions
+internal static class PackageSortExtensions
 {
     /// <summary>
     /// The property each sort field names.
@@ -18,11 +18,12 @@ internal static class RepositorySortExtensions
     /// EF Core strips when the conversion target is <see cref="object"/>, so the ordering still
     /// translates to SQL rather than being evaluated client side.
     /// </remarks>
-    private static readonly Dictionary<RepositorySortField, Expression<Func<PacmanRepository, object>>> KeySelectors = new()
+    private static readonly Dictionary<PackageSortField, Expression<Func<PacmanPackage, object>>> KeySelectors = new()
     {
-        [RepositorySortField.Name] = r => r.Name,
-        [RepositorySortField.Created] = r => r.CreatedAt,
-        [RepositorySortField.Updated] = r => r.UpdatedAt,
+        [PackageSortField.Name] = p => p.Name,
+        [PackageSortField.Updated] = p => p.UpdatedAt,
+        [PackageSortField.Created] = p => p.CreatedAt,
+        [PackageSortField.InstalledSize] = p => p.InstalledSize,
     };
 
     /// <summary>
@@ -31,12 +32,12 @@ internal static class RepositorySortExtensions
     /// <param name="query">The query to order.</param>
     /// <param name="sort">
     /// The requested ordering. A direction the caller omitted is resolved from the sort field, so
-    /// <see cref="RepositorySortField.Name"/> runs A→Z and the dates newest first.
+    /// <see cref="PackageSortField.Name"/> runs A→Z and the dates and size biggest first.
     /// </param>
     /// <returns>The ordered query.</returns>
-    public static IOrderedQueryable<PacmanRepository> ApplySort(
-        this IQueryable<PacmanRepository> query,
-        SortOptions<RepositorySortField> sort)
+    public static IOrderedQueryable<PacmanPackage> ApplySort(
+        this IQueryable<PacmanPackage> query,
+        SortOptions<PackageSortField> sort)
     {
         // A sortBy bound from a query string can be a value the enum does not declare, which names
         // no property. Falling back to the default member means such a request is ordered the way an
@@ -49,6 +50,6 @@ internal static class RepositorySortExtensions
             ? query.OrderBy(keySelector)
             : query.OrderByDescending(keySelector);
 
-        return ordered.ThenBy(r => r.Id);
+        return ordered.ThenBy(p => p.Id);
     }
 }
