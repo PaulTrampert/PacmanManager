@@ -242,7 +242,7 @@ public class PackageServicePublishTests
         // A system actor publishes on somebody else's behalf, which is the only way one repository
         // gets two publishers before a grant table exists.
         _actors.Actor = Actor.SystemFor(_other);
-        _packageVersion = "1.2.4-1";
+        _packageVersion = PackageFixtures.UpgradePackageVersion;
 
         // Act
         var second = await PublishAsync();
@@ -255,7 +255,7 @@ public class PackageServicePublishTests
             Assert.That(stored.Id, Is.EqualTo(first!.Package.Id), "A replacement keeps the package's id.");
             Assert.That(stored.CreatedAt, Is.EqualTo(first.Package.CreatedAt),
                 "CreatedAt records when the package first appeared here, not when it was last pushed.");
-            Assert.That(stored.Version, Is.EqualTo("1.2.4-1"));
+            Assert.That(stored.Version, Is.EqualTo(PackageFixtures.UpgradePackageVersion));
             Assert.That(stored.PublisherId, Is.EqualTo(_other.Id),
                 "The publisher is whoever pushed it last.");
             Assert.That(stored.UpdatedAt, Is.GreaterThanOrEqualTo(first.Package.UpdatedAt));
@@ -268,7 +268,7 @@ public class PackageServicePublishTests
         // Arrange
         var first = await PublishAsync();
         var previousPath = _pathResolver.GetPackageFilePath(_repository.Id, first!.Package.FileName);
-        _packageVersion = "1.2.4-1";
+        _packageVersion = PackageFixtures.UpgradePackageVersion;
 
         // Act
         var second = await PublishAsync();
@@ -284,22 +284,85 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public async Task PublishPackageAsync_ReplacingAPackageWithTheSameVersion_KeepsOneStoredFile()
+    public async Task PublishPackageAsync_RejectsARepublishOfTheVersionAlreadyThere()
     {
-        // Republishing the identical version derives the identical file name, so the new bytes
-        // simply overwrite the old ones and there is nothing left to clean up.
+        // The bytes of a published version are bytes a client may already have downloaded and
+        // checksummed against the database it synced, so a rebuild arrives under a new version
+        // rather than overwriting them.
+        // Arrange
+        var first = await PublishAsync();
+        _cliRunner.Invocations.Clear();
+
+        // Act & Assert
+        var thrown = Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
+
+        var storedPath = _pathResolver.GetPackageFilePath(_repository.Id, first!.Package.FileName);
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.PublishedVersion, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+            Assert.That(thrown.OfferedVersion, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+            Assert.That(File.ReadAllBytes(storedPath), Is.EqualTo(_fixtureBytes),
+                "The published file is left exactly as it was.");
+            Assert.That(_dbContext.PacmanPackages.Single().Version,
+                Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+        });
+
+        VerifyNoDatabaseToolRan();
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_RejectsAVersionOlderThanTheOneAlreadyThere()
+    {
+        // Pacman has no rollback, so a repository never moves backwards either.
         // Arrange
         await PublishAsync();
+        _packageVersion = "1.2.3-3";
+
+        // Act & Assert
+        var thrown = Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.OfferedVersion, Is.EqualTo("1.2.3-3"));
+            Assert.That(_dbContext.PacmanPackages.Single().Version,
+                Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+        });
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_OrdersVersionsTheWayPacmanDoes()
+    {
+        // Arrange
+        _packageVersion = "1.9-1";
+        await PublishAsync();
+        _packageVersion = "1.10-1";
 
         // Act
         var second = await PublishAsync();
 
         // Assert
-        var directory = _pathResolver.GetRepositoryDirectory(_repository.Id);
+        Assert.That(second!.Package.Version, Is.EqualTo("1.10-1"),
+            "1.10 is newer than 1.9; comparing the versions as strings would refuse this.");
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_AcceptsTheSameVersionBuiltForAnotherArchitecture()
+    {
+        // A build for a different architecture is a different package file rather than a re-push
+        // of the same one, so it is allowed to carry the version it was built with.
+        // Arrange
+        _packageArchitecture = "any";
+        await PublishAsync();
+        _packageArchitecture = "x86_64";
+
+        // Act
+        var second = await PublishAsync();
+
+        // Assert
         Assert.Multiple(() =>
         {
             Assert.That(second!.Created, Is.False);
-            Assert.That(Directory.GetFiles(directory), Has.Length.EqualTo(1));
+            Assert.That(second.Package.Architecture, Is.EqualTo("x86_64"));
+            Assert.That(second.Package.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
         });
     }
 
@@ -449,7 +512,7 @@ public class PackageServicePublishTests
         // Arrange
         var first = PublishAsync().GetAwaiter().GetResult();
         var previousPath = _pathResolver.GetPackageFilePath(_repository.Id, first!.Package.FileName);
-        _packageVersion = "1.2.4-1";
+        _packageVersion = PackageFixtures.UpgradePackageVersion;
         _cliRunner.Invocations.Clear();
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
@@ -466,14 +529,23 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_LockFileFailure_IsReportedAsAConflict()
+    public void PublishPackageAsync_ALockFileFailure_IsReportedLikeEveryOtherToolFailure()
     {
+        // The tools distinguish their reasons only in prose, and a package name may contain the
+        // word 'lock', so reading a reason out of the message would be wrong often enough to
+        // matter. Every failure means the same thing to the caller: nothing was published.
         // Arrange
         GivenRepoAddFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseLockedException>(async () => await PublishAsync());
-        Assert.That(thrown!.RepositoryId, Is.EqualTo(_repository.Id));
+        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.Tool, Is.EqualTo("repo-add"));
+            Assert.That(thrown.StandardError, Does.Contain("lockfile"),
+                "The diagnostics travel with the exception, so the reason is not lost.");
+            Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
+        });
     }
 
     [Test]
@@ -502,7 +574,7 @@ public class PackageServicePublishTests
         // Arrange
         var first = PublishAsync().GetAwaiter().GetResult();
         var previousPath = _pathResolver.GetPackageFilePath(_repository.Id, first!.Package.FileName);
-        _packageVersion = "1.2.4-1";
+        _packageVersion = PackageFixtures.UpgradePackageVersion;
         _cliRunner.Invocations.Clear();
         _dbContext.FailNextCommit = true;
 
@@ -510,29 +582,68 @@ public class PackageServicePublishTests
         Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync());
 
         var stored = _dbContext.PacmanPackages.Single();
+        var orphanPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.UpgradePackageFileName);
         Assert.Multiple(() =>
         {
             Assert.That(stored.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion),
                 "The commit failed, so the row still describes the previous version.");
             Assert.That(File.Exists(previousPath), Is.True,
                 "The previous file is not deleted until after the commit, precisely so this can restore it.");
+            Assert.That(File.Exists(orphanPath), Is.False,
+                "And the file the rolled back publish wrote is removed, rather than left for nothing to name.");
         });
 
         VerifyRepoRemove(PackageFixtures.MinimalPackageName, Times.Once());
         VerifyRepoAdd(previousPath, Times.Once());
     }
 
+    [Test]
+    public void PublishPackageAsync_CommitCancelledAfterRepoAdd_StillCompensates()
+    {
+        // A client that disconnects mid-commit cancels the token the publish is running under, and
+        // that is one of the ordinary ways to reach the compensation at all. Compensation that
+        // reused the token would abandon itself at its first await, leaving the database file
+        // advertising a package no row describes — exactly what it exists to prevent.
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        _dbContext.CancelOnCommit = cancellation;
+
+        // Act & Assert
+        Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await PublishAsync(cancellationToken: cancellation.Token));
+
+        var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
+        _cliRunner.Verify(
+            c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoRemove),
+                It.IsAny<ICliOutputHandler>(),
+                It.Is<CancellationToken>(t => !t.IsCancellationRequested)),
+            Times.Once,
+            "The compensating repo-remove runs, and not on the cancelled token.");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
+            Assert.That(File.Exists(expectedPath), Is.False);
+        });
+    }
+
     #endregion
 
     #region Helpers
 
-    private Task<PublishPackageResult?> PublishAsync(byte[]? content = null) =>
-        PublishAsync(_repository.Id, content);
+    private Task<PublishPackageResult?> PublishAsync(
+        byte[]? content = null,
+        CancellationToken cancellationToken = default) =>
+        PublishAsync(_repository.Id, content, cancellationToken);
 
-    private Task<PublishPackageResult?> PublishAsync(Guid repositoryId, byte[]? content = null)
+    private Task<PublishPackageResult?> PublishAsync(
+        Guid repositoryId,
+        byte[]? content = null,
+        CancellationToken cancellationToken = default)
     {
         var body = new MemoryStream(content ?? _fixtureBytes);
-        return _service.PublishPackageAsync(repositoryId, body);
+        return _service.PublishPackageAsync(repositoryId, body, cancellationToken);
     }
 
     private PacmanRepository GivenRepository(string name, User owner, bool isPublic) =>
@@ -639,8 +750,20 @@ public class PackageServicePublishTests
     {
         public bool FailNextCommit { get; set; }
 
+        /// <summary>
+        /// Cancelled as the commit fails, which is what a client disconnecting mid-commit does to
+        /// the token the publish is running under.
+        /// </summary>
+        public CancellationTokenSource? CancelOnCommit { get; set; }
+
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            if (CancelOnCommit is not null)
+            {
+                CancelOnCommit.Cancel();
+                throw new OperationCanceledException(CancelOnCommit.Token);
+            }
+
             if (FailNextCommit)
             {
                 FailNextCommit = false;

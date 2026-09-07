@@ -20,8 +20,9 @@ namespace PacmanManager.RepoHost.Infrastructure;
 ///     caller sent, so it is a <c>400</c>.
 ///   </description></item>
 ///   <item><description>
-///     <see cref="RepositoryDatabaseLockedException"/> — the repository database was locked by
-///     another writer. Nothing happened and retrying is the answer, which is a <c>409</c>.
+///     <see cref="PackageNotNewerException"/> — the repository already holds that version of the
+///     package, and a published version's bytes do not change under a client that has synced
+///     them. That is a conflict with what is stored rather than a bad file, so it is a <c>409</c>.
 ///   </description></item>
 ///   <item><description>
 ///     A <see cref="BadHttpRequestException"/> carrying <c>413</c>, which is how Kestrel reports a
@@ -46,8 +47,8 @@ public class PackagePublishExceptionHandler(IProblemDetailsService problemDetail
         var (status, title) = exception switch
         {
             InvalidPackageException => (StatusCodes.Status400BadRequest, "The uploaded package was not accepted."),
-            RepositoryDatabaseLockedException => (StatusCodes.Status409Conflict,
-                "The repository database is busy."),
+            PackageNotNewerException => (StatusCodes.Status409Conflict,
+                "That version is already published."),
             BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } =>
                 (StatusCodes.Status413PayloadTooLarge, "The uploaded package is too large."),
             _ => (0, string.Empty),

@@ -20,6 +20,7 @@ public class PackagePublishingTests
     private HttpClient _otherUsersClient = null!;
 
     private byte[] _packageBytes = null!;
+    private byte[] _upgradeBytes = null!;
     private string _expectedSha256 = null!;
     private string _expectedMd5 = null!;
 
@@ -37,6 +38,7 @@ public class PackagePublishingTests
             await BearerFor(_fixture.AuthContainer.SecondaryCredentials);
 
         _packageBytes = await File.ReadAllBytesAsync(PackageFixtures.MinimalPackagePath);
+        _upgradeBytes = await File.ReadAllBytesAsync(PackageFixtures.UpgradePackagePath);
         _expectedSha256 = Convert.ToHexStringLower(SHA256.HashData(_packageBytes));
         _expectedMd5 = Convert.ToHexStringLower(MD5.HashData(_packageBytes));
     }
@@ -167,7 +169,7 @@ public class PackagePublishingTests
     }
 
     [Test]
-    public async Task Publish_TheSamePackageAgain_ReturnsOkAndKeepsTheIdentity()
+    public async Task Publish_ANewerVersion_ReturnsOkAndKeepsTheIdentity()
     {
         // A repository holds exactly one version of a package, so replacing one is the normal path.
         // Arrange
@@ -175,7 +177,7 @@ public class PackagePublishingTests
         var first = await PublishAndReadAsync(_client, repository.Id);
 
         // Act
-        var response = await PublishAsync(_client, repository.Id, _packageBytes);
+        var response = await PublishAsync(_client, repository.Id, _upgradeBytes);
         var second = await response.Content.ReadFromJsonAsync<Package>();
 
         // Assert
@@ -183,11 +185,34 @@ public class PackagePublishingTests
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), "A replacement is a 200, not a 201.");
             Assert.That(second!.Id, Is.EqualTo(first.Id));
+            Assert.That(second.Version, Is.EqualTo(PackageFixtures.UpgradePackageVersion));
 
             // Within a microsecond rather than exactly: the 201 reported the timestamp the row was
             // built with, and the 200 reports it as Postgres stores it.
             Assert.That(second.CreatedAt, Is.EqualTo(first.CreatedAt).Within(TimeSpan.FromMicroseconds(1)));
             Assert.That(second.UpdatedAt, Is.GreaterThan(first.CreatedAt));
+        });
+    }
+
+    [Test]
+    public async Task Publish_ANewerVersion_LeavesOnlyTheNewOneInTheRepositoryDatabase()
+    {
+        // What a pacman client syncs has to agree with what the API reports, so the superseded
+        // entry goes when the row does.
+        // Arrange
+        var repository = await GivenRepositoryAsync("publish-replace-database");
+        await PublishAndReadAsync(_client, repository.Id);
+
+        // Act
+        await PublishAsync(_client, repository.Id, _upgradeBytes);
+
+        // Assert
+        var databaseEntry = await ReadRepositoryDatabaseAsync(repository.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(FieldOf(databaseEntry, "%VERSION%"), Is.EqualTo(PackageFixtures.UpgradePackageVersion));
+            Assert.That(databaseEntry, Does.Not.Contain(PackageFixtures.MinimalPackageVersion),
+                "The superseded version is gone from the database a client would sync.");
         });
     }
 
@@ -206,6 +231,46 @@ public class PackagePublishingTests
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Publish_TheVersionAlreadyPublished_ReturnsConflict()
+    {
+        // Pacman rolls forward and never back, and the bytes of a published version are bytes a
+        // client may already have cached against the checksum it synced, so the second push of a
+        // version is refused rather than overwriting it.
+        // Arrange
+        var repository = await GivenRepositoryAsync("publish-same-version");
+        await PublishAndReadAsync(_client, repository.Id);
+
+        // Act
+        var response = await PublishAsync(_client, repository.Id, _packageBytes);
+
+        // Assert
+        var stored = await _client.GetFromJsonAsync<Package>(
+            $"/api/v1/repositories/{repository.Id}/packages/{PackageFixtures.MinimalPackageName}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+            Assert.That(stored!.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion),
+                "The published package is left exactly as it was.");
+            Assert.That(stored.Sha256Sum, Is.EqualTo(_expectedSha256));
+        });
+    }
+
+    [Test]
+    public async Task Publish_AnOlderVersionThanTheOnePublished_ReturnsConflict()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync("publish-older-version");
+        await PublishAsync(_client, repository.Id, _upgradeBytes);
+
+        // Act
+        var response = await PublishAsync(_client, repository.Id, _packageBytes);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
     }
 
     [Test]

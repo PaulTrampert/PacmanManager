@@ -275,10 +275,16 @@ internal class PackageService(
         using var _ = await databaseLock.AcquireAsync(repository.Id, cancellationToken);
 
         // Step 5: stage the row. The upsert key is (repositoryId, name), which is the unique index,
-        // so this matches at most one row.
+        // so this matches at most one row — and a row already there has to be older than what is
+        // being pushed, since a published version's bytes are ones a client may already hold.
         var visible = await VisibleAsync(cancellationToken);
         var existing = await visible
             .SingleOrDefaultAsync(p => p.RepositoryId == repository.Id && p.Name == name, cancellationToken);
+
+        if (existing is not null)
+        {
+            RequireForwardProgress(existing, version, architecture);
+        }
 
         var now = DateTimeOffset.UtcNow;
         var created = existing is null;
@@ -318,7 +324,9 @@ internal class PackageService(
             cancellationToken);
 
         // Only now is the replaced file certain to be unreferenced. Until the commit succeeded it
-        // was what a rollback restored the database to.
+        // was what a rollback restored the database to. The name comparison is belt and braces —
+        // a publish moves the version forward, so the two names cannot be equal — but this is the
+        // one place that deletes a file a live row could still name, so it checks anyway.
         if (!created && previousFileName is not null && previousFileName != package.FileName)
         {
             DeleteQuietly(pathResolver.GetPackageFilePath(repository.Id, previousFileName),
@@ -337,9 +345,9 @@ internal class PackageService(
     /// <list type="bullet">
     ///   <item><description>
     ///     <c>repo-add</c> failed. The commit was never reached, so the change tracker is discarded
-    ///     and no row moved. The file just written is deleted — unless it overwrote the previous
-    ///     version under the identical name, in which case deleting it would take away a file the
-    ///     unchanged row still names.
+    ///     and no row moved. The file just written is deleted, which cannot take away a file the
+    ///     unchanged row still names: a publish has to move the version forward, so the name it
+    ///     derives is never the name the previous version is stored under.
     ///   </description></item>
     ///   <item><description>
     ///     The commit failed after <c>repo-add</c> succeeded. The database file now advertises a
@@ -362,7 +370,6 @@ internal class PackageService(
         CancellationToken cancellationToken)
     {
         var destination = pathResolver.GetPackageFilePath(repository.Id, package.FileName);
-        var replacedInPlace = previousFileName == package.FileName;
         var addSucceeded = false;
 
         try
@@ -390,12 +397,12 @@ internal class PackageService(
                 if (addSucceeded)
                 {
                     await CompensateCommittedAddAsync(
-                        repository, package, destination, previousFileName, created, cancellationToken);
+                        repository, package, destination, previousFileName, created);
                 }
-                else if (!replacedInPlace)
+                else
                 {
-                    // The previous version, if there was one, is untouched on disk and the row still
-                    // names it, so the repository is exactly as it was.
+                    // The previous version, if there was one, is untouched on disk under its own
+                    // name and the row still names it, so the repository is exactly as it was.
                     DeleteQuietly(destination, "package file from a failed publish");
                 }
             }
@@ -414,26 +421,32 @@ internal class PackageService(
     /// <summary>
     /// Undoes a <c>repo-add</c> that succeeded before a commit that did not.
     /// </summary>
+    /// <remarks>
+    /// This takes no cancellation token on purpose. One of the ordinary ways the commit fails is
+    /// the request being cancelled — the client disconnected while it was in flight — and the
+    /// token the publish ran under is then already cancelled, so passing it on would abandon the
+    /// cleanup at its first await and leave the database file advertising a package no row
+    /// describes. Undoing a side effect is work that has to happen whatever became of the request
+    /// that caused it.
+    /// </remarks>
     private async Task CompensateCommittedAddAsync(
         PacmanRepository repository,
         PacmanPackage package,
         string destination,
         string? previousFileName,
-        bool created,
-        CancellationToken cancellationToken)
+        bool created)
     {
         await RunDatabaseToolAsync(
             new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, package.Name),
             repository.Id,
-            cancellationToken);
+            CancellationToken.None);
 
-        if (created)
-        {
-            DeleteQuietly(destination, "package file from a rolled back publish");
-            return;
-        }
+        // Nothing references the file that was just moved into place: no row was committed, and
+        // the entry that named it has just been removed. It is never the previous version's file,
+        // since a publish has to move the version forward to get this far.
+        DeleteQuietly(destination, "package file from a rolled back publish");
 
-        if (previousFileName is null)
+        if (created || previousFileName is null)
         {
             return;
         }
@@ -449,17 +462,23 @@ internal class PackageService(
         await RunDatabaseToolAsync(
             new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, previousPath),
             repository.Id,
-            cancellationToken);
+            CancellationToken.None);
     }
 
     /// <summary>
     /// Runs one of the pacman database tools and turns a non-zero exit into an exception, since the
     /// runner itself only reports the code.
     /// </summary>
-    /// <exception cref="RepositoryDatabaseLockedException">
-    /// The tool could not take the lock file beside the database.
-    /// </exception>
-    /// <exception cref="RepositoryDatabaseToolException">The tool failed for any other reason.</exception>
+    /// <remarks>
+    /// Every failure is the same failure: the repository database did not change, and what the
+    /// caller can do about it does not depend on why. The tools distinguish their reasons only in
+    /// prose — there is no exit code for a lock file it could not take — so guessing at the reason
+    /// from the message would only be right some of the time, and a wrong guess (a package whose
+    /// name happens to contain the word) would advise a client to retry something that will never
+    /// succeed. The diagnostics are logged where an operator will see them and the exception
+    /// carries them too.
+    /// </remarks>
+    /// <exception cref="RepositoryDatabaseToolException">The tool exited non-zero.</exception>
     private async Task RunDatabaseToolAsync(ICliTool tool, Guid repositoryId, CancellationToken cancellationToken)
     {
         var output = new CollectingCliOutputHandler();
@@ -470,24 +489,12 @@ internal class PackageService(
         }
 
         var diagnostics = string.IsNullOrWhiteSpace(output.StdErr) ? output.StdOut : output.StdErr;
-        if (IsLockFileFailure(diagnostics))
-        {
-            throw new RepositoryDatabaseLockedException(repositoryId);
-        }
+        logger.LogError(
+            "'{Tool}' exited with code {ExitCode} against repository {RepositoryId}: {Diagnostics}",
+            tool.Name, exitCode, repositoryId, diagnostics);
 
         throw new RepositoryDatabaseToolException(tool.Name, exitCode, diagnostics);
     }
-
-    /// <summary>
-    /// Whether a tool's diagnostics describe a lock file it could not take, which is a
-    /// <c>409</c> rather than a fault.
-    /// </summary>
-    /// <remarks>
-    /// Both tools report this as "failed to acquire lockfile"; there is no distinguishing exit
-    /// code, so the message is what there is to go on.
-    /// </remarks>
-    private static bool IsLockFileFailure(string diagnostics) =>
-        diagnostics.Contains("lock", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Reads the uploaded file's metadata, restating a libalpm failure as the client error it is.
@@ -518,6 +525,35 @@ internal class PackageService(
         }
 
         throw new PackageArchitectureMismatchException(architecture, repository.Architecture);
+    }
+
+    /// <summary>
+    /// Rejects an upload that does not move the package forward, which is what keeps a published
+    /// version's bytes the bytes every client that synced this repository was promised.
+    /// </summary>
+    /// <remarks>
+    /// Ordering is <see cref="AlpmVersion"/>'s rather than the string's, because it has to be the
+    /// same ordering the pacman client reading this repository will apply — <c>1.10</c> is newer
+    /// than <c>1.9</c>, and an epoch outranks everything to its right. A build for a different
+    /// architecture is a different package file rather than a re-push of the same one, so it is
+    /// allowed to carry the version it was built with.
+    /// </remarks>
+    /// <exception cref="PackageNotNewerException">
+    /// The repository already holds this package, for this architecture, at that version or newer.
+    /// </exception>
+    private static void RequireForwardProgress(PacmanPackage existing, string version, string architecture)
+    {
+        if (!string.Equals(existing.Architecture, architecture, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (AlpmVersion.IsNewerThan(version, existing.Version))
+        {
+            return;
+        }
+
+        throw new PackageNotNewerException(existing.Name, existing.Version, version, architecture);
     }
 
     /// <summary>

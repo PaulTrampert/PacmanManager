@@ -5,14 +5,19 @@
 end to end tests upload, so its metadata is asserted on in more than one place — change it only
 deliberately, and update the tests that pin its values.
 
-The package is committed rather than built during the test run so that the tests need nothing but
-libalpm. `build-fixture.sh` regenerates it byte for byte and is the record of what is in it.
+`pacmanmanager-test-1.2.4-1-x86_64.pkg.tar.zst` is the same package one `pkgver` on, and differs in
+nothing else. Publishing refuses an upload that does not move the version forward, so replacing a
+published package takes a second, newer file rather than a second push of the first one.
 
-| Field | Value |
-| :--- | :--- |
-| `pkgname` | `pacmanmanager-test` |
-| `pkgver` | `1.2.3-4` |
-| `arch` | `x86_64` |
+The packages are committed rather than built during the test run so that the tests need nothing but
+libalpm. `build-fixture.sh` regenerates both byte for byte and is the record of what is in them.
 
-Locate it from a test with `PackageFixtures.MinimalPackagePath` in `PacmanManager.TestUtils` rather
-than by composing the path again.
+| Field | Value | Upgrade |
+| :--- | :--- | :--- |
+| `pkgname` | `pacmanmanager-test` | `pacmanmanager-test` |
+| `pkgver` | `1.2.3-4` | `1.2.4-1` |
+| `arch` | `x86_64` | `x86_64` |
+
+Locate them from a test with `PackageFixtures.MinimalPackagePath` and
+`PackageFixtures.UpgradePackagePath` in `PacmanManager.TestUtils` rather than by composing the path
+again.

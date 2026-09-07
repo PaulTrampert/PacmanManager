@@ -113,4 +113,24 @@ public static class PackageFixtures
     /// The absolute path to the minimal fixture package.
     /// </summary>
     public static string MinimalPackagePath => Path.Combine(Directory, MinimalPackageFileName);
+
+    /// <summary>
+    /// The file name of the upgrade fixture package: the minimal package one <c>pkgver</c> on, and
+    /// identical in every other field.
+    /// </summary>
+    /// <remarks>
+    /// Publishing refuses an upload that does not move the version forward, so a test that
+    /// replaces a published package needs a newer file rather than a second push of the first one.
+    /// </remarks>
+    public const string UpgradePackageFileName = "pacmanmanager-test-1.2.4-1-x86_64.pkg.tar.zst";
+
+    /// <summary>
+    /// The full version reported by the upgrade fixture package.
+    /// </summary>
+    public const string UpgradePackageVersion = "1.2.4-1";
+
+    /// <summary>
+    /// The absolute path to the upgrade fixture package.
+    /// </summary>
+    public static string UpgradePackagePath => Path.Combine(Directory, UpgradePackageFileName);
 }

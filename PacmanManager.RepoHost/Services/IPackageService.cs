@@ -89,6 +89,13 @@ public interface IPackageService
     /// package, so replacing one is the normal path. A replacement keeps the package's id and
     /// creation time and reassigns its publisher to whoever pushed it.
     /// </para>
+    /// <para>
+    /// A replacement has to move the package forward. Pacman only rolls forward, and the bytes of
+    /// a version already published are bytes a client may have cached and checksummed, so an
+    /// upload is accepted only when it is newer than what is stored — by pacman's own version
+    /// ordering — or built for a different architecture. A rebuild of a version already there is
+    /// refused rather than overwritten.
+    /// </para>
     /// </remarks>
     /// <exception cref="NoCurrentUserException">There is no identity to publish as.</exception>
     /// <exception cref="PackageForbiddenException">
@@ -98,8 +105,12 @@ public interface IPackageService
     /// The uploaded file is not a package this repository can accept — an unrecognised compression
     /// format, metadata that cannot name a file, or an architecture the repository does not serve.
     /// </exception>
-    /// <exception cref="RepositoryDatabaseLockedException">
-    /// The repository database was locked by a writer outside this process.
+    /// <exception cref="PackageNotNewerException">
+    /// The repository already holds this package, for this architecture, at that version or a
+    /// newer one.
+    /// </exception>
+    /// <exception cref="RepositoryDatabaseToolException">
+    /// <c>repo-add</c> could not write the repository's database, so nothing was published.
     /// </exception>
     Task<PublishPackageResult?> PublishPackageAsync(
         Guid repositoryId,
