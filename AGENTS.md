@@ -143,11 +143,37 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 
 ## Version control
 
-* **Do new work in a worktree.** Create one before making any edits — `git worktree add`, or the
-  `EnterWorktree` tool if your harness provides it — and work there rather than in the primary
-  checkout. Several agents are often working on this repository at the same time, and a shared
-  working tree means conflicting edits, a shared index, and branch switches that pull the ground
-  out from under another agent's build.
+### Worktrees
+
+Several agents are often working on this repository at the same time, and a shared working tree
+means conflicting edits, a shared index, and branch switches that pull the ground out from under
+another agent's build. Every unit of work therefore gets its own worktree — but *who* creates it
+depends on what kind of agent you are.
+
+**If you are a top-level agent** (a session the user drives directly), create your own worktree
+before making any edits — `git worktree add`, or the `EnterWorktree` tool if your harness provides
+one — and work there rather than in the primary checkout.
+
+**If you are a sub-agent**, you almost certainly cannot. A sub-agent spawned from a session that is
+itself worktree-isolated inherits the parent's pin: `git worktree add` will appear to succeed, but
+every later git operation targeting the new directory is refused, and `git switch` /
+`git checkout -b` are blocked outright. So work in the worktree you were handed and do not try to
+provision another. If you were not handed one and genuinely need a separate checkout, the only
+approach that works from a pinned session is a worktree nested *inside* the pinned one; treat that
+as a workaround and remove it once your work is pushed.
+
+**Never switch the branch of a worktree you did not create.** This is the rule that actually
+protects a concurrent agent: checking your own branch out in someone else's worktree moves their
+files and their index out from under them mid-build. If the worktree you are in is on a branch that
+does not match your task, say so and stop rather than switching it. (This is also why a worktree's
+directory name is not authoritative — check `git branch --show-current`, not the path.)
+
+**When fanning work out across several issues**, the agent doing the fanning creates the worktrees
+up front, one per issue, each already checked out on the right branch, and hands each sub-agent a
+path that already exists. That way a sub-agent only ever works; it never has to provision.
+
+### Branches, commits, and PRs
+
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
 * Commit early and often — a meaningful change that builds is a good commit point.
 * PR titles start with `PATCH`, `MINOR`, or `MAJOR` depending on the nature of the change.
