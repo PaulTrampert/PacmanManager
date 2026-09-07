@@ -197,4 +197,47 @@ public record Package
         CreatedAt = package.CreatedAt,
         UpdatedAt = package.UpdatedAt,
     };
+
+    /// <summary>
+    /// Creates the API model from an entity already in hand.
+    /// </summary>
+    /// <param name="package">
+    /// The entity to project. Its <see cref="PacmanPackage.Publisher"/> navigation must be
+    /// populated, since the model publishes a summary of the publisher rather than an id.
+    /// </param>
+    /// <returns>The package as callers see it.</returns>
+    /// <remarks>
+    /// <see cref="Projection"/> is the one to reach for on a read path, because it pulls the
+    /// publisher in the same round trip. This exists for the write path, which has just built or
+    /// updated the entity and would otherwise re-read a row it already holds.
+    /// </remarks>
+    public static Package FromPacmanPackage(PacmanPackage package) => new()
+    {
+        Id = package.Id,
+        RepositoryId = package.RepositoryId,
+        Publisher = PublicUserInfo.FromUser(package.Publisher),
+        Name = package.Name,
+        Version = package.Version,
+        Description = package.Description,
+        Base = package.Base,
+        Url = package.Url,
+        Architecture = package.Architecture,
+        Packager = package.Packager,
+        FileName = package.FileName,
+        CompressedSize = package.CompressedSize,
+        InstalledSize = package.InstalledSize,
+        BuildDate = package.BuildDate,
+        Sha256Sum = package.Sha256Sum,
+        Licenses = package.Licenses,
+        Groups = package.Groups,
+        Provides = package.Provides,
+        Replaces = package.Replaces,
+        Depends = package.Depends,
+        OptDepends = package.OptDepends,
+        MakeDepends = package.MakeDepends,
+        CheckDepends = package.CheckDepends,
+        Conflicts = package.Conflicts,
+        CreatedAt = package.CreatedAt,
+        UpdatedAt = package.UpdatedAt,
+    };
 }
