@@ -103,7 +103,7 @@ public class RepositoriesControllerTests
         // Arrange
         foreach (var suffix in new[] { "first", "second", "third" })
         {
-            var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+            var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
             {
                 Name = $"sortbydate-{suffix}",
                 IsPublic = true
@@ -111,7 +111,7 @@ public class RepositoriesControllerTests
             Assert.That(created.IsSuccessStatusCode, Is.True);
         }
 
-        const string query = "/api/v1/repository?nameContains=sortbydate-&pageSize=50&sortBy=Created";
+        const string query = "/api/v1/repositories?nameContains=sortbydate-&pageSize=50&sortBy=Created";
 
         // Act
         var newestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(query);
