@@ -133,47 +133,47 @@ public record PacmanPackage
     /// <summary>
     /// Licenses the package is distributed under.
     /// </summary>
-    public string[] Licenses { get; set; } = [];
+    public IEnumerable<string> Licenses { get; set; } = [];
 
     /// <summary>
     /// Groups the package belongs to.
     /// </summary>
-    public string[] Groups { get; set; } = [];
+    public IEnumerable<string> Groups { get; set; } = [];
 
     /// <summary>
     /// Virtual packages this package provides, in pacman's own spelling (e.g. <c>foo=1.2</c>).
     /// </summary>
-    public string[] Provides { get; set; } = [];
+    public IEnumerable<string> Provides { get; set; } = [];
 
     /// <summary>
     /// Packages this package replaces, in pacman's own spelling.
     /// </summary>
-    public string[] Replaces { get; set; } = [];
+    public IEnumerable<string> Replaces { get; set; } = [];
 
     /// <summary>
     /// Runtime dependencies, in pacman's own spelling (e.g. <c>foo&gt;=1.2</c>).
     /// </summary>
-    public string[] Depends { get; set; } = [];
+    public IEnumerable<string> Depends { get; set; } = [];
 
     /// <summary>
     /// Optional dependencies, in pacman's own spelling (e.g. <c>bar: reason</c>).
     /// </summary>
-    public string[] OptDepends { get; set; } = [];
+    public IEnumerable<string> OptDepends { get; set; } = [];
 
     /// <summary>
     /// Build time dependencies, in pacman's own spelling.
     /// </summary>
-    public string[] MakeDepends { get; set; } = [];
+    public IEnumerable<string> MakeDepends { get; set; } = [];
 
     /// <summary>
     /// Check time dependencies, in pacman's own spelling.
     /// </summary>
-    public string[] CheckDepends { get; set; } = [];
+    public IEnumerable<string> CheckDepends { get; set; } = [];
 
     /// <summary>
     /// Packages this one conflicts with, in pacman's own spelling.
     /// </summary>
-    public string[] Conflicts { get; set; } = [];
+    public IEnumerable<string> Conflicts { get; set; } = [];
 
     /// <summary>
     /// When this package first appeared in this repository.
