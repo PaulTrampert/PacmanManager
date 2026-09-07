@@ -1,7 +1,9 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 
@@ -18,6 +20,27 @@ public class EndToEndTestFixture : IAsyncDisposable
     public KeycloakContainer? AuthContainer { get; private set; }
     private IContainer? _apiContainer;
     private HttpClient? _httpClient;
+
+    /// <summary>
+    /// A context over the same database the containerized API is using, reachable from the test
+    /// host.
+    /// </summary>
+    /// <remarks>
+    /// This is for arranging rows no endpoint can create yet — package rows, until publishing
+    /// exists — and not for asserting: an assertion belongs against the API's own responses, which
+    /// is what the endpoint under test actually returns. The caller owns the returned context.
+    /// </remarks>
+    /// <returns>A context connected to the test database.</returns>
+    /// <exception cref="InvalidOperationException">The containers have not been started.</exception>
+    public PacmanManagerDbContext CreateDbContext()
+    {
+        if (_dbContainer == null)
+            throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+
+        return new PacmanManagerDbContext(new DbContextOptionsBuilder<PacmanManagerDbContext>()
+            .UseNpgsql(_dbContainer.LocalConnectionString)
+            .Options);
+    }
 
     /// <summary>
     /// Gets the HTTP client for making requests to the containerized API.
@@ -49,8 +72,12 @@ public class EndToEndTestFixture : IAsyncDisposable
             var solutionDirectory = DirUtils.FindSolutionDirectory();
             logger.LogInformation($"Building Docker image from: {solutionDirectory}");
 
+            // Named per fixture rather than once for the suite: more than one fixture now runs a
+            // stack of its own, and Docker rejects a second network by an existing name. The
+            // containers address each other by network alias, which is scoped to the network, so
+            // the name itself is never something a test depends on.
             _testNetwork = new NetworkBuilder()
-                .WithName("pacmanmanager-test-network")
+                .WithName($"pacmanmanager-test-network-{Guid.NewGuid():N}")
                 .WithCleanUp(true)
                 .WithLogger(logger)
                 .Build();
@@ -131,6 +158,14 @@ public class EndToEndTestFixture : IAsyncDisposable
         {
             await _dbContainer.DisposeAsync();
             _dbContainer = null;
+        }
+
+        // Keycloak binds a fixed host port, so a fixture that left it running would keep the next
+        // one from starting at all.
+        if (AuthContainer != null)
+        {
+            await AuthContainer.DisposeAsync();
+            AuthContainer = null;
         }
 
         if (_testNetwork != null)
