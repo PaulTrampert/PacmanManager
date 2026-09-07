@@ -251,8 +251,9 @@ internal class PackageService(
         UploadedFile upload,
         CancellationToken cancellationToken)
     {
-        // Step 3: everything stored about the package comes out of the file itself.
-        using var loaded = libAlpm.LoadPackageFile(uploadPath);
+        // Step 3: everything stored about the package comes out of the file itself, so a file
+        // libalpm cannot open is a rejected upload rather than a server error.
+        using var loaded = LoadPackage(uploadPath);
         var name = loaded.Name;
         var version = loaded.Version;
         var architecture = loaded.GetArchitecture();
@@ -487,6 +488,22 @@ internal class PackageService(
     /// </remarks>
     private static bool IsLockFileFailure(string diagnostics) =>
         diagnostics.Contains("lock", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Reads the uploaded file's metadata, restating a libalpm failure as the client error it is.
+    /// </summary>
+    /// <exception cref="UnreadablePackageException">libalpm could not read the file as a package.</exception>
+    private IPackage LoadPackage(string uploadPath)
+    {
+        try
+        {
+            return libAlpm.LoadPackageFile(uploadPath);
+        }
+        catch (AlpmException e)
+        {
+            throw new UnreadablePackageException(e);
+        }
+    }
 
     /// <summary>
     /// Rejects a package built for an architecture this repository does not serve.
