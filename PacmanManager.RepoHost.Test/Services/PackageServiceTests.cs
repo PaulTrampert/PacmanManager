@@ -1,8 +1,15 @@
+using LibAlpmSharp;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Moq;
+using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
+using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
+using PacmanManager.RepoHost.Startup.LibAlpm;
+using PacmanManager.TestUtils;
 
 namespace PacmanManager.RepoHost.Test.Services;
 
@@ -52,7 +59,20 @@ public class PackageServiceTests
         // Most tests care about what an identified caller can see, so that is the default actor.
         // Tests that exercise the visibility rules override it.
         _actors = new TestActorAccessor { Actor = Actor.For(_caller) };
-        _service = new PackageService(_dbContext, _actors, new RepositoryAccessPolicy());
+        // The read paths reach none of the publishing collaborators, so they are supplied as bare
+        // doubles here; PackageServicePublishTests wires up the real ones.
+        _service = new PackageService(
+            _dbContext,
+            _actors,
+            new RepositoryAccessPolicy(),
+            new PackageAccessPolicy(),
+            Mock.Of<ICliToolRunner>(),
+            Mock.Of<IFileSystem>(),
+            Mock.Of<IPackagePathResolver>(),
+            Mock.Of<IRepositoryDatabaseLock>(),
+            Mock.Of<ILibAlpm>(),
+            Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" }),
+            new TestOutputLogger<PackageService>());
     }
 
     [TearDown]

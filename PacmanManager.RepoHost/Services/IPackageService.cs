@@ -1,9 +1,10 @@
+using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 
 namespace PacmanManager.RepoHost.Services;
 
 /// <summary>
-/// Provides services for reading the packages published into hosted repositories.
+/// Provides services for reading and publishing the packages held by hosted repositories.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -61,4 +62,47 @@ public interface IPackageService
     /// a repository without ever seeing a package id.
     /// </remarks>
     Task<Package?> GetPackageByNameAsync(Guid repositoryId, string name, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes a package file into a repository, creating the package or replacing the version
+    /// already there.
+    /// </summary>
+    /// <param name="repositoryId">The repository to publish into.</param>
+    /// <param name="packageContent">
+    /// The package file's bytes. Read once, streamed straight to disk and never buffered, since a
+    /// package file can run to hundreds of megabytes. It is not read at all unless the actor is
+    /// entitled to publish.
+    /// </param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The stored package and whether it was new, or <c>null</c> when the repository does not exist
+    /// or the actor is not entitled to know that it does.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Every value stored is metadata libalpm read out of the uploaded file, or a checksum computed
+    /// over its bytes. Nothing the caller asserts about the package is recorded, and the name it is
+    /// stored under on disk is derived rather than accepted.
+    /// </para>
+    /// <para>
+    /// The upsert key is <c>(repositoryId, name)</c>: a repository holds exactly one version of a
+    /// package, so replacing one is the normal path. A replacement keeps the package's id and
+    /// creation time and reassigns its publisher to whoever pushed it.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="NoCurrentUserException">There is no identity to publish as.</exception>
+    /// <exception cref="PackageForbiddenException">
+    /// The actor may see the repository but may not publish to it.
+    /// </exception>
+    /// <exception cref="InvalidPackageException">
+    /// The uploaded file is not a package this repository can accept — an unrecognised compression
+    /// format, metadata that cannot name a file, or an architecture the repository does not serve.
+    /// </exception>
+    /// <exception cref="RepositoryDatabaseLockedException">
+    /// The repository database was locked by a writer outside this process.
+    /// </exception>
+    Task<PublishPackageResult?> PublishPackageAsync(
+        Guid repositoryId,
+        Stream packageContent,
+        CancellationToken cancellationToken = default);
 }

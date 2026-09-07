@@ -36,6 +36,8 @@ try
     builder.Services.Configure<PacmanConfigSettings>(options => { options.DataDir = EnvironmentVariables.DataDir; });
     builder.Services.Configure<AuthConfig>(builder.Configuration.GetSection(AuthConfig.Section));
     builder.Services.Configure<SwaggerConfig>(builder.Configuration.GetSection(SwaggerConfig.Section));
+    builder.Services.Configure<PackagePublishingConfig>(
+        builder.Configuration.GetSection(PackagePublishingConfig.Section));
     builder.Services.ConfigureOptions<ConfigureJwtOptions>();
 
 // Register config generator and serializer
@@ -49,6 +51,10 @@ try
 
     builder.Services.AddSingleton<IFileSystem, PhysicalFileSystem>();
     builder.Services.AddSingleton<IPackagePathResolver, PackagePathResolver>();
+
+// Every mutation of a repository database is serialized per repository, so this has to outlive the
+// request that takes it.
+    builder.Services.AddSingleton<IRepositoryDatabaseLock, RepositoryDatabaseLock>();
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();
@@ -66,6 +72,7 @@ try
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();
+    builder.Services.AddExceptionHandler<PackagePublishExceptionHandler>();
 
     builder.Services.AddApiVersioning(opts =>
         {
