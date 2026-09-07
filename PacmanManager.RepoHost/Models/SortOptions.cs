@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace PacmanManager.RepoHost.Models;
 
 /// <summary>
@@ -36,8 +34,22 @@ public record SortOptions<TSortFields> where TSortFields : struct, Enum
     public TSortFields SortBy { get; init; }
 
     /// <summary>
-    /// The direction to order in.
+    /// The direction to order in, or <see langword="null"/> to take the default declared for
+    /// <see cref="SortBy"/>.
     /// </summary>
-    [DefaultValue(SortDirection.Descending)]
-    public SortDirection Direction { get; init; } = SortDirection.Descending;
+    /// <remarks>
+    /// Nullable because one default cannot serve every field: newest first is right for a date and
+    /// wrong for a name. An omitted direction is resolved from the field by
+    /// <see cref="ResolveDirection"/>; a supplied one always wins.
+    /// </remarks>
+    public SortDirection? Direction { get; init; }
+
+    /// <summary>
+    /// The direction this ordering actually runs in.
+    /// </summary>
+    /// <returns>
+    /// <see cref="Direction"/> when the caller supplied one, otherwise the default declared for
+    /// <see cref="SortBy"/> by <see cref="DefaultSortDirectionAttribute"/>.
+    /// </returns>
+    public SortDirection ResolveDirection() => Direction ?? SortFieldDefaults<TSortFields>.For(SortBy);
 }
