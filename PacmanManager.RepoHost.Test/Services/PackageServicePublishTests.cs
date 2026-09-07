@@ -109,7 +109,7 @@ public class PackageServicePublishTests
             new PhysicalFileSystem(),
             _pathResolver,
             new RepositoryDatabaseLock(),
-            _libAlpm.Object,
+            new Lazy<ILibAlpm>(() => _libAlpm.Object),
             settings,
             new TestOutputLogger<PackageService>());
     }
