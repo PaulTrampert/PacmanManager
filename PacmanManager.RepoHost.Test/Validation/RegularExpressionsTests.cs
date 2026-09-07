@@ -63,4 +63,21 @@ public class RegularExpressionsTests
     {
         Assert.That(Regex.IsMatch(version, RegularExpressions.PackageVersion), Is.EqualTo(isMatchExpected));
     }
+
+    [TestCase("x86_64", true)]
+    [TestCase("any", true)]
+    [TestCase("aarch64", true)]
+    [TestCase("armv7h", true)]
+    [TestCase("i686", true)]
+    [TestCase("", false)]
+    [TestCase("_x86_64", false)]
+    [TestCase("x86 64", false)]
+    [TestCase("x86_64/..", false)]
+    [TestCase("x86_64\\..", false)]
+    [TestCase("../x86_64", false)]
+    [TestCase("x86_64\n", false)]
+    public void PackageArchitecture_MatchesRegularExpression(string architecture, bool isMatchExpected)
+    {
+        Assert.That(Regex.IsMatch(architecture, RegularExpressions.PackageArchitecture), Is.EqualTo(isMatchExpected));
+    }
 }
