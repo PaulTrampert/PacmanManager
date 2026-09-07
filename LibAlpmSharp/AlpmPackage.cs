@@ -163,11 +163,101 @@ public sealed class AlpmPackage : IPackage
     /// <summary>
     /// Gets the install date of the package.
     /// </summary>
-    /// <returns>The install date, or null if not installed.</returns>
+    /// <remarks>
+    /// libalpm reports a zero timestamp for a package that is not installed — every package loaded
+    /// from a file, for instance — which this returns as <see langword="null"/> rather than as the
+    /// Unix epoch.
+    /// </remarks>
+    /// <returns>The install date, or <see langword="null"/> if the package is not installed.</returns>
     public DateTimeOffset? GetInstallDate()
     {
         var timestamp = NativeMethods.alpm_pkg_get_installdate(Handle);
-        return DateTimeOffset.FromUnixTimeSeconds(timestamp);
+        return timestamp == 0 ? null : DateTimeOffset.FromUnixTimeSeconds(timestamp);
+    }
+
+    /// <summary>
+    /// Gets the name of the file the package was loaded from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is not a basename. For a package loaded with <see cref="ILibAlpm.LoadPackageFile"/>
+    /// libalpm reports back the path it was handed, so a package read out of a temporary directory
+    /// reports that temporary path.
+    /// </para>
+    /// <para>
+    /// <b>Nothing may use this to name a stored file.</b> The packages API derives the name it
+    /// stores a package under from the package's own metadata. This member is bound for
+    /// completeness only.
+    /// </para>
+    /// </remarks>
+    /// <returns>The file name, or <see langword="null"/> if the package did not come from a file.</returns>
+    public string? GetFileName()
+    {
+        unsafe
+        {
+            byte* fileNamePtr = NativeMethods.alpm_pkg_get_filename(Handle);
+            return Marshal.PtrToStringUTF8((IntPtr)fileNamePtr);
+        }
+    }
+
+    /// <summary>
+    /// Gets the package's SHA256 checksum.
+    /// </summary>
+    /// <remarks>
+    /// libalpm populates this from a sync database entry, so it is <see langword="null"/> for a
+    /// package loaded from a file with <see cref="ILibAlpm.LoadPackageFile"/>. Callers that need a
+    /// checksum of an uploaded file must compute it themselves over the bytes they received.
+    /// </remarks>
+    /// <returns>The 64 lowercase hexadecimal digit checksum, or <see langword="null"/> if libalpm has none.</returns>
+    public string? GetSha256Sum()
+    {
+        unsafe
+        {
+            byte* sumPtr = NativeMethods.alpm_pkg_get_sha256sum(Handle);
+            return Marshal.PtrToStringUTF8((IntPtr)sumPtr);
+        }
+    }
+
+    /// <summary>
+    /// Gets the package's MD5 checksum.
+    /// </summary>
+    /// <remarks>
+    /// libalpm populates this from a sync database entry, so it is <see langword="null"/> for a
+    /// package loaded from a file with <see cref="ILibAlpm.LoadPackageFile"/>. Callers that need a
+    /// checksum of an uploaded file must compute it themselves over the bytes they received.
+    /// </remarks>
+    /// <returns>The 32 lowercase hexadecimal digit checksum, or <see langword="null"/> if libalpm has none.</returns>
+    public string? GetMd5Sum()
+    {
+        unsafe
+        {
+            byte* sumPtr = NativeMethods.alpm_pkg_get_md5sum(Handle);
+            return Marshal.PtrToStringUTF8((IntPtr)sumPtr);
+        }
+    }
+
+    /// <summary>
+    /// Gets the licenses the package is distributed under.
+    /// </summary>
+    /// <returns>A list of license identifiers, empty if the package declares none.</returns>
+    public List<string> GetLicenses()
+    {
+        unsafe
+        {
+            return ReadStringList(NativeMethods.alpm_pkg_get_licenses(Handle));
+        }
+    }
+
+    /// <summary>
+    /// Gets the groups the package belongs to.
+    /// </summary>
+    /// <returns>A list of group names, empty if the package belongs to none.</returns>
+    public List<string> GetGroups()
+    {
+        unsafe
+        {
+            return ReadStringList(NativeMethods.alpm_pkg_get_groups(Handle));
+        }
     }
 
     /// <summary>
@@ -176,25 +266,10 @@ public sealed class AlpmPackage : IPackage
     /// <returns>A list of dependencies.</returns>
     public List<AlpmDependency> GetDependencies()
     {
-        var dependencies = new List<AlpmDependency>();
-        
         unsafe
         {
-            AlpmList* depList = NativeMethods.alpm_pkg_get_depends(Handle);
-            AlpmList* current = depList;
-
-            while (current != null)
-            {
-                if (current->data != null)
-                {
-                    var depend = (AlpmDepend*)current->data;
-                    dependencies.Add(new AlpmDependency(depend));
-                }
-                current = NativeMethods.alpm_list_next(current);
-            }
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_depends(Handle));
         }
-
-        return dependencies;
     }
 
     /// <summary>
@@ -203,25 +278,10 @@ public sealed class AlpmPackage : IPackage
     /// <returns>A list of optional dependencies.</returns>
     public List<AlpmDependency> GetOptionalDependencies()
     {
-        var dependencies = new List<AlpmDependency>();
-        
         unsafe
         {
-            AlpmList* depList = NativeMethods.alpm_pkg_get_optdepends(Handle);
-            AlpmList* current = depList;
-
-            while (current != null)
-            {
-                if (current->data != null)
-                {
-                    var depend = (AlpmDepend*)current->data;
-                    dependencies.Add(new AlpmDependency(depend));
-                }
-                current = NativeMethods.alpm_list_next(current);
-            }
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_optdepends(Handle));
         }
-
-        return dependencies;
     }
 
     /// <summary>
@@ -314,25 +374,97 @@ public sealed class AlpmPackage : IPackage
     /// <returns>A list of conflicting package dependencies.</returns>
     public List<AlpmDependency> GetConflicts()
     {
-        var conflicts = new List<AlpmDependency>();
-        
         unsafe
         {
-            AlpmList* conflictList = NativeMethods.alpm_pkg_get_conflicts(Handle);
-            AlpmList* current = conflictList;
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_conflicts(Handle));
+        }
+    }
 
-            while (current != null)
-            {
-                if (current->data != null)
-                {
-                    var depend = (AlpmDepend*)current->data;
-                    conflicts.Add(new AlpmDependency(depend));
-                }
-                current = NativeMethods.alpm_list_next(current);
-            }
+    /// <summary>
+    /// Gets the list of virtual packages this package provides.
+    /// </summary>
+    /// <returns>A list of provisions, each of which may carry a version.</returns>
+    public List<AlpmDependency> GetProvides()
+    {
+        unsafe
+        {
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_provides(Handle));
+        }
+    }
+
+    /// <summary>
+    /// Gets the list of packages this package replaces.
+    /// </summary>
+    /// <returns>A list of replaced packages.</returns>
+    public List<AlpmDependency> GetReplaces()
+    {
+        unsafe
+        {
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_replaces(Handle));
+        }
+    }
+
+    /// <summary>
+    /// Gets the list of dependencies required to build the package.
+    /// </summary>
+    /// <returns>A list of make dependencies.</returns>
+    public List<AlpmDependency> GetMakeDepends()
+    {
+        unsafe
+        {
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_makedepends(Handle));
+        }
+    }
+
+    /// <summary>
+    /// Gets the list of dependencies required to run the package's test suite.
+    /// </summary>
+    /// <returns>A list of check dependencies.</returns>
+    public List<AlpmDependency> GetCheckDepends()
+    {
+        unsafe
+        {
+            return ReadDependencyList(NativeMethods.alpm_pkg_get_checkdepends(Handle));
+        }
+    }
+
+    /// <summary>
+    /// Reads a libalpm list of <c>alpm_depend_t</c> into managed dependencies. The list belongs to
+    /// the package, so it is walked but never freed.
+    /// </summary>
+    /// <param name="list">The head of the native list, which may be null for an empty list.</param>
+    /// <returns>The dependencies the list held.</returns>
+    private static unsafe List<AlpmDependency> ReadDependencyList(AlpmList* list)
+    {
+        var dependencies = new List<AlpmDependency>();
+
+        for (AlpmList* current = list; current != null; current = NativeMethods.alpm_list_next(current))
+        {
+            if (current->data != null)
+                dependencies.Add(new AlpmDependency((AlpmDepend*)current->data));
         }
 
-        return conflicts;
+        return dependencies;
+    }
+
+    /// <summary>
+    /// Reads a libalpm list of strings into a managed list. The list belongs to the package, so it
+    /// is walked but never freed.
+    /// </summary>
+    /// <param name="list">The head of the native list, which may be null for an empty list.</param>
+    /// <returns>The strings the list held.</returns>
+    private static unsafe List<string> ReadStringList(AlpmList* list)
+    {
+        var values = new List<string>();
+
+        for (AlpmList* current = list; current != null; current = NativeMethods.alpm_list_next(current))
+        {
+            string? value = Marshal.PtrToStringUTF8((IntPtr)current->data);
+            if (!string.IsNullOrEmpty(value))
+                values.Add(value);
+        }
+
+        return values;
     }
 
     /// <summary>
