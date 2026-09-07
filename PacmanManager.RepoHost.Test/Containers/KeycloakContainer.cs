@@ -44,6 +44,13 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
 
     public KeycloakCredentials DefaultCredentials => new("test", "Asdfasdf1");
 
+    /// <summary>
+    /// A second realm user, for the cases that need one caller to be somebody other than the owner
+    /// of a repository. Anonymous is not enough for those: refusing an unidentified caller and
+    /// refusing an identified one who lacks the permission are different answers.
+    /// </summary>
+    public KeycloakCredentials SecondaryCredentials => new("other", "Asdfasdf1");
+
     public int Port => _container.GetMappedPublicPort(8080);
 
     public string Authority => $"http://{Hostname}:8080/realms/localdev";

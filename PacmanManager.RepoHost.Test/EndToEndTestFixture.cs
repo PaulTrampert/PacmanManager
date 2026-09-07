@@ -22,13 +22,18 @@ public class EndToEndTestFixture : IAsyncDisposable
     private HttpClient? _httpClient;
 
     /// <summary>
+    /// The package upload ceiling the containerized API is configured with, in bytes.
+    /// </summary>
+    public const long MaxUploadBytes = 1024 * 1024;
+
+    /// <summary>
     /// A context over the same database the containerized API is using, reachable from the test
     /// host.
     /// </summary>
     /// <remarks>
-    /// This is for arranging rows no endpoint can create yet — package rows, until publishing
-    /// exists — and not for asserting: an assertion belongs against the API's own responses, which
-    /// is what the endpoint under test actually returns. The caller owns the returned context.
+    /// This is for arranging rows directly, where publishing them through the API would test the
+    /// arrangement rather than the endpoint under test, and not for asserting: an assertion belongs
+    /// against the API's own responses. The caller owns the returned context.
     /// </remarks>
     /// <returns>A context connected to the test database.</returns>
     /// <exception cref="InvalidOperationException">The containers have not been started.</exception>
@@ -112,6 +117,9 @@ public class EndToEndTestFixture : IAsyncDisposable
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
                 .WithEnvironment("Auth__Authority", AuthContainer.Authority)
+                // Well above the fixture package and low enough that a test can exceed it, which is
+                // the point of the limit being configuration rather than a constant.
+                .WithEnvironment("PackagePublishing__MaxUploadBytes", MaxUploadBytes.ToString())
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
@@ -141,6 +149,34 @@ public class EndToEndTestFixture : IAsyncDisposable
     }
 
     /// <summary>
+    /// Runs a command inside the API container and returns what it wrote to standard output.
+    /// </summary>
+    /// <param name="command">The command and its arguments.</param>
+    /// <returns>The command's standard output.</returns>
+    /// <exception cref="InvalidOperationException">The container is not running, or the command failed.</exception>
+    /// <remarks>
+    /// This is how a test inspects what the pacman tools actually wrote into a repository's
+    /// <c>.db.tar.gz</c>, which no HTTP route exposes and which is exactly the artefact a pacman
+    /// client would read.
+    /// </remarks>
+    public async Task<string> ExecInApiContainerAsync(params string[] command)
+    {
+        if (_apiContainer is null)
+        {
+            throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+        }
+
+        var result = await _apiContainer.ExecAsync(command);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"'{string.Join(' ', command)}' exited with {result.ExitCode}: {result.Stderr}");
+        }
+
+        return result.Stdout;
+    }
+
+    /// <summary>
     /// Stops the container and disposes resources.
     /// </summary>
     public async ValueTask DisposeAsync()
@@ -160,8 +196,8 @@ public class EndToEndTestFixture : IAsyncDisposable
             _dbContainer = null;
         }
 
-        // Keycloak binds a fixed host port, so a fixture that left it running would keep the next
-        // one from starting at all.
+        // Kept with the rest: a container still attached to the network keeps the network alive, and
+        // Keycloak binds a fixed host port, so leaving it running blocks the next fixture twice over.
         if (AuthContainer != null)
         {
             await AuthContainer.DisposeAsync();

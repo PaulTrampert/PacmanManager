@@ -2338,6 +2338,24 @@
           "value": "Asdfasdf1"
         }
       ]
+    },
+    {
+      "id": "6f2ab6d0-0d34-4a1b-9a7f-1b1b0b2fbd21",
+      "username": "other",
+      "enabled": true,
+      "email": "other@example.com",
+      "emailVerified": true,
+      "firstName": "Other",
+      "lastName": "User",
+      "realmRoles": [
+        "default-roles-localdev"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Asdfasdf1"
+        }
+      ]
     }
   ]
 }
