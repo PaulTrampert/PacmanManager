@@ -16,7 +16,7 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// </remarks>
 [ApiController]
 [Route(ControllerConstants.ControllerBaseRoute)]
-public class RepositoryController(IRepositoryService repositoryService, ILogger<RepositoryController> logger) : ControllerBase
+public class RepositoriesController(IRepositoryService repositoryService, ILogger<RepositoriesController> logger) : ControllerBase
 {
     /// <summary>
     /// List the repositories visible to the caller.

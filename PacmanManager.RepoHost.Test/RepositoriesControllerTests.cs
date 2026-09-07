@@ -6,11 +6,11 @@ using PacmanManager.RepoHost.Models;
 namespace PacmanManager.RepoHost.Test;
 
 /// <summary>
-/// End-to-end tests for the Repository API endpoints.
+/// End-to-end tests for the Repositories API endpoints.
 /// These tests run the application in a Docker container and make real HTTP requests.
 /// </summary>
 [TestFixture]
-public class RepositoryControllerTests
+public class RepositoriesControllerTests
 {
     private EndToEndTestFixture _fixture = null!;
     private HttpClient _client = null!;
@@ -38,7 +38,7 @@ public class RepositoryControllerTests
     public async Task Get_ReturnsOkStatus()
     {
         // Act
-        var response = await _client.GetAsync("/api/v1/repository");
+        var response = await _client.GetAsync("/api/v1/repositories");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -48,7 +48,7 @@ public class RepositoryControllerTests
     public async Task Get_ReturnsListOfRepositories()
     {
         // Act
-        var response = await _client.GetAsync("/api/v1/repository");
+        var response = await _client.GetAsync("/api/v1/repositories");
         var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
@@ -65,14 +65,14 @@ public class RepositoryControllerTests
         // Arrange
         foreach (var suffix in new[] { "charlie", "alpha", "bravo" })
         {
-            await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+            await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
             {
                 Name = $"sortdefault-{suffix}",
                 IsPublic = true
             });
         }
 
-        const string unsortedQuery = "/api/v1/repository?nameContains=sortdefault-&pageSize=50";
+        const string unsortedQuery = "/api/v1/repositories?nameContains=sortdefault-&pageSize=50";
         const string query = $"{unsortedQuery}&sortBy=Name";
 
         // Act
@@ -102,7 +102,7 @@ public class RepositoryControllerTests
         var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{id}");
+        var response = await _client.GetAsync($"/api/v1/repositories/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -116,7 +116,7 @@ public class RepositoryControllerTests
         var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{id}");
+        var response = await _client.GetAsync($"/api/v1/repositories/{id}");
 
         // Assert
         // Currently returns NotFound until storage is implemented
@@ -138,7 +138,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
@@ -155,7 +155,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -174,7 +174,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -194,7 +194,7 @@ public class RepositoryControllerTests
         var beforeCreate = DateTimeOffset.UtcNow;
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var afterCreate = DateTimeOffset.UtcNow;
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
@@ -216,7 +216,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -234,7 +234,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
 
         // Assert
@@ -257,7 +257,7 @@ public class RepositoryControllerTests
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/repository/{id}", request);
+        var response = await _client.PutAsJsonAsync($"/api/v1/repositories/{id}", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -271,12 +271,12 @@ public class RepositoryControllerTests
         {
             Name = "updated-name"
         };
-        var response = await _client.PostAsJsonAsync("/api/v1/repository", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         var repository = await response.Content.ReadFromJsonAsync<Repository>();
         var id = repository!.Id;
 
         // Act
-        var updateResponse = await _client.PutAsJsonAsync($"/api/v1/repository/{id}", request);
+        var updateResponse = await _client.PutAsJsonAsync($"/api/v1/repositories/{id}", request);
 
         // Assert
         Assert.That(updateResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -293,7 +293,7 @@ public class RepositoryControllerTests
         var id = Guid.NewGuid();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{id}");
+        var response = await _client.DeleteAsync($"/api/v1/repositories/{id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -303,14 +303,14 @@ public class RepositoryControllerTests
     public async Task Delete_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "test-repo-to-delete"
         });
         var repository = await created.Content.ReadFromJsonAsync<Repository>();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
+        var response = await _client.DeleteAsync($"/api/v1/repositories/{repository!.Id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
@@ -320,15 +320,15 @@ public class RepositoryControllerTests
     public async Task Delete_ThenGet_ReturnsNotFound()
     {
         // Arrange
-        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "test-repo-deleted-then-fetched"
         });
         var repository = await created.Content.ReadFromJsonAsync<Repository>();
-        await _client.DeleteAsync($"/api/v1/repository/{repository!.Id}");
+        await _client.DeleteAsync($"/api/v1/repositories/{repository!.Id}");
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/repository/{repository.Id}");
+        var response = await _client.GetAsync($"/api/v1/repositories/{repository.Id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -345,7 +345,7 @@ public class RepositoryControllerTests
         var request = new WriteRepositoryRequest { Name = "anonymous-repo" };
 
         // Act
-        var response = await AnonymousClient().PostAsJsonAsync("/api/v1/repository", request);
+        var response = await AnonymousClient().PostAsJsonAsync("/api/v1/repositories", request);
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
@@ -355,19 +355,19 @@ public class RepositoryControllerTests
     public async Task Get_WithoutAuthentication_ReturnsOnlyPublicRepositories()
     {
         // Arrange
-        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "visibility-private-repo",
             IsPublic = false
         });
-        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "visibility-public-repo",
             IsPublic = true
         });
 
         // Act
-        var response = await AnonymousClient().GetAsync("/api/v1/repository?pageSize=500");
+        var response = await AnonymousClient().GetAsync("/api/v1/repositories?pageSize=500");
         var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
@@ -384,7 +384,7 @@ public class RepositoryControllerTests
     public async Task GetById_WithoutAuthentication_HidesPrivateRepositories()
     {
         // Arrange
-        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "hidden-from-anonymous",
             IsPublic = false
@@ -392,7 +392,7 @@ public class RepositoryControllerTests
         var repository = await created.Content.ReadFromJsonAsync<Repository>();
 
         // Act
-        var response = await AnonymousClient().GetAsync($"/api/v1/repository/{repository!.Id}");
+        var response = await AnonymousClient().GetAsync($"/api/v1/repositories/{repository!.Id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -403,13 +403,13 @@ public class RepositoryControllerTests
     {
         // Naming an owner narrows the listing; it does not open up their private repositories.
         // Arrange
-        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "owner-filter-public-repo",
             IsPublic = true
         });
         var repository = await created.Content.ReadFromJsonAsync<Repository>();
-        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "owner-filter-private-repo",
             IsPublic = false
@@ -417,7 +417,7 @@ public class RepositoryControllerTests
 
         // Act
         var response = await AnonymousClient()
-            .GetAsync($"/api/v1/repository?ownerId={repository!.Owner.Id}&pageSize=500");
+            .GetAsync($"/api/v1/repositories?ownerId={repository!.Owner.Id}&pageSize=500");
         var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
@@ -433,14 +433,14 @@ public class RepositoryControllerTests
     public async Task Get_PrivateFilter_WithoutAuthentication_ReturnsNothing()
     {
         // Arrange
-        await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "private-filter-repo",
             IsPublic = false
         });
 
         // Act
-        var response = await AnonymousClient().GetAsync("/api/v1/repository?isPublic=false");
+        var response = await AnonymousClient().GetAsync("/api/v1/repositories?isPublic=false");
         var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
 
         // Assert
@@ -451,7 +451,7 @@ public class RepositoryControllerTests
     public async Task Update_WithoutAuthentication_ReturnsUnauthorized()
     {
         // Arrange
-        var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = "update-requires-auth",
             IsPublic = true
@@ -460,10 +460,38 @@ public class RepositoryControllerTests
 
         // Act
         var response = await AnonymousClient()
-            .PutAsJsonAsync($"/api/v1/repository/{repository!.Id}", new WriteRepositoryRequest { Name = "hijacked" });
+            .PutAsJsonAsync($"/api/v1/repositories/{repository!.Id}", new WriteRepositoryRequest { Name = "hijacked" });
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task Get_OnRenamedSingularRoute_ReturnsNotFound()
+    {
+        // Act
+        var response = await _client.GetAsync("/api/v1/repository");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task GetById_OnRenamedSingularRoute_ReturnsNotFound()
+    {
+        // Arrange
+        var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
+        {
+            Name = "singular-route-is-gone",
+            IsPublic = true
+        });
+        var repository = await created.Content.ReadFromJsonAsync<Repository>();
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repository/{repository!.Id}");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     /// <summary>

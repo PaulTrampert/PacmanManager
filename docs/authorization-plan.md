@@ -65,7 +65,7 @@ as a `null` or `false` return, which controllers turn into `404`.
 
 ## Filtering
 
-`GET /api/v1/repository` accepts a `RepositoryFilter` bound from the query string:
+`GET /api/v1/repositories` accepts a `RepositoryFilter` bound from the query string:
 `nameContains`, `architecture`, `isPublic` and `ownerId`. Ordering is separate, in
 `SortOptions<RepositorySortField>` (`sortBy`, `direction`), as is paging, in `PaginationParams`
 (`offset`, `pageSize`): a filter decides which repositories are in the result set, a sort only the
