@@ -76,8 +76,65 @@ public interface IPackage : IDisposable
     /// <summary>
     /// Gets the install date of the package.
     /// </summary>
-    /// <returns>The install date, or null if not installed.</returns>
+    /// <remarks>
+    /// libalpm reports a zero timestamp for a package that is not installed — every package loaded
+    /// from a file, for instance — which this returns as <see langword="null"/> rather than as the
+    /// Unix epoch.
+    /// </remarks>
+    /// <returns>The install date, or <see langword="null"/> if the package is not installed.</returns>
     DateTimeOffset? GetInstallDate();
+
+    /// <summary>
+    /// Gets the name of the file the package was loaded from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is not a basename. For a package loaded with <see cref="ILibAlpm.LoadPackageFile"/>
+    /// libalpm reports back the path it was handed, so a package read out of a temporary directory
+    /// reports that temporary path.
+    /// </para>
+    /// <para>
+    /// <b>Nothing may use this to name a stored file.</b> The packages API derives the name it
+    /// stores a package under from the package's own metadata. This member is bound for
+    /// completeness only.
+    /// </para>
+    /// </remarks>
+    /// <returns>The file name, or <see langword="null"/> if the package did not come from a file.</returns>
+    string? GetFileName();
+
+    /// <summary>
+    /// Gets the package's SHA256 checksum.
+    /// </summary>
+    /// <remarks>
+    /// libalpm populates this from a sync database entry, so it is <see langword="null"/> for a
+    /// package loaded from a file with <see cref="ILibAlpm.LoadPackageFile"/>. Callers that need a
+    /// checksum of an uploaded file must compute it themselves over the bytes they received.
+    /// </remarks>
+    /// <returns>The 64 lowercase hexadecimal digit checksum, or <see langword="null"/> if libalpm has none.</returns>
+    string? GetSha256Sum();
+
+    /// <summary>
+    /// Gets the package's MD5 checksum.
+    /// </summary>
+    /// <remarks>
+    /// libalpm populates this from a sync database entry, so it is <see langword="null"/> for a
+    /// package loaded from a file with <see cref="ILibAlpm.LoadPackageFile"/>. Callers that need a
+    /// checksum of an uploaded file must compute it themselves over the bytes they received.
+    /// </remarks>
+    /// <returns>The 32 lowercase hexadecimal digit checksum, or <see langword="null"/> if libalpm has none.</returns>
+    string? GetMd5Sum();
+
+    /// <summary>
+    /// Gets the licenses the package is distributed under.
+    /// </summary>
+    /// <returns>A list of license identifiers, empty if the package declares none.</returns>
+    List<string> GetLicenses();
+
+    /// <summary>
+    /// Gets the groups the package belongs to.
+    /// </summary>
+    /// <returns>A list of group names, empty if the package belongs to none.</returns>
+    List<string> GetGroups();
 
     /// <summary>
     /// Gets the list of package dependencies.
@@ -110,4 +167,28 @@ public interface IPackage : IDisposable
     /// </summary>
     /// <returns>A list of conflicting package dependencies.</returns>
     List<AlpmDependency> GetConflicts();
+
+    /// <summary>
+    /// Gets the list of virtual packages this package provides.
+    /// </summary>
+    /// <returns>A list of provisions, each of which may carry a version.</returns>
+    List<AlpmDependency> GetProvides();
+
+    /// <summary>
+    /// Gets the list of packages this package replaces.
+    /// </summary>
+    /// <returns>A list of replaced packages.</returns>
+    List<AlpmDependency> GetReplaces();
+
+    /// <summary>
+    /// Gets the list of dependencies required to build the package.
+    /// </summary>
+    /// <returns>A list of make dependencies.</returns>
+    List<AlpmDependency> GetMakeDepends();
+
+    /// <summary>
+    /// Gets the list of dependencies required to run the package's test suite.
+    /// </summary>
+    /// <returns>A list of check dependencies.</returns>
+    List<AlpmDependency> GetCheckDepends();
 }
