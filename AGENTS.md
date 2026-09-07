@@ -143,6 +143,11 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 
 ## Version control
 
+* **Do new work in a worktree.** Create one before making any edits — `git worktree add`, or the
+  `EnterWorktree` tool if your harness provides it — and work there rather than in the primary
+  checkout. Several agents are often working on this repository at the same time, and a shared
+  working tree means conflicting edits, a shared index, and branch switches that pull the ground
+  out from under another agent's build.
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
 * Commit early and often — a meaningful change that builds is a good commit point.
 * PR titles start with `PATCH`, `MINOR`, or `MAJOR` depending on the nature of the change.
