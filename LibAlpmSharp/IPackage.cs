@@ -1,6 +1,14 @@
 namespace LibAlpmSharp;
 
-public interface IPackage
+/// <summary>
+/// Represents a package, either one belonging to a database or one loaded from a file.
+/// </summary>
+/// <remarks>
+/// A package that came from a database is owned by that database and disposing it does nothing.
+/// A package loaded by <see cref="ILibAlpm.LoadPackageFile"/> owns its native handle and must be
+/// disposed, which is why the interface is disposable at all.
+/// </remarks>
+public interface IPackage : IDisposable
 {
     /// <summary>
     /// Gets the package name.

@@ -5,11 +5,14 @@ using LibAlpmSharp.Interop;
 namespace LibAlpmSharp;
 
 /// <summary>
-/// Represents a package in a database.
+/// Represents a package, either one belonging to a database or one loaded from a file by
+/// <see cref="ILibAlpm.LoadPackageFile"/>.
 /// </summary>
 public sealed class AlpmPackage : IPackage
 {
-    private readonly IntPtr _pkgHandle;
+    private readonly bool _ownsHandle;
+    private IntPtr _pkgHandle;
+    private bool _disposed;
 
     /// <summary>
     /// Gets the package name.
@@ -29,18 +32,31 @@ public sealed class AlpmPackage : IPackage
     /// <summary>
     /// Gets the native handle to the package.
     /// </summary>
-    internal IntPtr Handle => _pkgHandle;
+    internal IntPtr Handle
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _pkgHandle;
+        }
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AlpmPackage"/> class.
     /// </summary>
     /// <param name="pkgHandle">The native package handle.</param>
-    internal AlpmPackage(IntPtr pkgHandle)
+    /// <param name="ownsHandle">
+    /// Whether this instance is responsible for freeing the handle. Packages obtained from a
+    /// database are owned by that database and must not be freed; packages loaded from a file
+    /// with <see cref="ILibAlpm.LoadPackageFile"/> are owned by the caller.
+    /// </param>
+    internal AlpmPackage(IntPtr pkgHandle, bool ownsHandle = false)
     {
         if (pkgHandle == IntPtr.Zero)
             throw new ArgumentException("Package handle cannot be null", nameof(pkgHandle));
 
         _pkgHandle = pkgHandle;
+        _ownsHandle = ownsHandle;
 
         unsafe
         {
@@ -72,7 +88,7 @@ public sealed class AlpmPackage : IPackage
     {
         unsafe
         {
-            byte* basePtr = NativeMethods.alpm_pkg_get_base(_pkgHandle);
+            byte* basePtr = NativeMethods.alpm_pkg_get_base(Handle);
             return Marshal.PtrToStringUTF8((IntPtr)basePtr) ?? string.Empty;
         }
     }
@@ -85,7 +101,7 @@ public sealed class AlpmPackage : IPackage
     {
         unsafe
         {
-            byte* urlPtr = NativeMethods.alpm_pkg_get_url(_pkgHandle);
+            byte* urlPtr = NativeMethods.alpm_pkg_get_url(Handle);
             return Marshal.PtrToStringUTF8((IntPtr)urlPtr) ?? string.Empty;
         }
     }
@@ -98,7 +114,7 @@ public sealed class AlpmPackage : IPackage
     {
         unsafe
         {
-            byte* archPtr = NativeMethods.alpm_pkg_get_arch(_pkgHandle);
+            byte* archPtr = NativeMethods.alpm_pkg_get_arch(Handle);
             return Marshal.PtrToStringUTF8((IntPtr)archPtr) ?? string.Empty;
         }
     }
@@ -111,7 +127,7 @@ public sealed class AlpmPackage : IPackage
     {
         unsafe
         {
-            byte* packagerPtr = NativeMethods.alpm_pkg_get_packager(_pkgHandle);
+            byte* packagerPtr = NativeMethods.alpm_pkg_get_packager(Handle);
             return Marshal.PtrToStringUTF8((IntPtr)packagerPtr) ?? string.Empty;
         }
     }
@@ -122,7 +138,7 @@ public sealed class AlpmPackage : IPackage
     /// <returns>The installed size in bytes.</returns>
     public long GetInstalledSize()
     {
-        return NativeMethods.alpm_pkg_get_isize(_pkgHandle);
+        return NativeMethods.alpm_pkg_get_isize(Handle);
     }
 
     /// <summary>
@@ -131,7 +147,7 @@ public sealed class AlpmPackage : IPackage
     /// <returns>The download size in bytes.</returns>
     public long GetDownloadSize()
     {
-        return NativeMethods.alpm_pkg_get_size(_pkgHandle);
+        return NativeMethods.alpm_pkg_get_size(Handle);
     }
 
     /// <summary>
@@ -140,7 +156,7 @@ public sealed class AlpmPackage : IPackage
     /// <returns>The build date.</returns>
     public DateTimeOffset GetBuildDate()
     {
-        var timestamp = NativeMethods.alpm_pkg_get_builddate(_pkgHandle);
+        var timestamp = NativeMethods.alpm_pkg_get_builddate(Handle);
         return DateTimeOffset.FromUnixTimeSeconds(timestamp);
     }
 
@@ -150,7 +166,7 @@ public sealed class AlpmPackage : IPackage
     /// <returns>The install date, or null if not installed.</returns>
     public DateTimeOffset? GetInstallDate()
     {
-        var timestamp = NativeMethods.alpm_pkg_get_installdate(_pkgHandle);
+        var timestamp = NativeMethods.alpm_pkg_get_installdate(Handle);
         return DateTimeOffset.FromUnixTimeSeconds(timestamp);
     }
 
@@ -164,7 +180,7 @@ public sealed class AlpmPackage : IPackage
         
         unsafe
         {
-            AlpmList* depList = NativeMethods.alpm_pkg_get_depends(_pkgHandle);
+            AlpmList* depList = NativeMethods.alpm_pkg_get_depends(Handle);
             AlpmList* current = depList;
 
             while (current != null)
@@ -191,7 +207,7 @@ public sealed class AlpmPackage : IPackage
         
         unsafe
         {
-            AlpmList* depList = NativeMethods.alpm_pkg_get_optdepends(_pkgHandle);
+            AlpmList* depList = NativeMethods.alpm_pkg_get_optdepends(Handle);
             AlpmList* current = depList;
 
             while (current != null)
@@ -219,7 +235,7 @@ public sealed class AlpmPackage : IPackage
         
         unsafe
         {
-            AlpmList* list = NativeMethods.alpm_pkg_compute_requiredby(_pkgHandle);
+            AlpmList* list = NativeMethods.alpm_pkg_compute_requiredby(Handle);
             AlpmList* current = list;
 
             try
@@ -261,7 +277,7 @@ public sealed class AlpmPackage : IPackage
         
         unsafe
         {
-            AlpmList* list = NativeMethods.alpm_pkg_compute_optionalfor(_pkgHandle);
+            AlpmList* list = NativeMethods.alpm_pkg_compute_optionalfor(Handle);
             AlpmList* current = list;
 
             try
@@ -302,7 +318,7 @@ public sealed class AlpmPackage : IPackage
         
         unsafe
         {
-            AlpmList* conflictList = NativeMethods.alpm_pkg_get_conflicts(_pkgHandle);
+            AlpmList* conflictList = NativeMethods.alpm_pkg_get_conflicts(Handle);
             AlpmList* current = conflictList;
 
             while (current != null)
@@ -317,5 +333,41 @@ public sealed class AlpmPackage : IPackage
         }
 
         return conflicts;
+    }
+
+    /// <summary>
+    /// Throws <see cref="ObjectDisposedException"/> if this instance has been disposed.
+    /// </summary>
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(AlpmPackage));
+    }
+
+    /// <summary>
+    /// Releases the native package handle if this instance owns it. Disposing a package that
+    /// belongs to a database does nothing, since the database owns the handle.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        if (_ownsHandle && _pkgHandle != IntPtr.Zero)
+        {
+            NativeMethods.alpm_pkg_free(_pkgHandle);
+        }
+
+        _pkgHandle = IntPtr.Zero;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Finalizer to ensure an owned native handle is released.
+    /// </summary>
+    ~AlpmPackage()
+    {
+        Dispose();
     }
 }
