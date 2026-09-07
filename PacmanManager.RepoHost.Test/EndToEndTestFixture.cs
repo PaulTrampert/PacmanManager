@@ -72,8 +72,12 @@ public class EndToEndTestFixture : IAsyncDisposable
             var solutionDirectory = DirUtils.FindSolutionDirectory();
             logger.LogInformation($"Building Docker image from: {solutionDirectory}");
 
+            // Named per fixture rather than once for the suite: more than one fixture now runs a
+            // stack of its own, and Docker rejects a second network by an existing name. The
+            // containers address each other by network alias, which is scoped to the network, so
+            // the name itself is never something a test depends on.
             _testNetwork = new NetworkBuilder()
-                .WithName("pacmanmanager-test-network")
+                .WithName($"pacmanmanager-test-network-{Guid.NewGuid():N}")
                 .WithCleanUp(true)
                 .WithLogger(logger)
                 .Build();
@@ -154,6 +158,14 @@ public class EndToEndTestFixture : IAsyncDisposable
         {
             await _dbContainer.DisposeAsync();
             _dbContainer = null;
+        }
+
+        // Keycloak binds a fixed host port, so a fixture that left it running would keep the next
+        // one from starting at all.
+        if (AuthContainer != null)
+        {
+            await AuthContainer.DisposeAsync();
+            AuthContainer = null;
         }
 
         if (_testNetwork != null)
