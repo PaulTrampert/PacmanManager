@@ -23,16 +23,15 @@ internal static class RepositorySortExtensions
     {
         var direction = sort.ResolveDirection();
 
-        // Matched on the pair rather than composed, because the key selectors have different
-        // types and erasing that to object would stop the ordering translating to SQL.
-        var ordered = (sort.SortBy, direction) switch
+        // The switch answers only which property the sort field names; applying the direction is the
+        // same operation whichever property that is, so OrderByDirection does it once. It stays
+        // generic in the key type, because erasing the types to a common object would box the key
+        // and stop the ordering translating to SQL.
+        var ordered = sort.SortBy switch
         {
-            (RepositorySortField.Name, SortDirection.Ascending) => query.OrderBy(r => r.Name),
-            (RepositorySortField.Name, _) => query.OrderByDescending(r => r.Name),
-            (RepositorySortField.Updated, SortDirection.Ascending) => query.OrderBy(r => r.UpdatedAt),
-            (RepositorySortField.Updated, _) => query.OrderByDescending(r => r.UpdatedAt),
-            (_, SortDirection.Ascending) => query.OrderBy(r => r.CreatedAt),
-            _ => query.OrderByDescending(r => r.CreatedAt),
+            RepositorySortField.Name => query.OrderByDirection(r => r.Name, direction),
+            RepositorySortField.Updated => query.OrderByDirection(r => r.UpdatedAt, direction),
+            _ => query.OrderByDirection(r => r.CreatedAt, direction),
         };
 
         return ordered.ThenBy(r => r.Id);

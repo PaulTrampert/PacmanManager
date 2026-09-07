@@ -23,18 +23,16 @@ internal static class PackageSortExtensions
     {
         var direction = sort.ResolveDirection();
 
-        // Matched on the pair rather than composed, because the key selectors have different types
-        // and erasing that to object would stop the ordering translating to SQL.
-        var ordered = (sort.SortBy, direction) switch
+        // The switch answers only which property the sort field names; applying the direction is the
+        // same operation whichever property that is, so OrderByDirection does it once. It stays
+        // generic in the key type, because erasing the types to a common object would box the key
+        // and stop the ordering translating to SQL.
+        var ordered = sort.SortBy switch
         {
-            (PackageSortField.Updated, SortDirection.Ascending) => query.OrderBy(p => p.UpdatedAt),
-            (PackageSortField.Updated, _) => query.OrderByDescending(p => p.UpdatedAt),
-            (PackageSortField.Created, SortDirection.Ascending) => query.OrderBy(p => p.CreatedAt),
-            (PackageSortField.Created, _) => query.OrderByDescending(p => p.CreatedAt),
-            (PackageSortField.InstalledSize, SortDirection.Ascending) => query.OrderBy(p => p.InstalledSize),
-            (PackageSortField.InstalledSize, _) => query.OrderByDescending(p => p.InstalledSize),
-            (_, SortDirection.Descending) => query.OrderByDescending(p => p.Name),
-            _ => query.OrderBy(p => p.Name),
+            PackageSortField.Updated => query.OrderByDirection(p => p.UpdatedAt, direction),
+            PackageSortField.Created => query.OrderByDirection(p => p.CreatedAt, direction),
+            PackageSortField.InstalledSize => query.OrderByDirection(p => p.InstalledSize, direction),
+            _ => query.OrderByDirection(p => p.Name, direction),
         };
 
         return ordered.ThenBy(p => p.Id);
