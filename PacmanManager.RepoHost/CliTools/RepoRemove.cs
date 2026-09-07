@@ -1,11 +1,14 @@
+using PacmanManager.CliTools;
+
 namespace PacmanManager.RepoHost.CliTools;
 
 /// <summary>
 /// Runs <c>repo-remove</c> against a repository's database, removing packages from it by name. This drops the packages'
 /// entries from the database; it does not delete the package files themselves.
 /// </summary>
-public class RepoRemove : RepoDbTool
+public class RepoRemove : ICliTool
 {
+    private readonly RepositoryDatabase _database;
     private readonly IEnumerable<string> _packageNames;
 
     /// <summary>
@@ -15,8 +18,9 @@ public class RepoRemove : RepoDbTool
     /// <param name="repoHome">The libalpm database home directory. The tool runs in its <c>sync</c> subdirectory.</param>
     /// <param name="packageNames">Names of the packages to remove. At least one is required.</param>
     /// <exception cref="ArgumentException">Thrown when no package names are supplied.</exception>
-    public RepoRemove(string name, string repoHome, params IEnumerable<string> packageNames) : base(name, repoHome)
+    public RepoRemove(string name, string repoHome, params IEnumerable<string> packageNames)
     {
+        _database = new RepositoryDatabase(name, repoHome);
         _packageNames = packageNames.ToArray();
         if (!_packageNames.Any())
         {
@@ -25,11 +29,14 @@ public class RepoRemove : RepoDbTool
     }
 
     /// <inheritdoc />
-    public override string Name => "repo-remove";
+    public string Name => "repo-remove";
 
     /// <inheritdoc />
-    public override string Executable => "repo-remove";
+    public string Executable => "repo-remove";
 
     /// <inheritdoc />
-    protected override IEnumerable<string> OperandArguments => _packageNames;
+    public IEnumerable<string> Arguments => [_database.FileName, .._packageNames];
+
+    /// <inheritdoc />
+    public string WorkingDirectory => _database.SyncDirectory;
 }
