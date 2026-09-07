@@ -224,8 +224,8 @@ right the first time.
 | `GET` | `/api/v1/packages/{packageId}/content` | Anonymous | `200` file | `404` |
 | `GET` | `/api/v1/repositories/{repositoryId}/packages/{name}/content` | Anonymous | `200` file | `404` |
 | `POST` | `/api/v1/repositories/{repositoryId}/packages` | Required | `201` created, `200` updated | `400`, `401`, `403`, `404`, `409`, `413` |
-| `DELETE` | `/api/v1/packages/{packageId}` | Required | `204` | `401`, `403`, `404`, `409` |
-| `DELETE` | `/api/v1/repositories/{repositoryId}/packages/{name}` | Required | `204` | `401`, `403`, `404`, `409` |
+| `DELETE` | `/api/v1/packages/{packageId}` | Required | `204` | `401`, `403`, `404` |
+| `DELETE` | `/api/v1/repositories/{repositoryId}/packages/{name}` | Required | `204` | `401`, `403`, `404` |
 
 The repository-scoped forms are aliases: they resolve `(repositoryId, name)` to the same package
 and share a service method with the id form. They exist because the natural key is what a build
@@ -234,9 +234,10 @@ script knows — it has just built `my-tool` for repository X and does not know 
 `404` covers three cases that must be indistinguishable from outside: the package does not exist,
 the repository does not exist, and the repository is private and belongs to someone else.
 
-`409` on both mutating verbs means the repository database was locked by another writer — see
-[Concurrency](#publishing). Delete mutates the same `.db.tar.gz` that publish does, so it can fail
-the same way and must advertise the same status.
+`409` on publish means the repository already holds that version of the package — see
+[Versions only roll forward](#versions-only-roll-forward). A failure of the pacman tools themselves
+is not a `409` on either verb: the caller cannot fix it by sending a different request, so it is a
+`500` like any other failed `ICliTool`.
 
 ### Listing
 
@@ -426,12 +427,34 @@ delete. Both are `ICliTool` implementations run through `ICliToolRunner`, like t
    contents changed. A new row is `201` with a `Location` header; an existing row is updated in
    place — keeping `Id` and `CreatedAt`, and setting `PublisherId` to the publishing user — and
    returns `200`. Because a package holds exactly one version, replacement is the normal path, not
-   an edge case. Nothing is committed yet.
+   an edge case, but a replacement has to move the version forward: see
+   [Versions only roll forward](#versions-only-roll-forward). Nothing is committed yet.
 6. **Move the file into place, run `repo-add`, then `SaveChangesAsync`.** Side effects first,
    commit last — the ordering `CreateRepositoryAsync` already uses, so that a failed `repo-add`
    costs nothing more than a discarded change tracker. If the replaced version had a different file
    name, delete the old file only *after* the commit succeeds; until then it is what a rollback
    restores the database to.
+
+### Versions only roll forward
+
+A publish is accepted only when it is newer than what the repository already holds for that package
+and architecture, by pacman's own version ordering — `alpm_pkg_vercmp` through
+`LibAlpmSharp.AlpmVersion`, so that `1.10` is newer than `1.9` and an epoch outranks everything to
+its right. A second push of a version already published is a `409`; a build for a different
+architecture is a different file rather than a re-push of the same one, so it may carry the version
+it was built with.
+
+The reason is that a published version's bytes are not ours to change. Pacman has no rollback, and
+a client that synced this repository may already have downloaded the file and recorded the
+`%SHA256SUM%` the database advertised for it. Overwriting the file in place under the same name
+would leave that client failing checksum validation on every install, undetectably from the outside
+and unrepairable except by pushing the same version again successfully. Refusing the upload is also
+what keeps the failure handling below simple: the file name a publish derives can never be the file
+name the previous version is stored under, so a rollback that deletes what it just wrote can never
+take away a file a live row still names.
+
+A rebuild that needs to go out therefore goes out under a new `pkgrel`, which is what `makepkg`
+already expects of it.
 
 ### Checksums are computed, not read
 
@@ -458,8 +481,10 @@ it, which is a safe floor but a poor experience. **Every mutation of a repositor
 therefore serialized per repository in-process** by one keyed async lock, keyed on repository id and
 shared by the publish and delete paths — `repo-remove` mutates the same file as `repo-add`, so a
 lock that only covered publish would leave exactly the race it was added to prevent. The lock is
-held across the side effects and the commit, and a lock-file failure from either tool surfaces as a
-`409` on either route. This is correct for a single instance only; a multi-instance deployment
+held across the side effects and the commit. A lock-file failure from either tool surfaces as the
+same `500` any other tool failure does: the tools report their reasons only in prose, so telling a
+lock-file conflict apart from a corrupt database would mean matching on a message that also carries
+the package's own file name. This is correct for a single instance only; a multi-instance deployment
 needs a Postgres advisory lock, and that is [deferred](#deferred-work) along with the note that
 nothing else about the app is horizontally scalable yet.
 
@@ -497,9 +522,8 @@ uses**, mirrors publish's ordering:
 
 Side effect first, commit second, for the same reason: **a failed `repo-remove` must abort the
 request with nothing committed** rather than delete a row whose entry is still in the database file.
-It surfaces as a `409` when it is the lock file, and otherwise as the same `500` any failed
-`ICliTool` produces; either way the package is still listed and still installable, which is the
-recoverable state. If `SaveChangesAsync` then fails, compensate by re-running `repo-add` against the
+It surfaces as the same `500` any failed `ICliTool` produces, and either way the package is still
+listed and still installable, which is the recoverable state. If `SaveChangesAsync` then fails, compensate by re-running `repo-add` against the
 package file — still on disk, because step 3 comes last — and, as in publishing, log at error and
 rethrow if that compensation also fails.
 
@@ -632,8 +656,9 @@ successful `repo-add` invoking the compensating `repo-remove` — plus, on a rep
 `repo-add` that restores the previous file — which is the case that needs an explicitly faked
 commit failure to reach. E2E tests publish a real fixture package and then read it back through
 `GET`, assert the stored `sha256Sum`/`md5Sum` match the uploaded bytes and the `%SHA256SUM%`
-`repo-add` recorded, and assert `403` publishing to someone else's public repository and `404` to
-someone else's private one.
+`repo-add` recorded, assert that a second push of the published version is a `409` and that the
+newer fixture replaces it with a `200`, and assert `403` publishing to someone else's public
+repository and `404` to someone else's private one.
 
 *Depends on:* 1, 2, 3, 4, 5, 6, 7, 13.
 
@@ -656,7 +681,7 @@ repository `UpdatedAt`, under the same per-repository lock publishing takes.
 grants exist, any holder of `Publish` → `204`, including over a package someone else published;
 another user on a public repository → `403`; another user on a private one → `404`); for a
 `repo-remove` failure leaving the row intact and failing the request, with a lock-file failure
-surfacing as `409`; for a commit failure after a successful `repo-remove` triggering the
+surfacing as a `500`; for a commit failure after a successful `repo-remove` triggering the
 compensating `repo-add`; and for a file deletion failure being logged but not failing the request.
 E2E test deletes a published package and confirms it is gone from the listing.
 
@@ -706,7 +731,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **Detached signatures.** Accepting a `.sig` alongside the package, storing it, passing it to
   `repo-add`, and serving it. Required for any repository with `SigLevel = Required`.
 * **Multi-instance publishing.** The per-repository lock is in-process; concurrent publishes from
-  two instances would rely on `repo-add`'s own lock file and surface as `409`s. A Postgres advisory
+  two instances would rely on `repo-add`'s own lock file and surface as `500`s. A Postgres advisory
   lock keyed by repository id fixes it.
 * **Reconciling a repository database from the rows.** Publish and delete compensate for a
   side-effect-succeeded-then-commit-failed window, but if the compensation itself fails the
