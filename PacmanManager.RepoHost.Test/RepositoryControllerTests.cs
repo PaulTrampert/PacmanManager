@@ -91,6 +91,43 @@ public class RepositoryControllerTests
         });
     }
 
+    [Test]
+    public async Task Get_SortsByANonStringKey_InTheDatabase()
+    {
+        // ApplySort looks its key selectors up in one table, so they are all typed
+        // Expression<Func<PacmanRepository, object>> and each carries a Convert node. EF Core is
+        // expected to strip a conversion to object and order in SQL; an untranslatable ordering
+        // throws rather than being evaluated client side, so this listing would start returning 500.
+        // A value type key is where that would show first, so sorting by a date against real
+        // Postgres is what pins it down — the name cases above go through a reference type.
+        // Arrange
+        foreach (var suffix in new[] { "first", "second", "third" })
+        {
+            var created = await _client.PostAsJsonAsync("/api/v1/repository", new WriteRepositoryRequest
+            {
+                Name = $"sortbydate-{suffix}",
+                IsPublic = true
+            });
+            Assert.That(created.IsSuccessStatusCode, Is.True);
+        }
+
+        const string query = "/api/v1/repository?nameContains=sortbydate-&pageSize=50&sortBy=Created";
+
+        // Act
+        var newestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(query);
+        var oldestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+            $"{query}&direction=Ascending");
+
+        // Assert
+        var byAge = new[] { "sortbydate-first", "sortbydate-second", "sortbydate-third" };
+        Assert.Multiple(() =>
+        {
+            Assert.That(oldestFirst!.Results.Select(r => r.Name), Is.EqualTo(byAge));
+            Assert.That(newestFirst!.Results.Select(r => r.Name), Is.EqualTo(byAge.Reverse()),
+                "Created defaults to newest first.");
+        });
+    }
+
     #endregion
 
     #region GetById Tests

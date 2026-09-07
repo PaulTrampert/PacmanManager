@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 
@@ -8,6 +9,23 @@ namespace PacmanManager.RepoHost.Services;
 /// </summary>
 internal static class PackageSortExtensions
 {
+    /// <summary>
+    /// The property each sort field names.
+    /// </summary>
+    /// <remarks>
+    /// Typed as <see cref="object"/> so that one table can hold selectors for properties of
+    /// different types. That puts a <see cref="ExpressionType.Convert"/> node over each key, which
+    /// EF Core strips when the conversion target is <see cref="object"/>, so the ordering still
+    /// translates to SQL rather than being evaluated client side.
+    /// </remarks>
+    private static readonly Dictionary<PackageSortField, Expression<Func<PacmanPackage, object>>> KeySelectors = new()
+    {
+        [PackageSortField.Name] = p => p.Name,
+        [PackageSortField.Updated] = p => p.UpdatedAt,
+        [PackageSortField.Created] = p => p.CreatedAt,
+        [PackageSortField.InstalledSize] = p => p.InstalledSize,
+    };
+
     /// <summary>
     /// Orders <paramref name="query"/> as requested, breaking ties by id so that paging is stable.
     /// </summary>
@@ -21,19 +39,16 @@ internal static class PackageSortExtensions
         this IQueryable<PacmanPackage> query,
         SortOptions<PackageSortField> sort)
     {
-        var direction = sort.ResolveDirection();
+        // A sortBy bound from a query string can be a value the enum does not declare, which names
+        // no property. Falling back to the default member means such a request is ordered the way an
+        // unsorted one is, rather than throwing.
+        var keySelector = KeySelectors.TryGetValue(sort.SortBy, out var selector)
+            ? selector
+            : KeySelectors[default];
 
-        // The switch answers only which property the sort field names; applying the direction is the
-        // same operation whichever property that is, so OrderByDirection does it once. It stays
-        // generic in the key type, because erasing the types to a common object would box the key
-        // and stop the ordering translating to SQL.
-        var ordered = sort.SortBy switch
-        {
-            PackageSortField.Updated => query.OrderByDirection(p => p.UpdatedAt, direction),
-            PackageSortField.Created => query.OrderByDirection(p => p.CreatedAt, direction),
-            PackageSortField.InstalledSize => query.OrderByDirection(p => p.InstalledSize, direction),
-            _ => query.OrderByDirection(p => p.Name, direction),
-        };
+        var ordered = sort.ResolveDirection() == SortDirection.Ascending
+            ? query.OrderBy(keySelector)
+            : query.OrderByDescending(keySelector);
 
         return ordered.ThenBy(p => p.Id);
     }
