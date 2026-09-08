@@ -170,6 +170,16 @@ dotnet test PacmanManager.sln --configuration Release --no-build \
     --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
 ```
 
+`PacmanManager.RepoHost/Dockerfile.dockerignore` and `PacmanManager.Migrations/Dockerfile.dockerignore`
+exist because Testcontainers looks for the ignore file **next to the Dockerfile**
+(`<dockerfile>.dockerignore`, falling back to `.dockerignore` in that same directory) and never
+reads the context root's `.dockerignore`, even though it builds with the solution root as context.
+Without them the host's `bin/` and `obj/` are tarred into the build context, and `obj/` records
+absolute host paths -- the sources ANTLR generates for `LibAlpmSharp` among them -- so
+`dotnet build` inside the image fails with `CS2001: Source file ... could not be found`. That bites
+only after a local build has populated `obj/`, which is always true in CI, and only for the RepoHost
+image, since Migrations does not reference `LibAlpmSharp`. Keep all three ignore files in step.
+
 Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
 starts Postgres and Keycloak on. If you add a test that only passes on Arch, it will fail in CI;
 prefer seeding a database under a temporary root and pointing `LibAlpm.Initialize(root, dbPath)` at
