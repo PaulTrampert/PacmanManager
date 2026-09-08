@@ -55,6 +55,11 @@ try
 // Every mutation of a repository database is serialized per repository, so this has to outlive the
 // request that takes it.
     builder.Services.AddSingleton<IRepositoryDatabaseLock, RepositoryDatabaseLock>();
+
+// Every rewrite of a repository database goes through this rather than the generic runner, so that
+// a tool that ran and failed cannot be mistaken for one that worked. Scoped, because the runner it
+// wraps is.
+    builder.Services.AddScoped<IRepositoryDatabaseToolRunner, RepositoryDatabaseToolRunner>();
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();

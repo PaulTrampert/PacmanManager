@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.CliTools;
@@ -26,7 +25,7 @@ namespace PacmanManager.RepoHost.Services;
 /// </remarks>
 internal class RepositoryService(
     PacmanManagerDbContext dbContext,
-    ICliToolRunner cliRunner,
+    IRepositoryDatabaseToolRunner databaseTools,
     IActorAccessor actorAccessor,
     RepositoryAccessPolicy accessPolicy,
     IOptionsSnapshot<PacmanConfigSettings> pacmanSettings,
@@ -152,7 +151,13 @@ internal class RepositoryService(
         {
             await dbContext.AddAsync(repository, cancellationToken);
 
-            await cliRunner.RunToolAsync(new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath), cancellationToken);
+            // repo-add creates the empty database that makes the repository real. A failure here
+            // has to fail the request: the runner reports it only through an exit code, so an
+            // unchecked call would commit a row naming a database file that was never written.
+            await databaseTools.RunAsync(
+                new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath),
+                repository.Id,
+                cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
