@@ -91,7 +91,7 @@ public class PackageServiceDeleteTests
             _fileSystem,
             _pathResolver,
             new RepositoryDatabaseLock(),
-            Mock.Of<ILibAlpm>(),
+            new Lazy<ILibAlpm>(Mock.Of<ILibAlpm>),
             settings,
             new TestOutputLogger<PackageService>());
     }
@@ -327,7 +327,7 @@ public class PackageServiceDeleteTests
         GivenRepoRemoveFails(stdErr: "==> ERROR: could not rewrite the database");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
@@ -349,13 +349,13 @@ public class PackageServiceDeleteTests
         GivenRepoRemoveFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.Tool, Is.EqualTo("repo-remove"));
-            Assert.That(thrown.StandardError, Does.Contain("lockfile"),
+            Assert.That(thrown.Diagnostics, Does.Contain("lockfile"),
                 "The diagnostics travel with the exception, so the reason is not lost.");
             Assert.That(_dbContext.PacmanPackages.Any(), Is.True);
         });

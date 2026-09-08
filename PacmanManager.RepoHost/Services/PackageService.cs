@@ -733,9 +733,8 @@ internal class PackageService(
         // Resolved before the row is detached, since the file name is read off the row.
         var packageFilePath = pathResolver.GetPackageFilePath(repository.Id, package.FileName);
 
-        await RunDatabaseToolAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, package.Name),
-            repository.Id,
             cancellationToken);
 
         try
@@ -804,9 +803,8 @@ internal class PackageService(
             return;
         }
 
-        await RunDatabaseToolAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, packageFilePath),
-            repository.Id,
             CancellationToken.None);
     }
 }

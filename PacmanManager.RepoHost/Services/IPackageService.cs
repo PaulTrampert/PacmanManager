@@ -149,7 +149,7 @@ public interface IPackageService
     /// <exception cref="PackageForbiddenException">
     /// The actor may see the repository but may not remove packages from it.
     /// </exception>
-    /// <exception cref="RepositoryDatabaseToolException">
+    /// <exception cref="CliToolFailedException">
     /// <c>repo-remove</c> could not rewrite the repository's database, so nothing was deleted.
     /// </exception>
     Task<bool> DeletePackageAsync(Guid packageId, CancellationToken cancellationToken = default);
@@ -174,7 +174,7 @@ public interface IPackageService
     /// <exception cref="PackageForbiddenException">
     /// The actor may see the repository but may not remove packages from it.
     /// </exception>
-    /// <exception cref="RepositoryDatabaseToolException">
+    /// <exception cref="CliToolFailedException">
     /// <c>repo-remove</c> could not rewrite the repository's database, so nothing was deleted.
     /// </exception>
     Task<bool> DeletePackageAsync(Guid repositoryId, string name, CancellationToken cancellationToken = default);
