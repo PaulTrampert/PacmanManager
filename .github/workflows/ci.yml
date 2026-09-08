@@ -124,6 +124,56 @@ jobs:
           path: artifacts/test-results
           if-no-files-found: warn
 
+  # The Ubuntu job above cannot run the fixtures that read the host's *local* pacman database and
+  # expect an installed package named `pacman`, so it filters them out. Here they are the point:
+  # on archlinux/archlinux that package is really installed, the local database is really
+  # populated, and the whole LibAlpmSharp suite runs unfiltered -- 299 tests rather than the 254
+  # Ubuntu sees. The overlap with the Ubuntu job is deliberate: between them they prove the
+  # binding works both on Arch and on a distribution that only has libalpm.
+  libalpm:
+    name: LibAlpmSharp on Arch
+    runs-on: ubuntu-latest
+    container: archlinux/archlinux
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      # Before the checkout, which wants git. The keyring refresh first is the standard guard
+      # against a base image old enough that its keys no longer verify the current mirrors.
+      - name: Install the toolchain
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed dotnet-sdk jre-openjdk-headless git
+
+      - uses: actions/checkout@v5
+
+      - name: Test
+        run: |
+          dotnet test LibAlpmSharp.Test \
+            --configuration Release \
+            --logger "trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory artifacts/test-results
+
+      # Its own check name, and no PR comment: the Ubuntu job owns the comment, and two of them
+      # would just be noise. The check run carries the per-test detail for this suite.
+      - name: Publish Arch test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        with:
+          files: artifacts/test-results/**/*.trx
+          check_name: Test results (Arch)
+          comment_mode: "off"
+
+      - name: Upload Arch test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-arch
+          path: artifacts/test-results
+          if-no-files-found: warn
+
   docker:
     name: Build ${{ matrix.name }} image
     runs-on: ubuntu-latest

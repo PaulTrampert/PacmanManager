@@ -155,6 +155,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | Job | What it does |
 | :--- | :--- |
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
+| `libalpm` | Runs `LibAlpmSharp.Test` unfiltered inside an `archlinux/archlinux` container, where the local pacman database is real. |
 | `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
 
 The `test` job publishes its `.trx` files with
@@ -195,9 +196,16 @@ has populated `obj/`, which is always true in CI, and only for the RepoHost imag
 does not reference `LibAlpmSharp`.
 
 Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
-starts Postgres and Keycloak on. If you add a test that only passes on Arch, it will fail in CI;
-prefer seeding a database under a temporary root and pointing `LibAlpm.Initialize(root, dbPath)` at
-it, which is the lasting fix for the two excluded fixtures as well.
+starts Postgres and Keycloak on.
+
+That filter is scoped to the Ubuntu job. The **`libalpm`** job runs `LibAlpmSharp.Test` unfiltered
+inside an `archlinux/archlinux` container, installing `dotnet-sdk` and a JRE with `pacman`, so the
+fixtures that read the host's local database run for real against an installed `pacman` package:
+299 tests there against the 254 Ubuntu sees, nothing skipped. So a test that only passes on Arch is
+covered, and the overlap between the two jobs is deliberate — together they prove the binding works
+both on Arch and on a distribution that only carries libalpm. Seeding a database under a temporary
+root and pointing `LibAlpm.Initialize(root, dbPath)` at it is still the tidier fix, and would let
+the Ubuntu job drop the filter.
 
 ## Version control
 
