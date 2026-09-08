@@ -30,7 +30,12 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
         .WithEnvironment("KC_HOSTNAME", "http://localhost:8080")
         .WithEnvironment("KC_HOSTNAME_BACKCHANNEL_DYNAMIC", "true")
         .WithCommand("start-dev", "--import-realm")
-        .WithPortBinding(8080, false)
+        // A random host port, not a fixed 8080: several fixtures each stand up their own Keycloak,
+        // and a fixed binding makes the second one fail with "port is already allocated". Nothing
+        // depends on the number -- the API reaches Keycloak over the Docker network by alias, and
+        // the test host goes through LocalAuthority, which reads the mapped port back. KC_HOSTNAME
+        // still pins the issuer to http://localhost:8080, so tokens are unchanged.
+        .WithPortBinding(8080, true)
         .WithWaitStrategy(Wait.ForUnixContainer()
             .UntilHttpRequestIsSucceeded(r => r
                 .ForPort(8080)
