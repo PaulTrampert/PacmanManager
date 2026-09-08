@@ -21,3 +21,8 @@ libalpm. `build-fixture.sh` regenerates both byte for byte and is the record of 
 Locate them from a test with `PackageFixtures.MinimalPackagePath` and
 `PackageFixtures.UpgradePackagePath` in `PacmanManager.TestUtils` rather than by composing the path
 again.
+
+The same metadata is what `PacmanManager.TestUtils.LocalPackageDatabase` writes into the local
+database it seeds under a temporary root, so a test reading an *installed* package sees the fields
+above rather than whatever the host has installed. Change a value here and the constants in
+`PackageFixtures` carry it to both.

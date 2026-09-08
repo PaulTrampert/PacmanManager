@@ -2,12 +2,29 @@ using System;
 using System.Collections.Generic;
 using LibAlpmSharp.Interop;
 using NUnit.Framework;
+using PacmanManager.TestUtils;
 
 namespace LibAlpmSharp.Test;
 
 [TestFixture]
 public class LibAlpmTests
 {
+    // A writable root and database path, so that a test needing nothing more than an initialised
+    // handle gets one on any host rather than only where /var/lib/pacman happens to be writable.
+    private LocalPackageDatabase _seeded = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _seeded = LocalPackageDatabase.Seed();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _seeded.Dispose();
+    }
+
     [Test]
     public void GetVersion_ReturnsNonEmptyString()
     {
@@ -55,7 +72,9 @@ public class LibAlpmTests
     [Test]
     public void Initialize_WithDefaultPaths_CreatesInstance()
     {
-        // This test may fail if not run with appropriate permissions
+        // The default paths are the whole point of this one, so unlike every other test here it
+        // cannot be pointed at a temporary root: it only runs where "/var/lib/pacman" is a pacman
+        // database the current user may open, and warns rather than failing anywhere else.
         try
         {
             // Act
@@ -79,26 +98,16 @@ public class LibAlpmTests
     [Test]
     public void Initialize_WithCustomPaths_CreatesInstance()
     {
-        // This test may fail if not run with appropriate permissions
-        try
+        // Act
+        using LibAlpm alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+
+        // Assert - the paths are reported back exactly as handed in, rather than as libalpm
+        // canonicalises them internally.
+        Assert.Multiple(() =>
         {
-            // Arrange
-            string root = "/";
-            string dbPath = "/var/lib/pacman";
-            
-            // Act
-            using (LibAlpm alpm = LibAlpm.Initialize(root, dbPath))
-            {
-                // Assert
-                Assert.That(alpm, Is.Not.Null);
-                Assert.That(alpm.Root, Is.EqualTo(root));
-                Assert.That(alpm.DbPath, Is.EqualTo(dbPath));
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(alpm.Root, Is.EqualTo(_seeded.Root));
+            Assert.That(alpm.DbPath, Is.EqualTo(_seeded.DbPath));
+        });
     }
 
     [Test]
@@ -132,79 +141,55 @@ public class LibAlpmTests
     [Test]
     public void Dispose_CanBeCalledMultipleTimes()
     {
-        try
+        // Arrange
+        LibAlpm alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+
+        // Act & Assert - only the first release reaches libalpm; the rest are no-ops rather than a
+        // double free.
+        alpm.Dispose();
+        Assert.That(() =>
         {
-            // Arrange
-            LibAlpm alpm = LibAlpm.Initialize();
-            
-            // Act & Assert - should not throw
             alpm.Dispose();
             alpm.Dispose();
-            alpm.Dispose();
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        }, Throws.Nothing);
     }
 
     [Test]
     public void GetLastError_AfterDispose_ThrowsObjectDisposedException()
     {
-        try
-        {
-            // Arrange
-            LibAlpm alpm = LibAlpm.Initialize();
-            alpm.Dispose();
-            
-            // Act & Assert
-            Assert.Throws<ObjectDisposedException>(() => alpm.GetLastError());
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // Arrange
+        LibAlpm alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+        alpm.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => alpm.GetLastError());
     }
 
     [Test]
     public void Handle_AfterDispose_ThrowsObjectDisposedException()
     {
-        try
+        // Arrange
+        LibAlpm alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+        alpm.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() =>
         {
-            // Arrange
-            LibAlpm alpm = LibAlpm.Initialize();
-            alpm.Dispose();
-            
-            // Act & Assert
-            Assert.Throws<ObjectDisposedException>(() => 
-            {
-                var handle = alpm.Handle;
-            });
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            var handle = alpm.Handle;
+        });
     }
 
     [Test]
     public void GetLastError_WhenNoError_ReturnsOK()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            
-            // Act
-            AlpmErrno error = alpm.GetLastError();
-            
-            // Assert
-            Assert.That(error, Is.EqualTo(AlpmErrno.ALPM_ERR_OK));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // Arrange
+        using LibAlpm alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+
+        // Act
+        AlpmErrno error = alpm.GetLastError();
+
+        // Assert
+        Assert.That(error, Is.EqualTo(AlpmErrno.ALPM_ERR_OK));
     }
 
     [Test]

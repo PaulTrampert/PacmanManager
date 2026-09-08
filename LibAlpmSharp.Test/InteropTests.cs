@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using LibAlpmSharp.Interop;
 using NUnit.Framework;
+using PacmanManager.TestUtils;
 
 namespace LibAlpmSharp.Test;
 
@@ -41,42 +42,35 @@ public class InteropTests
     public unsafe void TestInitializeAndRelease()
     {
         AlpmErrno err;
-        
-        // Test initialization with standard paths
-        IntPtr root = Marshal.StringToHGlobalAnsi("/");
-        IntPtr dbpath = Marshal.StringToHGlobalAnsi("/var/lib/pacman");
-        
+
+        // A temporary root rather than "/", so that this proves the initialize/release round trip
+        // on any host instead of only where /var/lib/pacman is writable.
+        using var seeded = LocalPackageDatabase.Seed();
+        IntPtr root = Marshal.StringToHGlobalAnsi(seeded.Root);
+        IntPtr dbpath = Marshal.StringToHGlobalAnsi(seeded.DbPath);
+
         try
         {
             IntPtr handle = NativeMethods.alpm_initialize(
                 (byte*)root.ToPointer(),
                 (byte*)dbpath.ToPointer(),
                 &err);
-            
-            if (handle == IntPtr.Zero)
+
+            Assert.That(handle, Is.Not.EqualTo(IntPtr.Zero),
+                $"alpm_initialize failed: {Marshal.PtrToStringUTF8((IntPtr)NativeMethods.alpm_strerror(err))}");
+
+            // libalpm hands the paths back canonicalised, which means with a trailing separator.
+            string? rootStr = Marshal.PtrToStringUTF8((IntPtr)NativeMethods.alpm_option_get_root(handle));
+            string? dbpathStr = Marshal.PtrToStringUTF8((IntPtr)NativeMethods.alpm_option_get_dbpath(handle));
+
+            Assert.Multiple(() =>
             {
-                string? errStr = Marshal.PtrToStringUTF8((IntPtr)NativeMethods.alpm_strerror(err));
-                Assert.Warn($"Failed to initialize libalpm: {errStr}. This may be expected if running without proper permissions.");
-                return;
-            }
-            
-            Assert.That(handle, Is.Not.EqualTo(IntPtr.Zero), "Handle should not be null");
-            TestContext.WriteLine("Successfully initialized libalpm handle");
-            
-            // Get the root and dbpath back to verify
-            byte* rootPtr = NativeMethods.alpm_option_get_root(handle);
-            byte* dbpathPtr = NativeMethods.alpm_option_get_dbpath(handle);
-            
-            string? rootStr = Marshal.PtrToStringUTF8((IntPtr)rootPtr);
-            string? dbpathStr = Marshal.PtrToStringUTF8((IntPtr)dbpathPtr);
-            
-            TestContext.WriteLine($"Root: {rootStr}");
-            TestContext.WriteLine($"DBPath: {dbpathStr}");
-            
-            // Release the handle
+                Assert.That(rootStr, Is.EqualTo($"{seeded.Root}/"));
+                Assert.That(dbpathStr, Is.EqualTo($"{seeded.DbPath}/"));
+            });
+
             int result = NativeMethods.alpm_release(handle);
             Assert.That(result, Is.EqualTo(0), "Release should return 0 on success");
-            TestContext.WriteLine("Successfully released libalpm handle");
         }
         finally
         {

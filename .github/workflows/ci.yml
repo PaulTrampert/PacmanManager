@@ -79,13 +79,11 @@ jobs:
       - name: Build
         run: dotnet build PacmanManager.sln --configuration Release --no-restore
 
-      # AlpmPackageTests and AlpmDatabaseTests.GetPackages_ReturnsListOfPackages read the *host's*
-      # local pacman database and expect an installed package named `pacman`. That exists on Arch
-      # and not on this runner, so they are excluded rather than left to fail. Everything else in
-      # the solution runs, the end to end fixtures included: the runner's Docker daemon is what
-      # Testcontainers starts Postgres and Keycloak on and what builds the two images under test.
-      # The lasting fix belongs in the tests (seed a local database under a temporary root and
-      # point LibAlpm.Initialize at it); until then this filter is the boundary.
+      # No filter: the LibAlpmSharp fixtures that need installed packages seed their own local
+      # database under a temporary root, so they no longer depend on what this runner has installed.
+      # Everything else in the solution runs too, the end to end fixtures included: the runner's
+      # Docker daemon is what Testcontainers starts Postgres and Keycloak on and what builds the two
+      # images under test.
       # verbosity=minimal prints failures and the summary but not a line per passing test. At
       # `normal` a run emits several thousand lines, and the failures scroll off the top of what
       # the Actions log API will hand back, which is exactly when you need to read them.
@@ -94,7 +92,6 @@ jobs:
           dotnet test PacmanManager.sln \
             --configuration Release \
             --no-build \
-            --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages" \
             --logger "trx" \
             --logger "console;verbosity=minimal" \
             --results-directory artifacts/test-results
@@ -124,12 +121,10 @@ jobs:
           path: artifacts/test-results
           if-no-files-found: warn
 
-  # The Ubuntu job above cannot run the fixtures that read the host's *local* pacman database and
-  # expect an installed package named `pacman`, so it filters them out. Here they are the point:
-  # on archlinux/archlinux that package is really installed, the local database is really
-  # populated, and the whole LibAlpmSharp suite runs unfiltered -- 299 tests rather than the 254
-  # Ubuntu sees. The overlap with the Ubuntu job is deliberate: between them they prove the
-  # binding works both on Arch and on a distribution that only has libalpm.
+  # The same LibAlpmSharp suite, on a real Arch system. Both jobs now run all of it, which is the
+  # point of the overlap: the binding is exercised against a distribution that only carries libalpm
+  # and against one where pacman itself is installed, and the seeded local database has to be read
+  # the same way by both libalpm versions.
   libalpm:
     name: LibAlpmSharp on Arch
     runs-on: ubuntu-latest
