@@ -1,9 +1,18 @@
 # Packages API
 
-Status: **planned**. This document is the design for publishing, listing and removing packages in a
-hosted repository, and is the source the implementation issues are cut from. It follows the
+Status: **implemented**. This document was the design for publishing, listing and removing packages
+in a hosted repository, and was the source the implementation issues were cut from. Every issue in
+the Package Management API milestone has landed and the milestone is closed. It follows the
 conventions established in [`authorization-plan.md`](authorization-plan.md); where it departs from
 them, it says so.
+
+Two places where the shipped code went further than the design below, so that reading this as a
+description of `main` does not mislead. The per-field sort direction of issue 14 is a generic
+`SortFieldDefaults<TSortFields>`, driven by a `[DefaultSortDirection]` attribute on each enum
+member, rather than the per-listing `switch` sketched under [Listing](#listing); and
+`PackageService` takes `Lazy<ILibAlpm>`, so the anonymous read routes do not pay for
+`alpm_initialize`. The [Deferred work](#deferred-work) at the end of this document is still
+outstanding.
 
 ## Goals
 
