@@ -1,425 +1,206 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using LibAlpmSharp.Interop;
 using NUnit.Framework;
+using PacmanManager.TestUtils;
 
 namespace LibAlpmSharp.Test;
 
+/// <summary>
+/// Covers <see cref="AlpmDatabase"/> against a local database seeded under a temporary root by
+/// <see cref="LocalPackageDatabase"/>.
+/// </summary>
+/// <remarks>
+/// These tests used to initialise libalpm at <c>/</c> and <c>/var/lib/pacman</c>. That needs a
+/// writable system root, so off Arch they reported a warning and stopped rather than running, and
+/// the ones that did run could only assert that the host happened to have packages installed. A
+/// temporary root removes both problems: libalpm can create its database, and the contents are
+/// known.
+/// </remarks>
 [TestFixture]
 public class AlpmDatabaseTests
 {
+    private LocalPackageDatabase _seeded = null!;
+    private LibAlpm _alpm = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _seeded = LocalPackageDatabase.Seed();
+        _alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _alpm.Dispose();
+        _seeded.Dispose();
+    }
+
     [Test]
     public void GetLocalDatabase_ReturnsValidDatabase()
     {
-        try
+        var localDb = _alpm.GetLocalDatabase();
+
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using var alpm = LibAlpm.Initialize();
-            
-            // Act
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Assert
-            Assert.That(localDb, Is.Not.Null);
             Assert.That(localDb.IsLocal, Is.True);
-            Assert.That(localDb.Name, Is.Not.Null.And.Not.Empty);
-            
-            TestContext.WriteLine($"Local database: {localDb}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            // libalpm names the local database "local" whatever root it was pointed at.
+            Assert.That(localDb.Name, Is.EqualTo("local"));
+        });
     }
 
     [Test]
     public void GetSyncDatabases_ReturnsListOfDatabases()
     {
-        try
+        // Registering a sync database is a bookkeeping operation: no file has to exist for it, and
+        // nothing is fetched, so the names here are stand ins rather than databases being read.
+        _alpm.RegisterSyncDatabase("core");
+        _alpm.RegisterSyncDatabase("extra");
+        _alpm.RegisterSyncDatabase("multilib");
+
+        var syncDbs = _alpm.GetSyncDatabases().ToList();
+
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            
-            // Register standard Arch Linux databases
-            alpm.RegisterSyncDatabase("core");
-            alpm.RegisterSyncDatabase("extra");
-            alpm.RegisterSyncDatabase("multilib");
-            
-            // Act
-            var syncDbs = alpm.GetSyncDatabases().ToList();
-            
-            // Assert
-            Assert.That(syncDbs, Is.Not.Null);
-            Assert.That(syncDbs, Has.Count.GreaterThanOrEqualTo(3), "Should have at least the 3 standard Arch Linux databases we registered");
-            TestContext.WriteLine($"Found {syncDbs.Count} sync databases");
-            
-            foreach (var db in syncDbs)
-            {
-                Assert.That(db.IsLocal, Is.False);
-                Assert.That(db.Name, Is.Not.Null.And.Not.Empty);
-                TestContext.WriteLine($"  - {db}");
-            }
-            
-            // Verify standard Arch Linux databases are in the list
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "core"));
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "extra"));
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == "multilib"));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(syncDbs.Select(d => d.Name), Is.EqualTo(new[] { "core", "extra", "multilib" }));
+            Assert.That(syncDbs.Select(d => d.IsLocal), Has.All.False);
+        });
     }
 
     [Test]
     public void RegisterSyncDatabase_CreatesNewDatabase()
     {
-        try
+        var db = _alpm.RegisterSyncDatabase("core");
+
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            string dbName = "core";
-            
-            // Act
-            var db = alpm.RegisterSyncDatabase(dbName);
-            
-            // Assert
-            Assert.That(db, Is.Not.Null);
-            Assert.That(db.Name, Is.EqualTo(dbName));
+            Assert.That(db.Name, Is.EqualTo("core"));
             Assert.That(db.IsLocal, Is.False);
-            
-            TestContext.WriteLine($"Registered database: {db}");
-            
-            // Verify it appears in sync databases list
-            var syncDbs = alpm.GetSyncDatabases();
-            Assert.That(syncDbs, Has.Some.Matches<AlpmDatabase>(d => d.Name == dbName));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(_alpm.GetSyncDatabases().Select(d => d.Name), Does.Contain("core"));
+        });
     }
 
     [Test]
     public void RegisterSyncDatabase_WithNullName_ThrowsArgumentException()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => alpm.RegisterSyncDatabase(null!));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.Throws<ArgumentException>(() => _alpm.RegisterSyncDatabase(null!));
     }
 
     [Test]
     public void RegisterSyncDatabase_WithEmptyName_ThrowsArgumentException()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => alpm.RegisterSyncDatabase(""));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.Throws<ArgumentException>(() => _alpm.RegisterSyncDatabase(""));
     }
 
     [Test]
     public void AlpmDatabase_GetServers_ReturnsListOfServers()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var coreDb = alpm.RegisterSyncDatabase("core");
-            
-            // Add a test server to ensure we have at least one
-            string testServer = "https://mirror.example.com/$repo/os/$arch";
-            coreDb.AddServer(testServer);
-            
-            // Act
-            var servers = coreDb.GetServers().ToList();
-            
-            // Assert
-            Assert.That(servers, Is.Not.Null);
-            Assert.That(servers, Has.Count.GreaterThanOrEqualTo(1), "Should have at least one server");
-            Assert.That(servers, Has.Some.EqualTo(testServer), "Should contain the test server we added");
-            
-            TestContext.WriteLine($"Database '{coreDb.Name}' has {servers.Count} servers");
-            
-            foreach (var server in servers)
-            {
-                TestContext.WriteLine($"  - {server}");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        var coreDb = _alpm.RegisterSyncDatabase("core");
+        const string testServer = "https://mirror.example.com/$repo/os/$arch";
+        coreDb.AddServer(testServer);
+
+        Assert.That(coreDb.GetServers(), Is.EqualTo(new[] { testServer }));
     }
 
     [Test]
     public void AlpmDatabase_AddServer_AddsServerToList()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var db = alpm.RegisterSyncDatabase("extra");
-            string serverUrl = "https://example.com/repo/$repo/os/$arch";
-            
-            // Act
-            db.AddServer(serverUrl);
-            
-            // Assert
-            var servers = db.GetServers();
-            Assert.That(servers, Has.Some.EqualTo(serverUrl));
-            
-            TestContext.WriteLine($"Added server to {db.Name}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        var db = _alpm.RegisterSyncDatabase("extra");
+        const string serverUrl = "https://example.com/repo/$repo/os/$arch";
+
+        db.AddServer(serverUrl);
+
+        Assert.That(db.GetServers(), Does.Contain(serverUrl));
     }
 
     [Test]
     public void AlpmDatabase_RemoveServer_RemovesServerFromList()
     {
-        try
+        var db = _alpm.RegisterSyncDatabase("multilib");
+        const string serverUrl = "https://example.com/repo/$repo/os/$arch";
+        db.AddServer(serverUrl);
+
+        var removed = db.RemoveServer(serverUrl);
+
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var db = alpm.RegisterSyncDatabase("multilib");
-            string serverUrl = "https://example.com/repo/$repo/os/$arch";
-            db.AddServer(serverUrl);
-            
-            // Act
-            bool removed = db.RemoveServer(serverUrl);
-            
-            // Assert
             Assert.That(removed, Is.True);
-            var servers = db.GetServers();
-            Assert.That(servers, Has.None.EqualTo(serverUrl));
-            
-            TestContext.WriteLine($"Removed server from {db.Name}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(db.GetServers(), Does.Not.Contain(serverUrl));
+        });
     }
 
     [Test]
-    public void AlpmDatabase_IsValid_ReturnsValidationStatus()
+    public void AlpmDatabase_IsValid_ForTheSeededLocalDatabase_ReturnsTrue()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            bool isValid = localDb.IsValid();
-            
-            // Assert
-            TestContext.WriteLine($"Local database is valid: {isValid}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // Validity is the on-disk format check: a local database is valid when its ALPM_DB_VERSION
+        // is one libalpm knows, which is what the seeding writes.
+        Assert.That(_alpm.GetLocalDatabase().IsValid(), Is.True);
     }
 
     [Test]
     public void GetPackage_WithValidName_ReturnsPackage()
     {
-        try
+        var pkg = _alpm.GetLocalDatabase().GetPackage(PackageFixtures.MinimalPackageName);
+
+        Assert.That(pkg, Is.Not.Null);
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Get all packages to find a valid one
-            var packages = localDb.GetPackages().ToList();
-            if (packages.Count == 0)
-            {
-                Assert.Warn("No packages found in local database");
-                return;
-            }
-            
-            string testPackageName = packages[0].Name;
-            
-            // Act
-            var pkg = localDb.GetPackage(testPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            Assert.That(pkg!.Name, Is.EqualTo(testPackageName));
-            Assert.That(pkg.Version, Is.Not.Null.And.Not.Empty);
-            
-            TestContext.WriteLine($"Found package: {pkg}");
-            TestContext.WriteLine($"  Description: {pkg.Description}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(pkg!.Name, Is.EqualTo(PackageFixtures.MinimalPackageName));
+            Assert.That(pkg.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+        });
     }
 
     [Test]
     public void GetPackage_WithInvalidName_ReturnsNull()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage("this-package-does-not-exist-xyz123");
-            
-            // Assert
-            Assert.That(pkg, Is.Null);
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_alpm.GetLocalDatabase().GetPackage("this-package-does-not-exist-xyz123"), Is.Null);
     }
 
     [Test]
     public void GetPackage_WithNullName_ThrowsArgumentException()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => localDb.GetPackage(null!));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.Throws<ArgumentException>(() => _alpm.GetLocalDatabase().GetPackage(null!));
     }
 
     [Test]
     public void GetPackages_ReturnsListOfPackages()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var packages = localDb.GetPackages().ToList();
-            
-            // Assert
-            Assert.That(packages, Is.Not.Null);
-            Assert.That(packages, Has.Count.GreaterThanOrEqualTo(1), "Should have at least one package in local database");
-            TestContext.WriteLine($"Found {packages.Count} packages in local database");
-            
-            if (packages.Count > 0)
-            {
-                var firstPkg = packages[0];
-                TestContext.WriteLine($"First package: {firstPkg}");
-                TestContext.WriteLine($"  Description: {firstPkg.Description}");
-                TestContext.WriteLine($"  Architecture: {firstPkg.GetArchitecture()}");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        var packages = _alpm.GetLocalDatabase().GetPackages();
+
+        Assert.That(packages.Select(p => p.Name), Is.EquivalentTo(LocalPackageDatabase.PackageNames));
     }
 
     [Test]
     public void Search_WithValidTerm_ReturnsMatchingPackages()
     {
-        try
+        // Both seeded packages share the prefix, so a search for it is a search that matches more
+        // than one thing; the term below matches only the second.
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Get all packages to find a valid search term
-            var allPackages = localDb.GetPackages().ToList();
-            if (allPackages.Count == 0)
-            {
-                Assert.Warn("No packages found in local database");
-                return;
-            }
-            
-            // Use part of the first package name as search term
-            string searchTerm = allPackages[0].Name.Substring(0, Math.Min(3, allPackages[0].Name.Length));
-            
-            // Act
-            var results = localDb.Search(searchTerm).ToList();
-            
-            // Assert
-            Assert.That(results, Is.Not.Null);
-            Assert.That(results, Has.Count.GreaterThanOrEqualTo(1), "Search should return at least one result");
-            TestContext.WriteLine($"Search for '{searchTerm}' found {results.Count} packages");
-            
-            foreach (var pkg in results.Take(5))
-            {
-                TestContext.WriteLine($"  - {pkg}");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(
+                _alpm.GetLocalDatabase().Search("pacmanmanager-test").Select(p => p.Name),
+                Is.EquivalentTo(LocalPackageDatabase.PackageNames));
+            Assert.That(
+                _alpm.GetLocalDatabase().Search("dependent").Select(p => p.Name),
+                Is.EqualTo(new[] { LocalPackageDatabase.DependentPackageName }));
+        });
+    }
+
+    [Test]
+    public void Search_WithNoMatch_ReturnsNothing()
+    {
+        Assert.That(_alpm.GetLocalDatabase().Search("this-package-does-not-exist-xyz123"), Is.Empty);
     }
 
     [Test]
     public void Search_WithNullTerms_ThrowsArgumentException()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => localDb.Search(null!));
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.Throws<ArgumentException>(() => _alpm.GetLocalDatabase().Search(null!));
     }
 
     [Test]
     public void Search_WithEmptyTerms_ThrowsArgumentException()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => localDb.Search());
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.Throws<ArgumentException>(() => _alpm.GetLocalDatabase().Search());
     }
 }

@@ -1,828 +1,320 @@
 using System;
 using System.IO;
 using System.Linq;
+using LibAlpmSharp.Interop;
 using NUnit.Framework;
 using PacmanManager.TestUtils;
 
 namespace LibAlpmSharp.Test;
 
+/// <summary>
+/// Covers <see cref="AlpmPackage"/> against a package read back out of a local database, which is
+/// the shape a package has once it is installed: it belongs to a database, it carries an install
+/// date, and it knows what else on the system depends on it.
+/// </summary>
+/// <remarks>
+/// The database is seeded under a temporary root by <see cref="LocalPackageDatabase"/> rather than
+/// being the host's own at <c>/var/lib/pacman</c>. These tests used to read the host's database and
+/// assert against whichever build of <c>pacman</c> it carried, which meant they only ran on Arch and
+/// only ever asserted that a value was non-empty. Seeding lets each of them pin an exact value, and
+/// lets all of them run anywhere libalpm does.
+/// </remarks>
 [TestFixture]
 public class AlpmPackageTests
 {
-    private const string TestPackageName = "pacman";
+    private LocalPackageDatabase _seeded = null!;
+    private LibAlpm _alpm = null!;
+    private IPackage _pkg = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _seeded = LocalPackageDatabase.Seed();
+        _alpm = LibAlpm.Initialize(_seeded.Root, _seeded.DbPath);
+        _pkg = _alpm.GetLocalDatabase().GetPackage(PackageFixtures.MinimalPackageName)
+               ?? throw new InvalidOperationException(
+                   $"The seeded local database has no package named '{PackageFixtures.MinimalPackageName}'.");
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        // A package that came out of a database is owned by the handle rather than by the caller,
+        // so releasing the handle is what releases it.
+        _alpm.Dispose();
+        _seeded.Dispose();
+    }
 
     [Test]
     public void Name_ReturnsPackageName()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            Assert.That(pkg!.Name, Is.EqualTo(TestPackageName));
-            
-            TestContext.WriteLine($"Package name: {pkg.Name}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.Name, Is.EqualTo(PackageFixtures.MinimalPackageName));
     }
 
     [Test]
     public void Version_ReturnsPackageVersion()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            Assert.That(pkg!.Version, Is.Not.Null.And.Not.Empty);
-            
-            TestContext.WriteLine($"Package version: {pkg.Version}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
     }
 
     [Test]
     public void Description_ReturnsPackageDescription()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            Assert.That(pkg!.Description, Is.Not.Null.And.Not.Empty);
-            
-            TestContext.WriteLine($"Package description: {pkg.Description}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.Description, Is.EqualTo(PackageFixtures.MinimalPackageDescription));
     }
 
     [Test]
     public void ToString_ReturnsNameAndVersion()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            string pkgString = pkg!.ToString();
-            Assert.That(pkgString, Is.Not.Null.And.Not.Empty);
-            Assert.That(pkgString, Does.Contain(pkg.Name));
-            Assert.That(pkgString, Does.Contain(pkg.Version));
-            
-            TestContext.WriteLine($"Package ToString: {pkgString}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.ToString(),
+            Is.EqualTo($"{PackageFixtures.MinimalPackageName} {PackageFixtures.MinimalPackageVersion}"));
     }
 
     [Test]
     public void GetBase_ReturnsPackageBase()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            string pkgBase = pkg!.GetBase();
-            Assert.That(pkgBase, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package base: {pkgBase}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetBase(), Is.EqualTo(PackageFixtures.MinimalPackageBase));
     }
 
     [Test]
     public void GetUrl_ReturnsPackageUrl()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            string url = pkg!.GetUrl();
-            Assert.That(url, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package URL: {url}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetUrl(), Is.EqualTo(PackageFixtures.MinimalPackageUrl));
     }
 
     [Test]
     public void GetArchitecture_ReturnsPackageArchitecture()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            string arch = pkg!.GetArchitecture();
-            Assert.That(arch, Is.Not.Null.And.Not.Empty);
-            
-            TestContext.WriteLine($"Package architecture: {arch}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetArchitecture(), Is.EqualTo(PackageFixtures.MinimalPackageArchitecture));
     }
 
     [Test]
     public void GetPackager_ReturnsPackagerName()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            string packager = pkg!.GetPackager();
-            Assert.That(packager, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package packager: {packager}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetPackager(), Is.EqualTo(PackageFixtures.MinimalPackagePackager));
     }
 
     [Test]
-    public void GetInstalledSize_ReturnsPositiveSize()
+    public void GetInstalledSize_ReturnsTheRecordedSize()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            long installedSize = pkg!.GetInstalledSize();
-            Assert.That(installedSize, Is.GreaterThan(0), "Installed size should be positive");
-            
-            TestContext.WriteLine($"Package installed size: {installedSize} bytes ({installedSize / 1024.0:F2} KB)");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetInstalledSize(), Is.EqualTo(PackageFixtures.MinimalPackageInstalledSize));
     }
 
     [Test]
-    public void GetDownloadSize_ReturnsSize()
+    public void GetDownloadSize_ForAnInstalledPackage_IsZero()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            long downloadSize = pkg!.GetDownloadSize();
-            Assert.That(downloadSize, Is.GreaterThanOrEqualTo(0), "Download size should be non-negative");
-            
-            TestContext.WriteLine($"Package download size: {downloadSize} bytes ({downloadSize / 1024.0:F2} KB)");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // A download size is what a sync database reports for a package still to be fetched. An
+        // installed one has nothing left to download, and libalpm reports zero rather than the
+        // installed size, which is the trap this pins.
+        Assert.That(_pkg.GetDownloadSize(), Is.Zero);
     }
 
     [Test]
-    public void GetBuildDate_ReturnsValidDate()
+    public void GetBuildDate_ReturnsTheRecordedBuildDate()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            DateTimeOffset buildDate = pkg!.GetBuildDate();
-            Assert.That(buildDate, Is.Not.EqualTo(DateTimeOffset.MinValue));
-            Assert.That(buildDate, Is.LessThanOrEqualTo(DateTimeOffset.UtcNow), "Build date should not be in the future");
-            
-            TestContext.WriteLine($"Package build date: {buildDate:yyyy-MM-dd HH:mm:ss}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetBuildDate(),
+            Is.EqualTo(DateTimeOffset.FromUnixTimeSeconds(PackageFixtures.MinimalPackageBuildDateUnixSeconds)));
     }
 
     [Test]
-    public void GetInstallDate_ReturnsValidDate()
+    public void GetInstallDate_ForAnInstalledPackage_ReturnsTheRecordedInstallDate()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            DateTimeOffset? installDate = pkg!.GetInstallDate();
-            
-            // For a local database package, it should have an install date
-            Assert.That(installDate, Is.Not.Null);
-            Assert.That(installDate!.Value, Is.LessThanOrEqualTo(DateTimeOffset.UtcNow), "Install date should not be in the future");
-            
-            TestContext.WriteLine($"Package install date: {installDate.Value:yyyy-MM-dd HH:mm:ss}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetInstallDate(),
+            Is.EqualTo(DateTimeOffset.FromUnixTimeSeconds(LocalPackageDatabase.InstallDateUnixSeconds)));
     }
 
     [Test]
-    public void GetInstallDate_BeforeGetBuildDate()
+    public void GetInstallDate_IsNotBeforeGetBuildDate()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            DateTimeOffset buildDate = pkg!.GetBuildDate();
-            DateTimeOffset? installDate = pkg.GetInstallDate();
-            
-            Assert.That(installDate, Is.Not.Null);
-            Assert.That(installDate!.Value, Is.GreaterThanOrEqualTo(buildDate), 
-                "Install date should be equal to or after build date");
-            
-            TestContext.WriteLine($"Build date: {buildDate:yyyy-MM-dd HH:mm:ss}");
-            TestContext.WriteLine($"Install date: {installDate.Value:yyyy-MM-dd HH:mm:ss}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetInstallDate(), Is.GreaterThanOrEqualTo(_pkg.GetBuildDate()));
     }
 
     [Test]
     public void MultiplePropertyAccess_ReturnsConsistentValues()
     {
-        try
+        // Each read marshals a fresh string out of the native handle, so reading twice is the check
+        // that nothing is consumed on the way out.
+        var (name, version, description) = (_pkg.Name, _pkg.Version, _pkg.Description);
+
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            
-            // Access properties multiple times to ensure consistency
-            string name1 = pkg!.Name;
-            string name2 = pkg.Name;
-            Assert.That(name1, Is.EqualTo(name2));
-            
-            string version1 = pkg.Version;
-            string version2 = pkg.Version;
-            Assert.That(version1, Is.EqualTo(version2));
-            
-            string desc1 = pkg.Description;
-            string desc2 = pkg.Description;
-            Assert.That(desc1, Is.EqualTo(desc2));
-            
-            TestContext.WriteLine("All properties return consistent values on multiple accesses");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(_pkg.Name, Is.EqualTo(name));
+            Assert.That(_pkg.Version, Is.EqualTo(version));
+            Assert.That(_pkg.Description, Is.EqualTo(description));
+        });
     }
 
     [Test]
     public void AllMethods_DoNotThrowExceptions()
     {
-        try
+        // A smoke test over the whole member surface: the members with exact expectations are
+        // covered above, and this catches a new one that faults on an installed package.
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            Assert.That(pkg, Is.Not.Null);
-            
-            // Act & Assert - call all methods to ensure they don't throw exceptions
-            Assert.DoesNotThrow(() => { var _ = pkg!.Name; });
-            Assert.DoesNotThrow(() => { var _ = pkg!.Version; });
-            Assert.DoesNotThrow(() => { var _ = pkg!.Description; });
-            Assert.DoesNotThrow(() => { var _ = pkg!.ToString(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetBase(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetUrl(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetArchitecture(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetPackager(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetInstalledSize(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetDownloadSize(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetBuildDate(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetInstallDate(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetFileName(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetSha256Sum(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetMd5Sum(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetLicenses(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetGroups(); });
-            
-            TestContext.WriteLine("All methods executed without throwing exceptions");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(() => _pkg.Name, Throws.Nothing);
+            Assert.That(() => _pkg.Version, Throws.Nothing);
+            Assert.That(() => _pkg.Description, Throws.Nothing);
+            Assert.That(() => _pkg.ToString(), Throws.Nothing);
+            Assert.That(() => _pkg.GetBase(), Throws.Nothing);
+            Assert.That(() => _pkg.GetUrl(), Throws.Nothing);
+            Assert.That(() => _pkg.GetArchitecture(), Throws.Nothing);
+            Assert.That(() => _pkg.GetPackager(), Throws.Nothing);
+            Assert.That(() => _pkg.GetInstalledSize(), Throws.Nothing);
+            Assert.That(() => _pkg.GetDownloadSize(), Throws.Nothing);
+            Assert.That(() => _pkg.GetBuildDate(), Throws.Nothing);
+            Assert.That(() => _pkg.GetInstallDate(), Throws.Nothing);
+            Assert.That(() => _pkg.GetFileName(), Throws.Nothing);
+            Assert.That(() => _pkg.GetSha256Sum(), Throws.Nothing);
+            Assert.That(() => _pkg.GetMd5Sum(), Throws.Nothing);
+            Assert.That(() => _pkg.GetLicenses(), Throws.Nothing);
+            Assert.That(() => _pkg.GetGroups(), Throws.Nothing);
+        });
     }
 
     [Test]
-    public void GetDependencies_ReturnsListOfDependencies()
+    public void GetDependencies_ReturnsTheDeclaredDependencies()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var dependencies = pkg!.GetDependencies();
-            Assert.That(dependencies, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package {pkg.Name} has {dependencies.Count} dependencies:");
-            foreach (var dep in dependencies)
-            {
-                TestContext.WriteLine($"  - {dep}");
-                Assert.That(dep.Name, Is.Not.Null.And.Not.Empty, "Dependency name should not be null or empty");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetDependencies().Select(d => d.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageDepend }));
     }
 
     [Test]
     public void GetDependencies_DependencyHasValidProperties()
     {
-        try
+        var dependency = _pkg.GetDependencies().Single();
+
+        // The fixture depends on a bare package name, so there is no version constraint to carry
+        // and no reason: those belong to a versioned dependency and to an optional one.
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            Assert.That(pkg, Is.Not.Null);
-            var dependencies = pkg!.GetDependencies();
-            
-            // Act & Assert
-            if (dependencies.Count > 0)
-            {
-                var firstDep = dependencies[0];
-                Assert.That(firstDep.Name, Is.Not.Null.And.Not.Empty);
-                Assert.That(firstDep.ToString(), Does.Contain(firstDep.Name));
-                
-                TestContext.WriteLine($"First dependency: {firstDep}");
-                TestContext.WriteLine($"  Name: {firstDep.Name}");
-                TestContext.WriteLine($"  Version: {firstDep.Version ?? "(any)"}");
-                TestContext.WriteLine($"  Modifier: {firstDep.Modifier}");
-                TestContext.WriteLine($"  Description: {firstDep.Description ?? "(none)"}");
-            }
-            else
-            {
-                TestContext.WriteLine($"Package {pkg.Name} has no dependencies");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(dependency.Name, Is.EqualTo(PackageFixtures.MinimalPackageDepend));
+            Assert.That(dependency.Version, Is.Null);
+            Assert.That(dependency.Description, Is.Null);
+            Assert.That(dependency.Modifier, Is.EqualTo(AlpmDepMod.ALPM_DEP_MOD_ANY));
+            Assert.That(dependency.ToString(), Is.EqualTo(PackageFixtures.MinimalPackageDepend));
+        });
     }
 
     [Test]
-    public void GetOptionalDependencies_ReturnsListOfOptionalDependencies()
+    public void GetOptionalDependencies_ReturnsTheDeclaredOptionalDependencies()
     {
-        try
+        var optionalDependency = _pkg.GetOptionalDependencies().Single();
+
+        // pacman spells an optional dependency "name: reason", and AlpmDependency keeps the reason
+        // in Description rather than in ToString().
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var optDeps = pkg!.GetOptionalDependencies();
-            Assert.That(optDeps, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package {pkg.Name} has {optDeps.Count} optional dependencies:");
-            foreach (var dep in optDeps)
-            {
-                TestContext.WriteLine($"  - {dep}");
-                if (dep.Description != null)
-                {
-                    TestContext.WriteLine($"    ({dep.Description})");
-                }
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(optionalDependency.Name, Is.EqualTo("git"));
+            Assert.That(optionalDependency.Description, Is.EqualTo("for the sync command"));
+            Assert.That(
+                $"{optionalDependency.Name}: {optionalDependency.Description}",
+                Is.EqualTo(PackageFixtures.MinimalPackageOptDepend));
+        });
     }
 
     [Test]
-    public void GetRequiredBy_ReturnsListOfPackages()
+    public void GetRequiredBy_ReturnsThePackagesThatDependOnIt()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var requiredBy = pkg!.GetRequiredBy();
-            Assert.That(requiredBy, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package {pkg.Name} is required by {requiredBy.Count} package(s):");
-            foreach (var pkgName in requiredBy)
-            {
-                TestContext.WriteLine($"  - {pkgName}");
-                Assert.That(pkgName, Is.Not.Null.And.Not.Empty, "Package name should not be null or empty");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // libalpm computes this by walking the local database, so it only reports anything because
+        // the seeded database holds a second package that depends on this one.
+        Assert.That(
+            _pkg.GetRequiredBy(),
+            Is.EqualTo(new[] { LocalPackageDatabase.DependentPackageName }));
     }
 
     [Test]
-    public void GetOptionalFor_ReturnsListOfPackages()
+    public void GetOptionalFor_ReturnsThePackagesThatOptionallyDependOnIt()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var optionalFor = pkg!.GetOptionalFor();
-            Assert.That(optionalFor, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package {pkg.Name} is optional for {optionalFor.Count} package(s):");
-            foreach (var pkgName in optionalFor)
-            {
-                TestContext.WriteLine($"  - {pkgName}");
-                Assert.That(pkgName, Is.Not.Null.And.Not.Empty, "Package name should not be null or empty");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetOptionalFor(),
+            Is.EqualTo(new[] { LocalPackageDatabase.DependentPackageName }));
     }
 
     [Test]
-    public void GetConflicts_ReturnsListOfConflicts()
+    public void GetConflicts_ReturnsTheDeclaredConflicts()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var conflicts = pkg!.GetConflicts();
-            Assert.That(conflicts, Is.Not.Null);
-            
-            TestContext.WriteLine($"Package {pkg.Name} has {conflicts.Count} conflict(s):");
-            foreach (var conflict in conflicts)
-            {
-                TestContext.WriteLine($"  - {conflict}");
-                Assert.That(conflict.Name, Is.Not.Null.And.Not.Empty, "Conflict name should not be null or empty");
-            }
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetConflicts().Select(c => c.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageConflict }));
     }
 
     [Test]
     public void GetDependencies_CanBeCalledMultipleTimes()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            Assert.That(pkg, Is.Not.Null);
-            
-            // Act
-            var deps1 = pkg!.GetDependencies();
-            var deps2 = pkg.GetDependencies();
-            
-            // Assert
-            Assert.That(deps1.Count, Is.EqualTo(deps2.Count), "Multiple calls should return same count");
-            
-            TestContext.WriteLine($"GetDependencies() can be called multiple times consistently");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // Each call builds a fresh managed list off the same native list, which must not consume or
+        // free it.
+        Assert.That(
+            _pkg.GetDependencies().Select(d => d.ToString()),
+            Is.EqualTo(_pkg.GetDependencies().Select(d => d.ToString())));
     }
 
     [Test]
     public void AllNewMethods_DoNotThrowExceptions()
     {
-        try
+        Assert.Multiple(() =>
         {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-            var pkg = localDb.GetPackage(TestPackageName);
-            
-            Assert.That(pkg, Is.Not.Null);
-            
-            // Act & Assert - call all new methods to ensure they don't throw exceptions
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetDependencies(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetOptionalDependencies(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetRequiredBy(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetOptionalFor(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetConflicts(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetProvides(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetReplaces(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetMakeDepends(); });
-            Assert.DoesNotThrow(() => { var _ = pkg!.GetCheckDepends(); });
-            
-            TestContext.WriteLine("All new dependency methods executed without throwing exceptions");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+            Assert.That(() => _pkg.GetDependencies(), Throws.Nothing);
+            Assert.That(() => _pkg.GetOptionalDependencies(), Throws.Nothing);
+            Assert.That(() => _pkg.GetRequiredBy(), Throws.Nothing);
+            Assert.That(() => _pkg.GetOptionalFor(), Throws.Nothing);
+            Assert.That(() => _pkg.GetConflicts(), Throws.Nothing);
+            Assert.That(() => _pkg.GetProvides(), Throws.Nothing);
+            Assert.That(() => _pkg.GetReplaces(), Throws.Nothing);
+            Assert.That(() => _pkg.GetMakeDepends(), Throws.Nothing);
+            Assert.That(() => _pkg.GetCheckDepends(), Throws.Nothing);
+        });
     }
 
     [Test]
-    public void GetLicenses_ReturnsListOfLicenses()
+    public void GetLicenses_ReturnsTheDeclaredLicenses()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var licenses = pkg!.GetLicenses();
-            Assert.That(licenses, Is.Not.Null);
-            Assert.That(licenses, Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} licenses: {string.Join(", ", licenses)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetLicenses(), Is.EqualTo(new[] { PackageFixtures.MinimalPackageLicense }));
     }
 
     [Test]
-    public void GetGroups_ReturnsListOfGroups()
+    public void GetGroups_ReturnsTheDeclaredGroups()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var groups = pkg!.GetGroups();
-            Assert.That(groups, Is.Not.Null);
-            Assert.That(groups, Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} groups: {string.Join(", ", groups)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(_pkg.GetGroups(), Is.EqualTo(new[] { PackageFixtures.MinimalPackageGroup }));
     }
 
     [Test]
-    public void GetProvides_ReturnsListOfProvisions()
+    public void GetProvides_ReturnsTheDeclaredProvisions()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var provides = pkg!.GetProvides();
-            Assert.That(provides, Is.Not.Null);
-            Assert.That(provides.Select(p => p.Name), Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} provides: {string.Join(", ", provides)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetProvides().Select(p => p.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageProvides }));
     }
 
     [Test]
-    public void GetReplaces_ReturnsListOfReplacedPackages()
+    public void GetReplaces_ReturnsTheDeclaredReplacements()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert
-            Assert.That(pkg, Is.Not.Null);
-            var replaces = pkg!.GetReplaces();
-            Assert.That(replaces, Is.Not.Null);
-            Assert.That(replaces.Select(r => r.Name), Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} replaces: {string.Join(", ", replaces)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetReplaces().Select(r => r.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageReplaces }));
     }
 
     [Test]
-    public void GetMakeDepends_ReturnsListOfMakeDependencies()
+    public void GetMakeDepends_ReturnsTheDeclaredMakeDependencies()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert - the local database does not record build-time dependencies, so the list is
-            // expected to be empty here; the fixture package below is what pins real values.
-            Assert.That(pkg, Is.Not.Null);
-            var makeDepends = pkg!.GetMakeDepends();
-            Assert.That(makeDepends, Is.Not.Null);
-            Assert.That(makeDepends.Select(d => d.Name), Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} make depends: {string.Join(", ", makeDepends)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        // The local database does record build time dependencies, so an installed package reports
+        // them just as a file loaded one does.
+        Assert.That(
+            _pkg.GetMakeDepends().Select(d => d.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageMakeDepend }));
     }
 
     [Test]
-    public void GetCheckDepends_ReturnsListOfCheckDependencies()
+    public void GetCheckDepends_ReturnsTheDeclaredCheckDependencies()
     {
-        try
-        {
-            // Arrange
-            using LibAlpm alpm = LibAlpm.Initialize();
-            var localDb = alpm.GetLocalDatabase();
-
-            // Act
-            var pkg = localDb.GetPackage(TestPackageName);
-
-            // Assert - as with make dependencies, the local database records none.
-            Assert.That(pkg, Is.Not.Null);
-            var checkDepends = pkg!.GetCheckDepends();
-            Assert.That(checkDepends, Is.Not.Null);
-            Assert.That(checkDepends.Select(d => d.Name), Has.All.Not.Empty);
-
-            TestContext.WriteLine($"Package {pkg.Name} check depends: {string.Join(", ", checkDepends)}");
-        }
-        catch (AlpmException ex)
-        {
-            Assert.Warn($"Failed to initialize libalpm (may need permissions): {ex.Message}");
-        }
+        Assert.That(
+            _pkg.GetCheckDepends().Select(d => d.ToString()),
+            Is.EqualTo(new[] { PackageFixtures.MinimalPackageCheckDepend }));
     }
+
 
     /// <summary>
     /// Covers the members of <see cref="IPackage"/> against the committed fixture package rather

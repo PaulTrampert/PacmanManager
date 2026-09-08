@@ -31,11 +31,13 @@ that build the RepoHost and Migrations Docker images and start Postgres and Keyc
 A full `dotnet test` therefore needs a working Docker daemon and takes minutes. When iterating on
 non-E2E logic, filter down to the unit fixtures instead.
 
-**Note on non-Arch hosts:** `AlpmPackageTests` and `AlpmDatabaseTests.GetPackages_ReturnsListOfPackages`
-read the host's local pacman database and expect an installed package named `pacman`, so they only
-pass on an Arch machine. Everything else, the fixture packages included, works anywhere libalpm is
-installed. `docs/cloud-environment.md` covers running the repository from a claude.ai cloud session,
-where that applies.
+**Note on non-Arch hosts:** `LibAlpmSharp.Test` runs anywhere libalpm is installed. The fixtures
+that need installed packages seed their own local database under a temporary root
+(`PacmanManager.TestUtils.LocalPackageDatabase`) and point `LibAlpm.Initialize(root, dbPath)` at it,
+rather than reading the host's own database at `/var/lib/pacman`. The one exception is
+`LibAlpmTests.Initialize_WithDefaultPaths_CreatesInstance`, whose subject *is* the default paths: it
+warns and stops where `/var/lib/pacman` is not a pacman database the current user may open.
+`docs/cloud-environment.md` covers running the repository from a claude.ai cloud session.
 
 ## Running the stack
 
@@ -155,7 +157,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | Job | What it does |
 | :--- | :--- |
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
-| `libalpm` | Runs `LibAlpmSharp.Test` unfiltered inside an `archlinux/archlinux` container, where the local pacman database is real. |
+| `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
 
 The `test` job publishes its `.trx` files with
@@ -177,11 +179,10 @@ by editing the title, and the check re-runs on its own rather than needing an em
 `edited` on `ci.yml` would re-run the whole test and image-build matrix every time somebody touched
 a title or description.
 
-The runner is Ubuntu, so CI runs the same filter a non-Arch host needs:
+The runner is Ubuntu, and the whole solution runs on it unfiltered:
 
 ```bash
-dotnet test PacmanManager.sln --configuration Release --no-build \
-    --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
+dotnet test PacmanManager.sln --configuration Release --no-build
 ```
 
 The E2E fixtures build their images with the **solution root as the Dockerfile directory**, passing
@@ -198,14 +199,11 @@ does not reference `LibAlpmSharp`.
 Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
 starts Postgres and Keycloak on.
 
-That filter is scoped to the Ubuntu job. The **`libalpm`** job runs `LibAlpmSharp.Test` unfiltered
-inside an `archlinux/archlinux` container, installing `dotnet-sdk` and a JRE with `pacman`, so the
-fixtures that read the host's local database run for real against an installed `pacman` package:
-299 tests there against the 254 Ubuntu sees, nothing skipped. So a test that only passes on Arch is
-covered, and the overlap between the two jobs is deliberate — together they prove the binding works
-both on Arch and on a distribution that only carries libalpm. Seeding a database under a temporary
-root and pointing `LibAlpm.Initialize(root, dbPath)` at it is still the tidier fix, and would let
-the Ubuntu job drop the filter.
+The **`libalpm`** job runs the same `LibAlpmSharp.Test` suite inside an `archlinux/archlinux`
+container, installing `dotnet-sdk` and a JRE with `pacman`. Both jobs run all of it, and the overlap
+is the point: the binding is exercised against a distribution that only carries libalpm (Ubuntu's
+13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
+database is read the same way by both.
 
 ## Version control
 
