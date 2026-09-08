@@ -170,15 +170,16 @@ dotnet test PacmanManager.sln --configuration Release --no-build \
     --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
 ```
 
-`PacmanManager.RepoHost/Dockerfile.dockerignore` and `PacmanManager.Migrations/Dockerfile.dockerignore`
-exist because Testcontainers looks for the ignore file **next to the Dockerfile**
-(`<dockerfile>.dockerignore`, falling back to `.dockerignore` in that same directory) and never
-reads the context root's `.dockerignore`, even though it builds with the solution root as context.
-Without them the host's `bin/` and `obj/` are tarred into the build context, and `obj/` records
-absolute host paths -- the sources ANTLR generates for `LibAlpmSharp` among them -- so
-`dotnet build` inside the image fails with `CS2001: Source file ... could not be found`. That bites
-only after a local build has populated `obj/`, which is always true in CI, and only for the RepoHost
-image, since Migrations does not reference `LibAlpmSharp`. Keep all three ignore files in step.
+The E2E fixtures build their images with the **solution root as the Dockerfile directory**, passing
+the project directory as part of the Dockerfile path (`.WithDockerfile("PacmanManager.RepoHost/Dockerfile")`).
+Keep it that way: Testcontainers looks for the ignore file next to the Dockerfile directory
+(`<dockerfile>.dockerignore`, falling back to `.dockerignore` there) and never reads the context
+root's, so pointing the Dockerfile directory at a project silently skips the root `.dockerignore`.
+The host's `bin/` and `obj/` are then tarred into the build context, and `obj/` records absolute
+host paths -- the sources ANTLR generates for `LibAlpmSharp` among them -- so `dotnet build` inside
+the image fails with `CS2001: Source file ... could not be found`. It bites only after a local build
+has populated `obj/`, which is always true in CI, and only for the RepoHost image, since Migrations
+does not reference `LibAlpmSharp`.
 
 Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
 starts Postgres and Keycloak on. If you add a test that only passes on Arch, it will fail in CI;

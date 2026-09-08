@@ -38,7 +38,8 @@ public class CurrentUserServiceTests
         var solutionDirectory = DirUtils.FindSolutionDirectory();
         var migrationsImage = new ImageFromDockerfileBuilder()
                 .WithContextDirectory(solutionDirectory)
-                .WithDockerfileDirectory(Path.Combine(solutionDirectory, "PacmanManager.Migrations"))
+                .WithDockerfileDirectory(solutionDirectory)
+                .WithDockerfile("PacmanManager.Migrations/Dockerfile")
                 .WithName("pacmanmanager-migrations-test:latest")
                 .Build();
         await migrationsImage.CreateAsync();
