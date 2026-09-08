@@ -66,18 +66,27 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
     {
         get
         {
-            field ??= new()
+            if (field is null)
             {
-                BaseAddress = new Uri($"{LocalAuthority}/"),
-                DefaultRequestHeaders =
+                field = new HttpClient
                 {
-                    Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"pacman-manager-swagger:"))),
-                    Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
-                    Referrer = new Uri("http://localhost:8082/"),
-                }
-            };
-            
-            field.DefaultRequestHeaders.Add("Origin", "http://localhost:8082");
+                    BaseAddress = new Uri($"{LocalAuthority}/"),
+                    DefaultRequestHeaders =
+                    {
+                        Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"pacman-manager-swagger:"))),
+                        Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
+                        Referrer = new Uri("http://localhost:8082/"),
+                    }
+                };
+
+                // Inside the null check, because this one is an Add rather than a setter and
+                // DefaultRequestHeaders.Add appends. Left outside, every read of this property
+                // added another copy, the second request went out with
+                // "Origin: http://localhost:8082, http://localhost:8082", and Keycloak refused it
+                // with {"error":"Invalid origin"} -- so any fixture that asked for a second token
+                // failed in OneTimeSetUp.
+                field.DefaultRequestHeaders.Add("Origin", "http://localhost:8082");
+            }
 
             return field;
         }
