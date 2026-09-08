@@ -76,6 +76,9 @@ jobs:
       # Testcontainers starts Postgres and Keycloak on and what builds the two images under test.
       # The lasting fix belongs in the tests (seed a local database under a temporary root and
       # point LibAlpm.Initialize at it); until then this filter is the boundary.
+      # verbosity=minimal prints failures and the summary but not a line per passing test. At
+      # `normal` a run emits several thousand lines, and the failures scroll off the top of what
+      # the Actions log API will hand back, which is exactly when you need to read them.
       - name: Test
         run: |
           dotnet test PacmanManager.sln \
@@ -83,7 +86,7 @@ jobs:
             --no-build \
             --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages" \
             --logger "trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory artifacts/test-results
 
       # Testcontainers reports a failed image build only as "image has not been created" and
