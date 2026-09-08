@@ -19,12 +19,23 @@ namespace PacmanManager.RepoHost.Services;
 /// file tree and the pacman CLI tools.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Authorization is enforced structurally rather than by remembering to check, exactly as
 /// <see cref="RepositoryService"/> does it. Every read starts from <see cref="VisibleAsync"/>, which
 /// is the only place in this class that touches
 /// <see cref="PacmanManagerDbContext.PacmanPackages"/>. A method that forgets the rules therefore
 /// has to name the <see cref="DbSet{TEntity}"/> to do so, which is both obvious in review and caught
 /// by <c>PackageServiceEnforcementTests</c>.
+/// </para>
+/// <para>
+/// libalpm arrives as a <see cref="Lazy{T}"/> because only publishing needs it. Constructing an
+/// <see cref="ILibAlpm"/> regenerates and parses the pacman configuration, expands the
+/// per-repository <c>.conf</c> glob and calls <c>alpm_initialize</c>, and every request that
+/// resolves the packages controller would otherwise pay for that — including the anonymous read
+/// routes, which never load a package file. Worse, it made one malformed <c>.conf</c> enough to
+/// turn every listing into a 500. <see cref="LoadPackage"/> is the only member allowed to force
+/// the value, and <c>PackageServiceTests</c> asserts the reads leave it uncreated.
+/// </para>
 /// </remarks>
 internal class PackageService(
     PacmanManagerDbContext dbContext,
@@ -35,7 +46,7 @@ internal class PackageService(
     IFileSystem fileSystem,
     IPackagePathResolver pathResolver,
     IRepositoryDatabaseLock databaseLock,
-    ILibAlpm libAlpm,
+    Lazy<ILibAlpm> libAlpm,
     IOptions<PacmanConfigSettings> pacmanSettings,
     ILogger<PackageService> logger) : IPackageService
 {
@@ -499,12 +510,17 @@ internal class PackageService(
     /// <summary>
     /// Reads the uploaded file's metadata, restating a libalpm failure as the client error it is.
     /// </summary>
+    /// <remarks>
+    /// The one place libalpm is actually needed, and so the one place that is allowed to force
+    /// <c>libAlpm</c>. Touching <see cref="Lazy{T}.Value"/> anywhere else would put the cost of
+    /// initializing libalpm back on requests that never read a package file.
+    /// </remarks>
     /// <exception cref="UnreadablePackageException">libalpm could not read the file as a package.</exception>
     private IPackage LoadPackage(string uploadPath)
     {
         try
         {
-            return libAlpm.LoadPackageFile(uploadPath);
+            return libAlpm.Value.LoadPackageFile(uploadPath);
         }
         catch (AlpmException e)
         {

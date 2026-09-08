@@ -32,6 +32,12 @@ public class PackageServiceTests
     private TestActorAccessor _actors = null!;
     private PackageService _service = null!;
 
+    /// <summary>
+    /// The libalpm handle the service was given. Held so that a test can ask whether a read path
+    /// forced it.
+    /// </summary>
+    private Lazy<ILibAlpm> _libAlpm = null!;
+
     private User _caller = null!;
     private User _other = null!;
     private PacmanRepository _publicRepository = null!;
@@ -60,7 +66,11 @@ public class PackageServiceTests
         // Tests that exercise the visibility rules override it.
         _actors = new TestActorAccessor { Actor = Actor.For(_caller) };
         // The read paths reach none of the publishing collaborators, so they are supplied as bare
-        // doubles here; PackageServicePublishTests wires up the real ones.
+        // doubles here; PackageServicePublishTests wires up the real ones. libalpm's factory throws
+        // rather than returning a double, so that a read path which forced it fails loudly here
+        // instead of quietly costing every anonymous request an alpm_initialize in production.
+        _libAlpm = new Lazy<ILibAlpm>(() =>
+            throw new InvalidOperationException("A read path must not initialize libalpm."));
         _service = new PackageService(
             _dbContext,
             _actors,
@@ -70,7 +80,7 @@ public class PackageServiceTests
             Mock.Of<IFileSystem>(),
             Mock.Of<IPackagePathResolver>(),
             new RepositoryDatabaseLock(),
-            Mock.Of<ILibAlpm>(),
+            _libAlpm,
             Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" }),
             new TestOutputLogger<PackageService>());
     }
@@ -760,6 +770,38 @@ public class PackageServiceTests
 
         // Assert
         Assert.That(result.Results.Select(p => p.Name), Is.EqualTo(new[] { "alpha", "bravo", "charlie" }));
+    }
+
+    #endregion
+
+    #region libalpm stays uninitialized
+
+    /// <summary>
+    /// The regression guard for the reason libalpm is injected lazily at all.
+    /// </summary>
+    /// <remarks>
+    /// Every read route on the packages controller is <c>[AllowAnonymous]</c> and none of them
+    /// reads a package file, so none of them has any business regenerating the pacman
+    /// configuration, expanding the per-repository <c>.conf</c> glob and calling
+    /// <c>alpm_initialize</c> — which is what an eagerly injected <see cref="ILibAlpm"/> did on
+    /// every request, and what made one malformed <c>.conf</c> enough to turn every listing into a
+    /// 500. The fixture's factory throws, so a regression fails the assertion below or the call
+    /// itself; either way it does not pass.
+    /// </remarks>
+    [Test]
+    public async Task TheReadPaths_DoNotInitializeLibAlpm()
+    {
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool");
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _service.GetPackagesAsync(new PaginationParams());
+        await _service.GetPackageByIdAsync(package.Id);
+        await _service.GetPackageByNameAsync(_publicRepository.Id, "my-tool");
+
+        // Assert
+        Assert.That(_libAlpm.IsValueCreated, Is.False);
     }
 
     #endregion
