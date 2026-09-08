@@ -147,6 +147,34 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 * `InternalsVisibleTo` exposes RepoHost internals to `PacmanManager.RepoHost.Test`.
 * A PR is expected to have a passing `dotnet build` and `dotnet test`.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request to `main` and on every push to `main`. It is
+a gate, not a release pipeline — the project is unreleased and **nothing is published**.
+
+| Job | What it does |
+| :--- | :--- |
+| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
+| `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
+
+`.github/workflows/pr-title.yml` is separate, and enforces the `MAJOR`/`MINOR`/`PATCH` prefix from
+[Branches, commits, and PRs](#branches-commits-and-prs). It is its own workflow so that it can
+trigger on `edited`: a mistyped prefix is fixed by editing the title, and the check re-runs on its
+own rather than needing an empty commit. Putting `edited` on `ci.yml` would re-run the whole test
+and image-build matrix every time somebody touched a title or description.
+
+The runner is Ubuntu, so CI runs the same filter a non-Arch host needs:
+
+```bash
+dotnet test PacmanManager.sln --configuration Release --no-build \
+    --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
+```
+
+Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
+starts Postgres and Keycloak on. If you add a test that only passes on Arch, it will fail in CI;
+prefer seeding a database under a temporary root and pointing `LibAlpm.Initialize(root, dbPath)` at
+it, which is the lasting fix for the two excluded fixtures as well.
+
 ## Version control
 
 ### Worktrees
@@ -195,6 +223,9 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   tooling, libalpm, a JRE for ANTLR, and the Docker daemon. It is a no-op locally.
   `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
   environment needs before the E2E tests can run.
+* `.github/workflows/` holds the CI workflows described under
+  [Continuous integration](#continuous-integration). They install the same toolchain as
+  `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
   and its known gaps.
 * `.run/` holds Rider run configurations.
