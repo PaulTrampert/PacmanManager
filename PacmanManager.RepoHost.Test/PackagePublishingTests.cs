@@ -8,9 +8,9 @@ using PacmanManager.TestUtils;
 namespace PacmanManager.RepoHost.Test;
 
 /// <summary>
-/// End-to-end tests for publishing a package. These run the application in a Docker container, so
-/// the package is uploaded over real HTTP, read by real libalpm and added by the real
-/// <c>repo-add</c>.
+/// End-to-end tests for publishing and deleting a package. These run the application in a Docker
+/// container, so the package is uploaded over real HTTP, read by real libalpm, added by the real
+/// <c>repo-add</c> and removed by the real <c>repo-remove</c>.
 /// </summary>
 [TestFixture]
 public class PackagePublishingTests
@@ -363,6 +363,170 @@ public class PackagePublishingTests
     {
         // Act
         var response = await PublishAsync(_client, Guid.NewGuid(), _packageBytes);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    #endregion
+
+    #region Deleting
+
+    [Test]
+    public async Task Delete_APublishedPackage_ReturnsNoContentAndTakesItOutOfTheListing()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-by-id");
+        var package = await PublishAndReadAsync(_client, repository.Id);
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Assert
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+            $"/api/v1/repositories/{repository.Id}/packages");
+        var read = await _client.GetAsync($"/api/v1/packages/{package.Id}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(listing!.Total, Is.Zero, "It is gone from the listing.");
+            Assert.That(read.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), "And from the read route.");
+        });
+    }
+
+    [Test]
+    public async Task Delete_APublishedPackage_TakesItOutOfTheRepositoryDatabaseAndOffDisk()
+    {
+        // What a pacman client syncs has to agree with what the API reports, so the entry goes when
+        // the row does — and the file goes last, once nothing names it.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-repo-remove");
+        var package = await PublishAndReadAsync(_client, repository.Id);
+
+        // Act
+        await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Assert
+        var databaseEntries = await ReadRepositoryDatabaseAsync(repository.Id);
+        var storedFiles = await _fixture.ExecInApiContainerAsync(
+            "sh", "-c", $"ls /data/repositories/{repository.Id} 2>/dev/null || true");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(databaseEntries, Does.Not.Contain(PackageFixtures.MinimalPackageName),
+                "repo-remove dropped the entry from the database a client would sync.");
+            Assert.That(storedFiles, Does.Not.Contain(package.FileName),
+                "And the file nothing names any more is gone too.");
+        });
+    }
+
+    [Test]
+    public async Task Delete_ByNaturalKey_DeletesTheSamePackageTheIdFormWould()
+    {
+        // The alias is what a build script knows: it has just published 'minimal-package' and has
+        // never seen a package id.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-by-name");
+        await PublishAndReadAsync(_client, repository.Id);
+
+        // Act
+        var response = await _client.DeleteAsync(
+            $"/api/v1/repositories/{repository.Id}/packages/{PackageFixtures.MinimalPackageName}");
+
+        // Assert
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+            $"/api/v1/repositories/{repository.Id}/packages");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(listing!.Total, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task Delete_APackageThatWasAlreadyDeleted_ReturnsNotFound()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-twice");
+        var package = await PublishAndReadAsync(_client, repository.Id);
+        await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound),
+            "A repeated delete is indistinguishable from a first one that found nothing.");
+    }
+
+    [Test]
+    public async Task Delete_AndRepublish_PutsThePackageBack()
+    {
+        // Deleting takes the entry out of the database rather than leaving a tombstone, so the same
+        // version can be published again afterwards.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-then-republish");
+        var package = await PublishAndReadAsync(_client, repository.Id);
+        await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Act
+        var response = await PublishAsync(_client, repository.Id, _packageBytes);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created),
+            "Nothing is left of the deleted package to make this a replacement.");
+    }
+
+    [Test]
+    public async Task Delete_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-anonymous", isPublic: true);
+        var package = await PublishAndReadAsync(_client, repository.Id);
+        using var anonymous = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
+
+        // Act
+        var response = await anonymous.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task Delete_FromSomebodyElsesPublicRepository_ReturnsForbidden()
+    {
+        // The repository is public, so its existence is already known and refusing the delete leaks
+        // nothing.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-theirs-public", isPublic: true,
+            client: _otherUsersClient);
+        var package = await PublishAndReadAsync(_otherUsersClient, repository.Id);
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
+
+        // Assert
+        var stillThere = await _otherUsersClient.GetAsync($"/api/v1/packages/{package.Id}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(stillThere.StatusCode, Is.EqualTo(HttpStatusCode.OK), "Nothing was deleted.");
+        });
+    }
+
+    [Test]
+    public async Task Delete_FromSomebodyElsesPrivateRepository_ReturnsNotFound()
+    {
+        // A private repository has to stay indistinguishable from one that is not there.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-theirs-private", isPublic: false,
+            client: _otherUsersClient);
+        var package = await PublishAndReadAsync(_otherUsersClient, repository.Id);
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
