@@ -649,4 +649,180 @@ internal class PackageService(
             logger.LogWarning(e, "Could not remove {Description} at {Path}", description, path);
         }
     }
+
+    public async Task<bool> DeletePackageAsync(Guid packageId, CancellationToken cancellationToken = default)
+    {
+        var visible = await VisibleAsync(cancellationToken);
+        var package = await visible.SingleOrDefaultAsync(p => p.Id == packageId, cancellationToken);
+
+        return await DeleteResolvedPackageAsync(package, cancellationToken);
+    }
+
+    public async Task<bool> DeletePackageAsync(
+        Guid repositoryId,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var visible = await VisibleAsync(cancellationToken);
+
+        // The same unique index the read path uses, so this pair matches at most one row.
+        var package = await visible
+            .SingleOrDefaultAsync(p => p.RepositoryId == repositoryId && p.Name == name, cancellationToken);
+
+        return await DeleteResolvedPackageAsync(package, cancellationToken);
+    }
+
+    /// <summary>
+    /// Where both delete routes converge: authorize the package that was resolved from the visible
+    /// set, then remove it under the repository's lock.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The resolution and the permission check both happen before the lock is taken, so a caller who
+    /// may not delete never waits behind a publish to be told so, exactly as publishing authorizes
+    /// before it reads a byte of the body.
+    /// </para>
+    /// <para>
+    /// A package that is not in the visible set is reported as missing rather than forbidden, which
+    /// covers the three cases that have to look identical from outside: it does not exist, it was
+    /// already deleted, and it is in somebody else's private repository.
+    /// </para>
+    /// </remarks>
+    /// <returns><c>false</c> when the actor must be told the package is not there.</returns>
+    private async Task<bool> DeleteResolvedPackageAsync(PacmanPackage? package, CancellationToken cancellationToken)
+    {
+        if (package is null)
+        {
+            return false;
+        }
+
+        // The permission is held over the repository, not over the package, so this is the same
+        // check publishing makes and it is made against the same tracked entity whose UpdatedAt the
+        // delete moves. Whoever published the package is irrelevant to it.
+        var repository = await LoadRepositoryForPublishAsync(package.RepositoryId, cancellationToken);
+        if (repository is null)
+        {
+            return false;
+        }
+
+        // Publish and delete take the same lock: repo-remove rewrites the file repo-add writes, and
+        // it is held across the side effect *and* the commit so no other writer sees the window in
+        // which the database file and the rows disagree.
+        using var _ = await databaseLock.AcquireAsync(repository.Id, cancellationToken);
+
+        await RemoveWithSideEffectsAsync(repository, package, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Runs <c>repo-remove</c>, then commits, then deletes the file — publishing's ordering, for
+    /// publishing's reason.
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <c>repo-remove</c> runs first and outside the commit's try block, so a tool failure aborts
+    ///     the request with nothing staged and nothing written. The package stays listed and stays
+    ///     installable, which is the recoverable state: the alternative ordering deletes a row whose
+    ///     entry is still in the database a pacman client syncs, and nothing would ever notice.
+    ///   </description></item>
+    ///   <item><description>
+    ///     The commit is second. If it fails, the database file no longer advertises a package the
+    ///     rows still describe, so it is undone explicitly by adding the file back — which is
+    ///     possible only because the file has not been deleted yet.
+    ///   </description></item>
+    ///   <item><description>
+    ///     Deleting the file is last, and is the one step that may fail harmlessly. The row is the
+    ///     source of truth and it is already gone, so a file that cannot be removed is an inert
+    ///     orphan worth a warning and never worth failing the request over.
+    ///   </description></item>
+    /// </list>
+    /// A compensating step that fails itself is logged at error and the original exception is
+    /// allowed to surface, as in publishing: the database file and the rows are then genuinely out
+    /// of step and the cure is reconciliation rather than anything this request can do.
+    /// </remarks>
+    private async Task RemoveWithSideEffectsAsync(
+        PacmanRepository repository,
+        PacmanPackage package,
+        CancellationToken cancellationToken)
+    {
+        // Resolved before the row is detached, since the file name is read off the row.
+        var packageFilePath = pathResolver.GetPackageFilePath(repository.Id, package.FileName);
+
+        await RunDatabaseToolAsync(
+            new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, package.Name),
+            repository.Id,
+            cancellationToken);
+
+        try
+        {
+            // DbContext.Remove rather than the DbSet, so that PacmanPackages stays named in exactly
+            // one method.
+            dbContext.Remove(package);
+
+            // The repository's contents changed, so its own timestamp moves with them.
+            repository.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to delete {PackageName} from repository {RepositoryId}",
+                package.Name, repository.Id);
+
+            dbContext.ChangeTracker.Clear();
+
+            try
+            {
+                await CompensateCommittedRemoveAsync(repository, package, packageFilePath);
+            }
+            catch (Exception compensation)
+            {
+                logger.LogError(compensation,
+                    "Failed to undo the partial deletion of {PackageName} in repository {RepositoryId}. "
+                    + "Its database and its rows now disagree.",
+                    package.Name, repository.Id);
+            }
+
+            throw;
+        }
+
+        // Only now is the file certain to be unreferenced: the entry that named it is gone and so is
+        // the row. Until the commit succeeded it was what the compensation restored the database
+        // from.
+        DeleteQuietly(packageFilePath, "package file of a deleted package");
+    }
+
+    /// <summary>
+    /// Undoes a <c>repo-remove</c> that succeeded before a commit that did not, by adding the
+    /// package file back to the repository's database.
+    /// </summary>
+    /// <remarks>
+    /// This takes no cancellation token, for the reason
+    /// <see cref="CompensateCommittedAddAsync"/> does not: one of the ordinary ways the commit
+    /// fails is the request being cancelled, and a compensation running on the cancelled token
+    /// would abandon itself at its first await and leave the database file missing a package the
+    /// rows still describe.
+    /// </remarks>
+    private async Task CompensateCommittedRemoveAsync(
+        PacmanRepository repository,
+        PacmanPackage package,
+        string packageFilePath)
+    {
+        // The file is deleted only after a successful commit, so it is still here. If it is not,
+        // there is nothing to rebuild the entry from and saying so is the most this can do.
+        if (!fileSystem.Exists(packageFilePath))
+        {
+            logger.LogError(
+                "Cannot restore the database entry for {PackageName} in repository {RepositoryId}: "
+                + "its file is no longer at {Path}.",
+                package.Name, repository.Id, packageFilePath);
+            return;
+        }
+
+        await RunDatabaseToolAsync(
+            new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, packageFilePath),
+            repository.Id,
+            CancellationToken.None);
+    }
 }
