@@ -30,6 +30,8 @@ public class PackageServiceTests
 
     private PacmanManagerDbContext _dbContext = null!;
     private TestActorAccessor _actors = null!;
+    private Mock<IFileSystem> _fileSystem = null!;
+    private Mock<IPackagePathResolver> _pathResolver = null!;
     private PackageService _service = null!;
 
     private User _caller = null!;
@@ -61,14 +63,18 @@ public class PackageServiceTests
         _actors = new TestActorAccessor { Actor = Actor.For(_caller) };
         // The read paths reach none of the publishing collaborators, so they are supplied as bare
         // doubles here; PackageServicePublishTests wires up the real ones.
+        // The download path is a read too, and it reaches the file system and the path resolver, so
+        // those two are real doubles a test can arrange rather than bare stand-ins.
+        _fileSystem = new Mock<IFileSystem>();
+        _pathResolver = new Mock<IPackagePathResolver>();
         _service = new PackageService(
             _dbContext,
             _actors,
             new RepositoryAccessPolicy(),
             new PackageAccessPolicy(),
             Mock.Of<ICliToolRunner>(),
-            Mock.Of<IFileSystem>(),
-            Mock.Of<IPackagePathResolver>(),
+            _fileSystem.Object,
+            _pathResolver.Object,
             new RepositoryDatabaseLock(),
             Mock.Of<ILibAlpm>(),
             Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" }),
@@ -206,6 +212,224 @@ public class PackageServiceTests
 
         // Assert
         Assert.That(result, Is.Null, "A private repository must be indistinguishable from one that is not there.");
+    }
+
+    #endregion
+
+    #region GetPackageContentByIdAsync
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_ReturnsTheStoredFile_WhenItsRepositoryIsVisible()
+    {
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool", version: "1.4.2-1");
+        await _dbContext.SaveChangesAsync();
+        var stored = GivenStoredFile(package, "package bytes"u8.ToArray());
+
+        // Act
+        var result = await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.FileName, Is.EqualTo(package.FileName));
+            Assert.That(result.Content, Is.SameAs(stored));
+        });
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_OpensTheFileTheRowNames_NotAnythingDerivedFromTheRequest()
+    {
+        // The only inputs to the path are the repository's id and the basename the publish derived
+        // and recorded, so a request can never steer where this reads from.
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool", version: "1.4.2-1");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        _pathResolver.Verify(r => r.GetPackageFilePath(_publicRepository.Id, package.FileName), Times.Once);
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_ReturnsTheFile_ForTheOwnerOfAPrivateRepository()
+    {
+        // Arrange
+        var package = GivenPackage(_callersPrivateRepository, "mine");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        var result = await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_ReturnsTheFile_ForAnAnonymousCallerOnAPublicRepository()
+    {
+        // Content is exactly as visible as metadata: there is no separate rule for downloading.
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+        _actors.Actor = Actor.Anonymous;
+
+        // Act
+        var result = await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_ReturnsNull_WhenTheRepositoryIsPrivateAndSomebodyElses()
+    {
+        // Arrange
+        var package = GivenPackage(_othersPrivateRepository, "hidden");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        var result = await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        Assert.That(result, Is.Null, "A private repository must be indistinguishable from one that is not there.");
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_DoesNotTouchTheDisk_ForAPackageTheActorCannotSee()
+    {
+        // A read of a file the caller may not have is not merely unreturned; it never happens.
+        // Arrange
+        var package = GivenPackage(_othersPrivateRepository, "hidden");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        await _service.GetPackageContentByIdAsync(package.Id);
+
+        // Assert
+        _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_ReturnsNull_WhenNoSuchPackageExists()
+    {
+        // Act
+        var result = await _service.GetPackageContentByIdAsync(Guid.NewGuid());
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetPackageContentByIdAsync_Throws_WhenTheRowNamesAFileThatIsNotThere()
+    {
+        // Deliberately not a null: the rows are the source of truth for what a repository holds, so
+        // a listed package whose bytes are gone is a fault in the store, and reporting it as absent
+        // would hide it behind the same status a private repository produces.
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool");
+        await _dbContext.SaveChangesAsync();
+        _pathResolver
+            .Setup(r => r.GetPackageFilePath(package.RepositoryId, package.FileName))
+            .Returns("/data/repositories/gone.pkg.tar.zst");
+        _fileSystem.Setup(f => f.Exists("/data/repositories/gone.pkg.tar.zst")).Returns(false);
+
+        // Act / Assert
+        Assert.ThrowsAsync<FileNotFoundException>(() => _service.GetPackageContentByIdAsync(package.Id));
+        _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+    }
+
+    #endregion
+
+    #region GetPackageContentByNameAsync
+
+    [Test]
+    public async Task GetPackageContentByNameAsync_ReturnsTheStoredFile_WhenItsRepositoryIsVisible()
+    {
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool", version: "1.4.2-1");
+        await _dbContext.SaveChangesAsync();
+        var stored = GivenStoredFile(package, "package bytes"u8.ToArray());
+
+        // Act
+        var result = await _service.GetPackageContentByNameAsync(_publicRepository.Id, "my-tool");
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.FileName, Is.EqualTo(package.FileName));
+            Assert.That(result.Content, Is.SameAs(stored));
+        });
+    }
+
+    [Test]
+    public async Task GetPackageContentByNameAsync_ReturnsTheFile_ForTheOwnerOfAPrivateRepository()
+    {
+        // Arrange
+        var package = GivenPackage(_callersPrivateRepository, "mine");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        var result = await _service.GetPackageContentByNameAsync(_callersPrivateRepository.Id, "mine");
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetPackageContentByNameAsync_ReturnsTheFile_ForAnAnonymousCallerOnAPublicRepository()
+    {
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+        _actors.Actor = Actor.Anonymous;
+
+        // Act
+        var result = await _service.GetPackageContentByNameAsync(_publicRepository.Id, "my-tool");
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetPackageContentByNameAsync_ReturnsNull_WhenTheRepositoryIsPrivateAndSomebodyElses()
+    {
+        // Arrange
+        var package = GivenPackage(_othersPrivateRepository, "hidden");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        var result = await _service.GetPackageContentByNameAsync(_othersPrivateRepository.Id, "hidden");
+
+        // Assert
+        Assert.That(result, Is.Null, "A private repository must be indistinguishable from one that is not there.");
+    }
+
+    [Test]
+    public async Task GetPackageContentByNameAsync_ReturnsNull_WhenTheRepositoryHoldsNoSuchPackage()
+    {
+        // Arrange
+        var package = GivenPackage(_publicRepository, "my-tool");
+        await _dbContext.SaveChangesAsync();
+        GivenStoredFile(package, [1, 2, 3]);
+
+        // Act
+        var result = await _service.GetPackageContentByNameAsync(_publicRepository.Id, "not-here");
+
+        // Assert
+        Assert.That(result, Is.Null);
     }
 
     #endregion
@@ -774,6 +998,24 @@ public class PackageServiceTests
         GivenPackage(_publicRepository, "bravo", createdAt: Newest, updatedAt: Oldest, installedSize: 200);
         GivenPackage(_publicRepository, "charlie", createdAt: Oldest, updatedAt: Middle, installedSize: 300);
         await _dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Puts a package's bytes where the resolver says its file lives, and hands back the stream the
+    /// service is expected to return.
+    /// </summary>
+    private MemoryStream GivenStoredFile(PacmanPackage package, byte[] content)
+    {
+        var path = $"/data/repositories/{package.RepositoryId}/{package.FileName}";
+        var stream = new MemoryStream(content);
+
+        _pathResolver
+            .Setup(r => r.GetPackageFilePath(package.RepositoryId, package.FileName))
+            .Returns(path);
+        _fileSystem.Setup(f => f.Exists(path)).Returns(true);
+        _fileSystem.Setup(f => f.OpenRead(path)).Returns(stream);
+
+        return stream;
     }
 
     private PacmanRepository GivenRepository(string name, User owner, bool isPublic) =>
