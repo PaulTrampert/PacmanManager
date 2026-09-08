@@ -1,0 +1,10 @@
+{
+  "LABEL": {
+    "name": "title needs formatting",
+    "color": "EEEEEE"
+  },
+  "CHECKS": {
+    "regexp": "^\\((MAJOR|MINOR|PATCH)\\)\\s+\\S.*",
+    "regexpFlags": ""
+  }
+}

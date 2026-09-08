@@ -53,11 +53,13 @@ jobs:
 
       # Antlr4BuildTasks runs the ANTLR jar to generate the pacman.conf parser, so the build
       # itself needs a JRE. Pinning one beats relying on whatever the runner image ships.
+      # 25 is the current LTS and the newest ANTLR runs on: checked by deleting LibAlpmSharp/obj
+      # and regenerating the parser under it, which produced the same sources and built clean.
       - name: Set up Java for the ANTLR build task
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '25'
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -96,23 +98,6 @@ jobs:
             --logger "trx" \
             --logger "console;verbosity=minimal" \
             --results-directory artifacts/test-results
-
-      # Testcontainers reports a failed image build only as "image has not been created" and
-      # swallows the builder's own output, so on a failure capture the state it left behind: the
-      # exited build containers and their base image are what identified the cause the first time.
-      - name: Docker and disk diagnostics
-        if: failure()
-        run: |
-          echo "::group::Disk and memory"
-          df -h /
-          free -m
-          echo "::endgroup::"
-          echo "::group::Images"
-          docker images
-          echo "::endgroup::"
-          echo "::group::Containers"
-          docker ps -a
-          echo "::endgroup::"
 
       # Turns the trx files into something readable: one PR comment, updated in place on every
       # later run rather than piling up, plus a "Test results" check run carrying the per-test

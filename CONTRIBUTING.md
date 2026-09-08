@@ -25,10 +25,14 @@ Thank you for your interest in contributing! To maintain code quality and consis
 ## Pull Request Process
 
 *   **Branching Strategy**: *NEVER* commit directly to `main`. All proposed changes must be submitted as a Pull Request (PR) to the `main` branch on GitHub.
-*   **PR Title Convention**: The PR title must start with one of the following prefixes based on the nature of the change:
-    *   `PATCH`: Primarily bug fixes.
-    *   `MINOR`: Non-breaking feature additions.
-    *   `MAJOR`: Breaking changes.
+*   **PR Title Convention**: The PR title must start with a parenthesised change level, followed by a description -- `(<change-level>) <description>`:
+    *   `(PATCH) Fix bug`: Primarily bug fixes.
+    *   `(MINOR) Add new feature`: Non-breaking feature additions.
+    *   `(MAJOR) Introduce breaking change`: Breaking changes.
+
+    This is enforced by `.github/workflows/pr-title.yml`, which calls the shared
+    [`check-pr-title.yml`](https://github.com/PaulTrampert/github-workflows/blob/main/.github/workflows/check-pr-title.yml),
+    and it is the same form `paulhatch/semantic-version` reads when picking the next version.
 *   **PR Description**: The description should include:
     *   A reference to any GitHub issues that this PR fixes (e.g., `Fixes #123`).
     *   Detailed explanations of the change that are not immediately obvious from the code diff.

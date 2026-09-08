@@ -164,11 +164,17 @@ per-test detail. Read that before the raw log. It is skipped for pull requests f
 run with a read-only token; the full results are still uploaded as the `test-results` artifact
 either way.
 
-`.github/workflows/pr-title.yml` is separate, and enforces the `MAJOR`/`MINOR`/`PATCH` prefix from
-[Branches, commits, and PRs](#branches-commits-and-prs). It is its own workflow so that it can
-trigger on `edited`: a mistyped prefix is fixed by editing the title, and the check re-runs on its
-own rather than needing an empty commit. Putting `edited` on `ci.yml` would re-run the whole test
-and image-build matrix every time somebody touched a title or description.
+`.github/workflows/pr-title.yml` is separate, and enforces the `(MAJOR)`/`(MINOR)`/`(PATCH)` prefix
+from [Branches, commits, and PRs](#branches-commits-and-prs). It does not check the title itself --
+it calls the shared
+[`check-pr-title.yml`](https://github.com/PaulTrampert/github-workflows/blob/main/.github/workflows/check-pr-title.yml),
+so the rule and its wording stay the same across repositories. The pattern it matches lives in
+`.github/pr-title-checker-config.json`, which `thehanimo/pr-title-checker` reads from the repository
+at the event SHA -- the merge commit on a pull request, so a change to it takes effect on the PR
+that makes it. It is its own workflow so that it can trigger on `edited`: a mistyped prefix is fixed
+by editing the title, and the check re-runs on its own rather than needing an empty commit. Putting
+`edited` on `ci.yml` would re-run the whole test and image-build matrix every time somebody touched
+a title or description.
 
 The runner is Ubuntu, so CI runs the same filter a non-Arch host needs:
 
@@ -228,7 +234,9 @@ path that already exists. That way a sub-agent only ever works; it never has to 
 
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
 * Commit early and often — a meaningful change that builds is a good commit point.
-* PR titles start with `PATCH`, `MINOR`, or `MAJOR` depending on the nature of the change.
+* PR titles start with a parenthesised change level -- `(PATCH) ...`, `(MINOR) ...`, `(MAJOR) ...` --
+  depending on the nature of the change. The parentheses matter: that is the form the shared
+  release tooling reads, and the form the title check enforces.
 * PR descriptions reference the issue they fix (`Fixes #123`) and explain what the diff does not
   make obvious.
 * GitHub repo: <https://github.com/PaulTrampert/PacmanManager>.

@@ -1,70 +1,24 @@
-name: PR title
+name: PR Title
 
 # CONTRIBUTING.md requires every PR title to declare its change level, because that prefix is what
-# a release will eventually read to pick the next version number.
+# a release reads to pick the next version number.
 #
-# This lives in its own workflow, separate from ci.yml, so that `edited` is in the trigger list:
-# a contributor who mistypes the prefix can fix the title and have the check clear on its own,
-# without pushing an empty commit. Putting `edited` on ci.yml instead would re-run the whole test
-# and image-build matrix every time somebody touched a title or description.
+# This delegates to the shared reusable workflow rather than checking the title here, so the rule
+# and its wording stay the same across repositories. The change level it enforces is the
+# parenthesised form -- "(MINOR) Add a feature" -- which is also what paulhatch/semantic-version
+# reads in the shared version.yml.
+#
+# Kept separate from ci.yml so that `edited` can be in the trigger list: a mistyped prefix is fixed
+# by editing the title and the check re-runs on its own, where putting `edited` on ci.yml would
+# re-run the whole test and image-build matrix on every title or description tweak.
 on:
   pull_request:
     branches: [main]
-    types: [opened, edited, reopened, synchronize]
-
-permissions:
-  contents: read
-
-concurrency:
-  group: pr-title-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
-  change-level:
-    name: Change level
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Check the title starts with a change level
-        env:
-          # The title is untrusted, contributor-controlled text. It is passed through the
-          # environment and only ever expanded inside quotes, never interpolated into the script
-          # body, so a title containing shell metacharacters cannot run as code.
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          set -euo pipefail
-
-          # The prefix must be followed by a separator so that a title like "PATCHES the manifest"
-          # is not mistaken for a PATCH-level change.
-          if [[ "$PR_TITLE" =~ ^(MAJOR|MINOR|PATCH)([[:space:]]|:) ]]; then
-            level="${BASH_REMATCH[1]}"
-            echo "Change level: $level"
-            {
-              echo "### Change level: \`$level\`"
-              echo
-              echo "Title: \`$PR_TITLE\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          {
-            echo "### :x: The PR title is missing a change level"
-            echo
-            echo "Title: \`$PR_TITLE\`"
-            echo
-            echo "Per [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md), a PR title must begin with"
-            echo "one of these prefixes, followed by a space or a colon:"
-            echo
-            echo "| Prefix | Use for |"
-            echo "| :--- | :--- |"
-            echo "| \`MAJOR\` | Breaking changes |"
-            echo "| \`MINOR\` | Non-breaking feature additions |"
-            echo "| \`PATCH\` | Primarily bug fixes |"
-            echo
-            echo "For example: \`MINOR: add a GitHub Actions CI workflow\`"
-            echo
-            echo "Edit the title and this check re-runs on its own."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          echo "::error title=Missing change level::The PR title must start with MAJOR, MINOR or PATCH followed by a space or a colon."
-          exit 1
+  check-title:
+    uses: PaulTrampert/github-workflows/.github/workflows/check-pr-title.yml@main
+    permissions:
+      pull-requests: write
+      contents: read
