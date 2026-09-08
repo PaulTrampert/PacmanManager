@@ -254,4 +254,63 @@ public class PackagesController(
         var location = $"{Request.Path.Value?.TrimEnd('/')}/{Uri.EscapeDataString(result.Package.Name)}";
         return Created(location, result.Package);
     }
+
+    /// <summary>
+    /// Delete a package by ID, removing it from the repository holding it.
+    /// </summary>
+    /// <param name="packageId">Package ID.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns><c>204</c> when the package is gone.</returns>
+    /// <remarks>
+    /// <para>
+    /// Deleting needs the same permission publishing does, and it is held over the repository rather
+    /// than over the package: anyone who may publish to a repository may delete any package in it,
+    /// including one somebody else published.
+    /// </para>
+    /// <para>
+    /// A package the caller may not see is a <c>404</c>, and so is one that was already deleted, so
+    /// a repeated delete is indistinguishable from a first one.
+    /// </para>
+    /// <para>
+    /// A failure of the pacman tools is a <c>500</c> like any other failed <c>ICliTool</c> rather
+    /// than a <c>409</c>: nothing was deleted, the package is still listed and still installable,
+    /// and the caller cannot fix it by sending a different request.
+    /// </para>
+    /// </remarks>
+    [HttpDelete("{packageId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Authorize]
+    public async Task<IActionResult> DeleteById(Guid packageId, CancellationToken ct = default)
+    {
+        logger.LogInformation("Deleting package {PackageId}", packageId);
+
+        return await packageService.DeletePackageAsync(packageId, ct) ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// Delete a package by its natural key, the repository holding it and its name.
+    /// </summary>
+    /// <param name="repositoryId">Repository ID.</param>
+    /// <param name="name">Package name.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns><c>204</c> when the package is gone.</returns>
+    /// <remarks>
+    /// An alias for <see cref="DeleteById"/> that goes through the same service method, keyed the
+    /// way a build script knows the package it has just published.
+    /// </remarks>
+    [HttpDelete($"{ControllerConstants.RepositoryScopedPackagesRoute}/{{name}}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Authorize]
+    public async Task<IActionResult> DeleteByName(Guid repositoryId, string name, CancellationToken ct = default)
+    {
+        logger.LogInformation("Deleting package {PackageName} in repository {RepositoryId}", name, repositoryId);
+
+        return await packageService.DeletePackageAsync(repositoryId, name, ct) ? NoContent() : NotFound();
+    }
 }

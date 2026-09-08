@@ -117,4 +117,65 @@ public interface IPackageService
         Guid repositoryId,
         Stream packageContent,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a package from the repository holding it, by package id.
+    /// </summary>
+    /// <param name="packageId">The package to delete.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// <c>true</c> when the package was deleted; <c>false</c> when it does not exist or the actor is
+    /// not entitled to know that it does.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The permission required is the same <c>Publish</c> permission publishing needs, held over the
+    /// repository rather than over the package. Anyone holding it may delete <i>any</i> package in
+    /// that repository, including one somebody else published:
+    /// <c>PacmanPackage.PublisherId</c> records who pushed a package last and confers nothing.
+    /// </para>
+    /// <para>
+    /// Deleting removes the entry from the repository's database first and the row second, so a
+    /// failure of the pacman tools leaves the package listed and installable rather than leaving a
+    /// database entry no row describes. See the implementation for the full ordering argument.
+    /// </para>
+    /// <para>
+    /// A package that is not in the actor's visible set is reported as missing, and so is one that
+    /// was already deleted. A caller therefore cannot tell a repeated delete from a first one, but
+    /// a second call can never half-succeed.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="NoCurrentUserException">There is no identity to delete as.</exception>
+    /// <exception cref="PackageForbiddenException">
+    /// The actor may see the repository but may not remove packages from it.
+    /// </exception>
+    /// <exception cref="CliToolFailedException">
+    /// <c>repo-remove</c> could not rewrite the repository's database, so nothing was deleted.
+    /// </exception>
+    Task<bool> DeletePackageAsync(Guid packageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a package from the repository holding it, by its natural key.
+    /// </summary>
+    /// <param name="repositoryId">The ID of the repository holding the package.</param>
+    /// <param name="name">The package name.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// <c>true</c> when the package was deleted; <c>false</c> when it does not exist or the actor is
+    /// not entitled to know that it does.
+    /// </returns>
+    /// <remarks>
+    /// An alias for <see cref="DeletePackageAsync(Guid, CancellationToken)"/> keyed the way a build
+    /// script knows the package: it has just published <c>my-tool</c> to a repository and has never
+    /// seen a package id. Both forms converge on one implementation, so every guarantee documented
+    /// there holds here too.
+    /// </remarks>
+    /// <exception cref="NoCurrentUserException">There is no identity to delete as.</exception>
+    /// <exception cref="PackageForbiddenException">
+    /// The actor may see the repository but may not remove packages from it.
+    /// </exception>
+    /// <exception cref="CliToolFailedException">
+    /// <c>repo-remove</c> could not rewrite the repository's database, so nothing was deleted.
+    /// </exception>
+    Task<bool> DeletePackageAsync(Guid repositoryId, string name, CancellationToken cancellationToken = default);
 }
