@@ -57,7 +57,7 @@ unqualified use. The DbSet is `PacmanPackages`, matching `PacmanRepositories`.
 | `InstalledSize` | `long` | `alpm_pkg_get_isize`. |
 | `BuildDate` | `DateTimeOffset` | |
 | `Sha256Sum` | `string` | Computed over the uploaded bytes, not read from libalpm. See [Checksums](#checksums-are-computed-not-read). |
-| `Md5Sum` | `string` | Likewise. Recorded because `repo-add` writes both into the database. |
+| `Md5Sum` | `string` | Likewise. Kept because the same pass produces it for free and older tooling still asks for MD5 — *not* because the database records it; pacman 7's `repo-add` does not. See [Checksums](#checksums-are-computed-not-read). |
 | `Licenses`, `Groups`, `Provides`, `Replaces` | `string[]` | Postgres `text[]` via Npgsql. |
 | `Depends`, `OptDepends`, `MakeDepends`, `CheckDepends`, `Conflicts` | `string[]` | Stored in pacman's own spelling (`foo>=1.2`, `bar: reason`) rather than decomposed. |
 | `CreatedAt` | `DateTimeOffset` | When this package first appeared in this repository. |
@@ -461,14 +461,29 @@ already expects of it.
 `IPackage` gains `GetSha256Sum` and `GetMd5Sum` in issue 2, but neither can populate the columns
 here. libalpm fills those fields from a sync database entry; for a package loaded off disk with
 `alpm_pkg_load` there is no such entry and both come back `NULL`. Reading them would silently store
-nulls for every package this API ever accepts, while `repo-add` wrote real `%MD5SUM%` and
-`%SHA256SUM%` values into the same repository's `.db.tar.gz` — the API and the database a pacman
-client reads would disagree about the same file.
+nulls for every package this API ever accepts. That is the reason the service hashes the upload
+itself, and it has nothing to do with what `repo-add` writes.
 
 So the service computes them itself, with `IncrementalHash` (or two `CryptoStream`s) over the
 request body as step 2 writes it out, which costs one pass and no extra I/O. The columns are
 non-nullable as a result. Issue 10 owns this; issue 2's `GetSha256Sum`/`GetMd5Sum` exist to complete
 the binding and are documented as null for file-loaded packages.
+
+**Only the SHA-256 is also in the repository database.** Verified against pacman
+`7.1.0.r9.g54d9411-2`: `/usr/bin/repo-add` contains four occurrences of `sha256` and none of `md5`,
+and the `desc` entry it generates carries `%SHA256SUM%` and nothing else. MD5 was dropped as a
+repository database checksum. The RepoHost image is built `FROM archlinux/archlinux` with no tag, so
+it tracks whatever pacman is current and behaves the same way. `Sha256Sum` is therefore the one
+value the API and a pacman client must agree about for the same file, and the one the E2E test
+compares against the `.db.tar.gz`.
+
+`Md5Sum` is kept anyway, and stays `[Required]` and non-nullable. Its justification is not agreement
+with the database — there is nothing in the database to agree with. It is kept because the single
+pass over the upload produces it at no extra cost, and because MD5 is still what some older tooling
+and `PKGBUILD` consumers ask for; dropping it would cost a migration and buy nothing. Its contract
+is the API's own: the MD5 of the exact bytes that were uploaded. It is asserted at the service level
+(`PackageServicePublishTests`), because the wire model does not publish it and the E2E tests assert
+against the API's own responses.
 
 **Content type.** Recommended: `application/octet-stream` with the raw file as the body. Because the
 stored name is derived from metadata (above), there is nothing a `multipart/form-data` envelope
@@ -655,7 +670,7 @@ place with `Id`/`CreatedAt` preserved and `PublisherId` reassigned); architectur
 successful `repo-add` invoking the compensating `repo-remove` — plus, on a replacement, the
 `repo-add` that restores the previous file — which is the case that needs an explicitly faked
 commit failure to reach. E2E tests publish a real fixture package and then read it back through
-`GET`, assert the stored `sha256Sum`/`md5Sum` match the uploaded bytes and the `%SHA256SUM%`
+`GET`, assert the stored `sha256Sum` matches both the uploaded bytes and the `%SHA256SUM%`
 `repo-add` recorded, assert that a second push of the published version is a `409` and that the
 newer fixture replaces it with a `200`, and assert `403` publishing to someone else's public
 repository and `404` to someone else's private one.

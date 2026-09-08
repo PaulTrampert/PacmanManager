@@ -19,12 +19,23 @@ namespace PacmanManager.RepoHost.Services;
 /// file tree and the pacman CLI tools.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Authorization is enforced structurally rather than by remembering to check, exactly as
 /// <see cref="RepositoryService"/> does it. Every read starts from <see cref="VisibleAsync"/>, which
 /// is the only place in this class that touches
 /// <see cref="PacmanManagerDbContext.PacmanPackages"/>. A method that forgets the rules therefore
 /// has to name the <see cref="DbSet{TEntity}"/> to do so, which is both obvious in review and caught
 /// by <c>PackageServiceEnforcementTests</c>.
+/// </para>
+/// <para>
+/// libalpm arrives as a <see cref="Lazy{T}"/> because only publishing needs it. Constructing an
+/// <see cref="ILibAlpm"/> regenerates and parses the pacman configuration, expands the
+/// per-repository <c>.conf</c> glob and calls <c>alpm_initialize</c>, and every request that
+/// resolves the packages controller would otherwise pay for that — including the anonymous read
+/// routes, which never load a package file. Worse, it made one malformed <c>.conf</c> enough to
+/// turn every listing into a 500. <see cref="LoadPackage"/> is the only member allowed to force
+/// the value, and <c>PackageServiceTests</c> asserts the reads leave it uncreated.
+/// </para>
 /// </remarks>
 internal class PackageService(
     PacmanManagerDbContext dbContext,
@@ -35,7 +46,7 @@ internal class PackageService(
     IFileSystem fileSystem,
     IPackagePathResolver pathResolver,
     IRepositoryDatabaseLock databaseLock,
-    ILibAlpm libAlpm,
+    Lazy<ILibAlpm> libAlpm,
     IOptions<PacmanConfigSettings> pacmanSettings,
     ILogger<PackageService> logger) : IPackageService
 {
@@ -205,9 +216,11 @@ internal class PackageService(
     /// <remarks>
     /// The checksums are computed rather than read back from libalpm on purpose. libalpm fills its
     /// checksum fields from a sync database entry, and a package loaded off disk has no such entry,
-    /// so both come back null — while <c>repo-add</c> writes real values into the repository
-    /// database for the very same file. Reading them would leave the API and the database a pacman
-    /// client reads disagreeing about the same bytes.
+    /// so both come back null — reading them would store a null for every package this API accepts.
+    /// The SHA-256 is the one that has to match the repository database, since <c>repo-add</c>
+    /// records it there and a pacman client verifies against it. Pacman 7's <c>repo-add</c> no
+    /// longer writes <c>%MD5SUM%</c> at all; the MD5 is kept because this pass produces it for free
+    /// and older tooling still asks for it.
     /// </remarks>
     private async Task<UploadedFile> WriteAndHashAsync(
         Stream source,
@@ -465,12 +478,17 @@ internal class PackageService(
     /// <summary>
     /// Reads the uploaded file's metadata, restating a libalpm failure as the client error it is.
     /// </summary>
+    /// <remarks>
+    /// The one place libalpm is actually needed, and so the one place that is allowed to force
+    /// <c>libAlpm</c>. Touching <see cref="Lazy{T}.Value"/> anywhere else would put the cost of
+    /// initializing libalpm back on requests that never read a package file.
+    /// </remarks>
     /// <exception cref="UnreadablePackageException">libalpm could not read the file as a package.</exception>
     private IPackage LoadPackage(string uploadPath)
     {
         try
         {
-            return libAlpm.LoadPackageFile(uploadPath);
+            return libAlpm.Value.LoadPackageFile(uploadPath);
         }
         catch (AlpmException e)
         {

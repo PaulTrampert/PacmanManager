@@ -95,9 +95,10 @@ public record Package
     /// SHA-256 checksum of the published bytes, for a caller that wants to verify a download.
     /// </summary>
     /// <remarks>
-    /// The entity also records an MD5 checksum, because <c>repo-add</c> writes both into the
-    /// repository database, but it is not published here: it is an implementation detail of the
-    /// pacman database format and is not a checksum anyone should be verifying against today.
+    /// The entity also records an MD5 checksum — it falls out of the same pass over the upload, and
+    /// older tooling still asks for MD5 — but it is not published here: pacman 7's <c>repo-add</c>
+    /// records only <c>%SHA256SUM%</c>, and MD5 is not a checksum anyone should be verifying
+    /// against today.
     /// </remarks>
     public required string Sha256Sum { get; init; }
 

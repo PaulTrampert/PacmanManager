@@ -109,7 +109,7 @@ public class PackageServicePublishTests
             new PhysicalFileSystem(),
             _pathResolver,
             new RepositoryDatabaseLock(),
-            _libAlpm.Object,
+            new Lazy<ILibAlpm>(() => _libAlpm.Object),
             settings,
             new TestOutputLogger<PackageService>());
     }
@@ -171,8 +171,9 @@ public class PackageServicePublishTests
     [Test]
     public async Task PublishPackageAsync_ComputesBothChecksumsOverTheUploadedBytes()
     {
-        // libalpm reports no checksums for a package loaded off disk, and repo-add writes real ones
-        // into the same repository's database, so these have to be computed rather than read.
+        // libalpm reports no checksums for a package loaded off disk, so both have to be computed
+        // over the upload rather than read back. Pacman 7's repo-add records only %SHA256SUM%, so
+        // this is the only place the stored MD5 is held to the bytes it was computed from.
         // Act
         await PublishAsync();
 
