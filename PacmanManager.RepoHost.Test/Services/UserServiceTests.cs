@@ -29,7 +29,8 @@ public class UserServiceTests
         _database = new DatabaseContainer(_network);
         var migrationsImage = new ImageFromDockerfileBuilder()
             .WithContextDirectory(DirUtils.FindSolutionDirectory())
-            .WithDockerfileDirectory(Path.Combine(DirUtils.FindSolutionDirectory(), "PacmanManager.Migrations"))
+            .WithDockerfileDirectory(DirUtils.FindSolutionDirectory())
+            .WithDockerfile("PacmanManager.Migrations/Dockerfile")
             .WithName("pacmanmanager-migrations-test:latest")
             .Build();
         await migrationsImage.CreateAsync();

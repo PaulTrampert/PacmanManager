@@ -30,7 +30,12 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
         .WithEnvironment("KC_HOSTNAME", "http://localhost:8080")
         .WithEnvironment("KC_HOSTNAME_BACKCHANNEL_DYNAMIC", "true")
         .WithCommand("start-dev", "--import-realm")
-        .WithPortBinding(8080, false)
+        // A random host port, not a fixed 8080: several fixtures each stand up their own Keycloak,
+        // and a fixed binding makes the second one fail with "port is already allocated". Nothing
+        // depends on the number -- the API reaches Keycloak over the Docker network by alias, and
+        // the test host goes through LocalAuthority, which reads the mapped port back. KC_HOSTNAME
+        // still pins the issuer to http://localhost:8080, so tokens are unchanged.
+        .WithPortBinding(8080, true)
         .WithWaitStrategy(Wait.ForUnixContainer()
             .UntilHttpRequestIsSucceeded(r => r
                 .ForPort(8080)
@@ -61,18 +66,27 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
     {
         get
         {
-            field ??= new()
+            if (field is null)
             {
-                BaseAddress = new Uri($"{LocalAuthority}/"),
-                DefaultRequestHeaders =
+                field = new HttpClient
                 {
-                    Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"pacman-manager-swagger:"))),
-                    Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
-                    Referrer = new Uri("http://localhost:8082/"),
-                }
-            };
-            
-            field.DefaultRequestHeaders.Add("Origin", "http://localhost:8082");
+                    BaseAddress = new Uri($"{LocalAuthority}/"),
+                    DefaultRequestHeaders =
+                    {
+                        Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"pacman-manager-swagger:"))),
+                        Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
+                        Referrer = new Uri("http://localhost:8082/"),
+                    }
+                };
+
+                // Inside the null check, because this one is an Add rather than a setter and
+                // DefaultRequestHeaders.Add appends. Left outside, every read of this property
+                // added another copy, the second request went out with
+                // "Origin: http://localhost:8082, http://localhost:8082", and Keycloak refused it
+                // with {"error":"Invalid origin"} -- so any fixture that asked for a second token
+                // failed in OneTimeSetUp.
+                field.DefaultRequestHeaders.Add("Origin", "http://localhost:8082");
+            }
 
             return field;
         }

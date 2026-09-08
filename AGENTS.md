@@ -147,6 +147,66 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 * `InternalsVisibleTo` exposes RepoHost internals to `PacmanManager.RepoHost.Test`.
 * A PR is expected to have a passing `dotnet build` and `dotnet test`.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request to `main` and on every push to `main`. It is
+a gate, not a release pipeline — the project is unreleased and **nothing is published**.
+
+| Job | What it does |
+| :--- | :--- |
+| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
+| `libalpm` | Runs `LibAlpmSharp.Test` unfiltered inside an `archlinux/archlinux` container, where the local pacman database is real. |
+| `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
+
+The `test` job publishes its `.trx` files with
+[`EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action):
+one PR comment, updated in place on each later run, plus a **Test results** check run carrying the
+per-test detail. Read that before the raw log. It is skipped for pull requests from forks, which
+run with a read-only token; the full results are still uploaded as the `test-results` artifact
+either way.
+
+`.github/workflows/pr-title.yml` is separate, and enforces the `(MAJOR)`/`(MINOR)`/`(PATCH)` prefix
+from [Branches, commits, and PRs](#branches-commits-and-prs). It does not check the title itself --
+it calls the shared
+[`check-pr-title.yml`](https://github.com/PaulTrampert/github-workflows/blob/main/.github/workflows/check-pr-title.yml),
+so the rule and its wording stay the same across repositories. The pattern it matches lives in
+`.github/pr-title-checker-config.json`, which `thehanimo/pr-title-checker` reads from the repository
+at the event SHA -- the merge commit on a pull request, so a change to it takes effect on the PR
+that makes it. It is its own workflow so that it can trigger on `edited`: a mistyped prefix is fixed
+by editing the title, and the check re-runs on its own rather than needing an empty commit. Putting
+`edited` on `ci.yml` would re-run the whole test and image-build matrix every time somebody touched
+a title or description.
+
+The runner is Ubuntu, so CI runs the same filter a non-Arch host needs:
+
+```bash
+dotnet test PacmanManager.sln --configuration Release --no-build \
+    --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
+```
+
+The E2E fixtures build their images with the **solution root as the Dockerfile directory**, passing
+the project directory as part of the Dockerfile path (`.WithDockerfile("PacmanManager.RepoHost/Dockerfile")`).
+Keep it that way: Testcontainers looks for the ignore file next to the Dockerfile directory
+(`<dockerfile>.dockerignore`, falling back to `.dockerignore` there) and never reads the context
+root's, so pointing the Dockerfile directory at a project silently skips the root `.dockerignore`.
+The host's `bin/` and `obj/` are then tarred into the build context, and `obj/` records absolute
+host paths -- the sources ANTLR generates for `LibAlpmSharp` among them -- so `dotnet build` inside
+the image fails with `CS2001: Source file ... could not be found`. It bites only after a local build
+has populated `obj/`, which is always true in CI, and only for the RepoHost image, since Migrations
+does not reference `LibAlpmSharp`.
+
+Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
+starts Postgres and Keycloak on.
+
+That filter is scoped to the Ubuntu job. The **`libalpm`** job runs `LibAlpmSharp.Test` unfiltered
+inside an `archlinux/archlinux` container, installing `dotnet-sdk` and a JRE with `pacman`, so the
+fixtures that read the host's local database run for real against an installed `pacman` package:
+299 tests there against the 254 Ubuntu sees, nothing skipped. So a test that only passes on Arch is
+covered, and the overlap between the two jobs is deliberate — together they prove the binding works
+both on Arch and on a distribution that only carries libalpm. Seeding a database under a temporary
+root and pointing `LibAlpm.Initialize(root, dbPath)` at it is still the tidier fix, and would let
+the Ubuntu job drop the filter.
+
 ## Version control
 
 ### Worktrees
@@ -182,7 +242,9 @@ path that already exists. That way a sub-agent only ever works; it never has to 
 
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
 * Commit early and often — a meaningful change that builds is a good commit point.
-* PR titles start with `PATCH`, `MINOR`, or `MAJOR` depending on the nature of the change.
+* PR titles start with a parenthesised change level -- `(PATCH) ...`, `(MINOR) ...`, `(MAJOR) ...` --
+  depending on the nature of the change. The parentheses matter: that is the form the shared
+  release tooling reads, and the form the title check enforces.
 * PR descriptions reference the issue they fix (`Fixes #123`) and explain what the diff does not
   make obvious.
 * GitHub repo: <https://github.com/PaulTrampert/PacmanManager>.
@@ -195,6 +257,9 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   tooling, libalpm, a JRE for ANTLR, and the Docker daemon. It is a no-op locally.
   `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
   environment needs before the E2E tests can run.
+* `.github/workflows/` holds the CI workflows described under
+  [Continuous integration](#continuous-integration). They install the same toolchain as
+  `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
   and its known gaps.
 * `.run/` holds Rider run configurations.

@@ -87,10 +87,22 @@ public class EndToEndTestFixture : IAsyncDisposable
                 .WithLogger(logger)
                 .Build();
 
-            // Build the Docker image from the Dockerfile
+            // Build the Docker image from the Dockerfile.
+            //
+            // The Dockerfile directory is the solution root rather than the project directory, and
+            // the project directory rides along in the Dockerfile path instead. That is what makes
+            // the root .dockerignore apply: Testcontainers looks for the ignore file next to the
+            // *Dockerfile directory* -- "<dockerfile>.dockerignore", falling back to
+            // ".dockerignore" there -- and never reads the context root's. Point the Dockerfile
+            // directory at a project and the root ignore file is silently skipped, so the host's
+            // bin/ and obj/ are tarred into the context; obj/ records absolute host paths (the
+            // sources ANTLR generates for LibAlpmSharp among them) and `dotnet build` inside the
+            // image then fails with CS2001. That only bites once a local build has populated obj/,
+            // which is always true in CI.
             var apiImage = new ImageFromDockerfileBuilder()
                 .WithContextDirectory(solutionDirectory)
-                .WithDockerfileDirectory(Path.Combine(solutionDirectory, "PacmanManager.RepoHost"))
+                .WithDockerfileDirectory(solutionDirectory)
+                .WithDockerfile("PacmanManager.RepoHost/Dockerfile")
                 .WithName("pacmanmanager-repohost-test:latest")
                 .WithCleanUp(false) // Keep the image for reuse
                 .WithLogger(logger)
@@ -98,7 +110,8 @@ public class EndToEndTestFixture : IAsyncDisposable
 
             var migrationImage = new ImageFromDockerfileBuilder()
                 .WithContextDirectory(solutionDirectory)
-                .WithDockerfileDirectory(Path.Combine(solutionDirectory, "PacmanManager.Migrations"))
+                .WithDockerfileDirectory(solutionDirectory)
+                .WithDockerfile("PacmanManager.Migrations/Dockerfile")
                 .WithName("pacmanmanager-migrations-test:latest")
                 .WithCleanUp(false) // Keep the image for reuse
                 .WithLogger(logger)
