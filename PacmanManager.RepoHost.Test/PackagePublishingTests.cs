@@ -22,7 +22,6 @@ public class PackagePublishingTests
     private byte[] _packageBytes = null!;
     private byte[] _upgradeBytes = null!;
     private string _expectedSha256 = null!;
-    private string _expectedMd5 = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -40,7 +39,6 @@ public class PackagePublishingTests
         _packageBytes = await File.ReadAllBytesAsync(PackageFixtures.MinimalPackagePath);
         _upgradeBytes = await File.ReadAllBytesAsync(PackageFixtures.UpgradePackagePath);
         _expectedSha256 = Convert.ToHexStringLower(SHA256.HashData(_packageBytes));
-        _expectedMd5 = Convert.ToHexStringLower(MD5.HashData(_packageBytes));
     }
 
     [OneTimeTearDown]
@@ -128,7 +126,8 @@ public class PackagePublishingTests
     public async Task Publish_StoresChecksumsThatAgreeWithTheBytesAndWithRepoAdd()
     {
         // The API and the database a pacman client reads have to say the same thing about the same
-        // file, which is why these are computed over the upload rather than read back from libalpm.
+        // file, which is why the SHA-256 is computed over the upload rather than read back from
+        // libalpm — for a file-loaded package libalpm reports null.
         // Arrange
         var repository = await GivenRepositoryAsync("publish-checksums");
 
@@ -144,9 +143,10 @@ public class PackagePublishingTests
                 "And repo-add recorded the same one for the same file.");
             Assert.That(FieldOf(databaseEntry, "%FILENAME%"), Is.EqualTo(package.FileName));
 
-            // repo-add stopped writing %MD5SUM% at pacman 7, so this only holds it to account where
-            // it is still recorded. The column exists because the database format has the field.
-            Assert.That(FieldOf(databaseEntry, "%MD5SUM%"), Is.EqualTo(_expectedMd5).Or.Null);
+            // There is deliberately no %MD5SUM% assertion: pacman 7's repo-add records only
+            // %SHA256SUM%, so the database has nothing to compare against, and the API does not
+            // publish the stored MD5. The MD5 of the uploaded bytes is asserted against the row
+            // itself in PackageServicePublishTests.
         });
     }
 

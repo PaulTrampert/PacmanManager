@@ -3,6 +3,23 @@ namespace PacmanManager.CliTools;
 /// <summary>
 /// Interface for running CLI tools from code.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Every method here reports a tool that ran and <i>failed</i> through its return value alone. An
+/// exception means the process could not be started at all; a process that started, ran and exited
+/// non-zero — a missing file, a lock it could not take, a directory it could not write — completes
+/// the returned task normally, carrying that exit code. So the returned code is the only failure
+/// signal there is for a tool that ran, and discarding it discards the failure with it.
+/// </para>
+/// <para>
+/// That is deliberate: a runner generic over every tool cannot know which non-zero codes are
+/// failures, since plenty of tools use them to answer a question. It does mean the burden sits with
+/// the caller, and that ignoring a failure looks exactly like not caring about the result. A caller
+/// that does care should opt in to the check rather than repeat it at every call site and
+/// eventually forget one: <see cref="CliToolRunnerExtensions.RunToolCheckedAsync(ICliToolRunner,ICliTool,CancellationToken)"/>
+/// runs the tool the same way and throws <see cref="CliToolFailedException"/> on a non-zero exit.
+/// </para>
+/// </remarks>
 public interface ICliToolRunner
 {
     /// <summary>
@@ -10,8 +27,14 @@ public interface ICliToolRunner
     /// </summary>
     /// <param name="tool">Descriptor of the cli tool to run.</param>
     /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <returns>
+    /// Exit code of the tool. This is the only signal that the tool failed: a non-zero code is
+    /// reported here rather than thrown, so a caller that discards the result has silently accepted
+    /// whatever went wrong.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the tool could not be executed. A tool that <i>ran</i> and failed does not throw.
+    /// </exception>
     Task<int> RunToolAsync(ICliTool tool, CancellationToken ct = default);
 
     /// <summary>
@@ -21,8 +44,15 @@ public interface ICliToolRunner
     /// <param name="tool">Descriptor of the cli tool to run.</param>
     /// <param name="outputHandler">Handler for the output of the tool.</param>
     /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <returns>
+    /// Exit code of the tool. This is the only signal that the tool failed: a non-zero code is
+    /// reported here rather than thrown, so a caller that discards the result has silently accepted
+    /// whatever went wrong. Whatever the tool wrote about it reached
+    /// <paramref name="outputHandler"/>, not this task.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the tool could not be executed. A tool that <i>ran</i> and failed does not throw.
+    /// </exception>
     Task<int> RunToolAsync(ICliTool tool, ICliOutputHandler outputHandler, CancellationToken ct = default);
 
     /// <summary>
@@ -32,8 +62,15 @@ public interface ICliToolRunner
     /// <param name="tool">Descriptor of the cli tool to run.</param>
     /// <param name="outputHandlers">List of output handlers for this specific tool run.</param>
     /// <param name="ct">Cancellation Token</param>
-    /// <returns>Exit code of the tool</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the tool could not be executed.</exception>
+    /// <returns>
+    /// Exit code of the tool. This is the only signal that the tool failed: a non-zero code is
+    /// reported here rather than thrown, so a caller that discards the result has silently accepted
+    /// whatever went wrong. Whatever the tool wrote about it reached
+    /// <paramref name="outputHandlers"/>, not this task.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the tool could not be executed. A tool that <i>ran</i> and failed does not throw.
+    /// </exception>
     Task<int> RunToolAsync(
         ICliTool tool, 
         IEnumerable<ICliOutputHandler> outputHandlers,
