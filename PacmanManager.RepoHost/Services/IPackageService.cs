@@ -65,6 +65,58 @@ public interface IPackageService
     Task<Package?> GetPackageByNameAsync(Guid repositoryId, string name, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Opens the stored file of a package identified by its ID.
+    /// </summary>
+    /// <param name="id">The ID of the package.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The package's bytes and the name they are stored under, if the package exists and is visible
+    /// to the current actor; otherwise, null.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// A package's content is exactly as visible as its metadata: there is no separate rule for
+    /// downloading, so anyone who may see the package may fetch it, and anyone who may not is told
+    /// it is missing.
+    /// </para>
+    /// <para>
+    /// This is a management route, not a pacman mirror. It downloads one package by identity;
+    /// serving a repository in the layout a <c>pacman</c> client expects — the <c>.db.tar.gz</c>
+    /// and every package file resolvable under one base URL by the basename <c>repo-add</c>
+    /// recorded — is separate, deferred work.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="FileNotFoundException">
+    /// The package exists but its stored file does not. See the implementation's remarks: this is
+    /// a fault in the store rather than an answer to the caller, so it is not reported as missing.
+    /// </exception>
+    Task<PackageContent?> GetPackageContentByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens the stored file of a package identified by its natural key.
+    /// </summary>
+    /// <param name="repositoryId">The ID of the repository holding the package.</param>
+    /// <param name="name">The package name.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The package's bytes and the name they are stored under, if the package exists and is visible
+    /// to the current actor; otherwise, null.
+    /// </returns>
+    /// <remarks>
+    /// The alias of <see cref="GetPackageContentByIdAsync"/> for callers that know what they
+    /// published rather than what it was assigned: a repository holds exactly one version of a
+    /// package, so <c>(repositoryId, name)</c> resolves to the same single package the id form
+    /// serves, under the same rules.
+    /// </remarks>
+    /// <exception cref="FileNotFoundException">
+    /// The package exists but its stored file does not.
+    /// </exception>
+    Task<PackageContent?> GetPackageContentByNameAsync(
+        Guid repositoryId,
+        string name,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Publishes a package file into a repository, creating the package or replacing the version
     /// already there.
     /// </summary>

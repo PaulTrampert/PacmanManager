@@ -1,3 +1,4 @@
+using System.Net.Mime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -177,6 +178,76 @@ public class PackagesController(
         }
 
         return Ok(package);
+    }
+
+    /// <summary>
+    /// Download a package's file by the package's ID.
+    /// </summary>
+    /// <param name="packageId">Package ID.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns>The stored package file, as <c>application/octet-stream</c>.</returns>
+    /// <remarks>
+    /// <para>
+    /// The response carries a <c>Content-Disposition</c> naming the file as it is stored —
+    /// <c>{name}-{version}-{architecture}.pkg.tar.{ext}</c>, the basename <c>repo-add</c> recorded
+    /// — so a client that saves it to disk ends up with the name pacman expects rather than a
+    /// package id. The body is streamed from disk and never buffered, since a package file can run
+    /// to hundreds of megabytes.
+    /// </para>
+    /// <para>
+    /// This downloads one package by identity. It is not a pacman mirror: a client configured with
+    /// <c>Server = …</c> needs the repository's <c>.db.tar.gz</c> and every package file resolvable
+    /// under one base URL by basename, which is separate work.
+    /// </para>
+    /// </remarks>
+    [HttpGet("{packageId:guid}/content")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetContentById(Guid packageId, CancellationToken ct = default)
+    {
+        logger.LogInformation("Downloading package {PackageId}", packageId);
+
+        var content = await packageService.GetPackageContentByIdAsync(packageId, ct);
+        if (content == null)
+        {
+            return NotFound();
+        }
+
+        return File(content.Content, MediaTypeNames.Application.Octet, content.FileName);
+    }
+
+    /// <summary>
+    /// Download a package's file by its natural key, the repository holding it and its name.
+    /// </summary>
+    /// <param name="repositoryId">Repository ID.</param>
+    /// <param name="name">Package name.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns>The stored package file, as <c>application/octet-stream</c>.</returns>
+    /// <remarks>
+    /// The alias of <see cref="GetContentById"/> for a caller that knows what it published rather
+    /// than what the package was assigned. A repository holds exactly one version of a package, so
+    /// this pair resolves to the same file.
+    /// </remarks>
+    [HttpGet($"{ControllerConstants.RepositoryScopedPackagesRoute}/{{name}}/content")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetContentByName(
+        Guid repositoryId,
+        string name,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation(
+            "Downloading package {PackageName} in repository {RepositoryId}", name, repositoryId);
+
+        var content = await packageService.GetPackageContentByNameAsync(repositoryId, name, ct);
+        if (content == null)
+        {
+            return NotFound();
+        }
+
+        return File(content.Content, MediaTypeNames.Application.Octet, content.FileName);
     }
 
     /// <summary>

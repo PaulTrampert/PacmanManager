@@ -137,6 +137,64 @@ internal class PackageService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<PackageContent?> GetPackageContentByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        // Resolve first, then open: the lookup already applies the visibility rules, so nothing
+        // here has to restate them, and a package the actor may not see never reaches the disk.
+        var package = await GetPackageByIdAsync(id, cancellationToken);
+        return package is null ? null : OpenContent(package);
+    }
+
+    public async Task<PackageContent?> GetPackageContentByNameAsync(
+        Guid repositoryId,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var package = await GetPackageByNameAsync(repositoryId, name, cancellationToken);
+        return package is null ? null : OpenContent(package);
+    }
+
+    /// <summary>
+    /// Opens the stored file of a package that has already been resolved from the visible set.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The path is composed from the package's own repository id and the basename its row records.
+    /// Both were derived by the publish that stored the file and neither came from a request, so
+    /// nothing a client supplied ever reaches
+    /// <see cref="IPackagePathResolver.GetPackageFilePath"/> — which is also why the caller's
+    /// <c>name</c> is used to find a row and never to build a path.
+    /// </para>
+    /// <para>
+    /// A row whose file is missing is deliberately not a <c>404</c>. The rows are the source of
+    /// truth for what a repository holds: a package that is listed, that a client can read a
+    /// checksum for, and whose bytes are gone is a fault in the store rather than an answer to the
+    /// question the caller asked. Reporting it as absent would hide it behind a status that reads
+    /// as ordinary — the same status a private repository produces — and leave the operator with
+    /// nothing to notice. So it is logged at error and surfaces as a <c>500</c>, which is what an
+    /// inconsistent store deserves.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="FileNotFoundException">The row exists but its file does not.</exception>
+    private PackageContent OpenContent(Package package)
+    {
+        var path = pathResolver.GetPackageFilePath(package.RepositoryId, package.FileName);
+
+        if (!fileSystem.Exists(path))
+        {
+            logger.LogError(
+                "Package {PackageId} in repository {RepositoryId} names {FileName}, which is not on disk at {Path}",
+                package.Id, package.RepositoryId, package.FileName, path);
+
+            throw new FileNotFoundException(
+                $"The stored file for package {package.Id} is missing.", path);
+        }
+
+        return new PackageContent(fileSystem.OpenRead(path), package.FileName);
+    }
+
     public async Task<PublishPackageResult?> PublishPackageAsync(
         Guid repositoryId,
         Stream packageContent,
