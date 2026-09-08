@@ -26,6 +26,14 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Only this job needs to write: the results publisher posts a check run and a PR comment.
+    # `issues: read` and `contents: read` are what that action additionally wants on a private
+    # repository; the `docker` job keeps the workflow-level read-only default.
+    permissions:
+      contents: read
+      issues: read
+      checks: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
 
@@ -105,6 +113,23 @@ jobs:
           echo "::group::Containers"
           docker ps -a
           echo "::endgroup::"
+
+      # Turns the trx files into something readable: one PR comment, updated in place on every
+      # later run rather than piling up, plus a "Test results" check run carrying the per-test
+      # detail and the stack trace of anything that failed. The raw log stays the fallback, not
+      # the only way to find out what broke.
+      #
+      # Skipped for pull requests from forks, which run with a read-only token: the comment and
+      # check-run writes would fail with "Resource not accessible by integration". Publishing for
+      # forks needs the separate workflow_run setup the action documents, which is only worth
+      # adding if this repository starts taking fork contributions.
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        with:
+          files: artifacts/test-results/**/*.trx
+          check_name: Test results
+          comment_mode: always
 
       - name: Upload test results
         if: ${{ !cancelled() }}

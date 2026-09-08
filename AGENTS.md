@@ -157,6 +157,13 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
 | `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
 
+The `test` job publishes its `.trx` files with
+[`EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action):
+one PR comment, updated in place on each later run, plus a **Test results** check run carrying the
+per-test detail. Read that before the raw log. It is skipped for pull requests from forks, which
+run with a read-only token; the full results are still uploaded as the `test-results` artifact
+either way.
+
 `.github/workflows/pr-title.yml` is separate, and enforces the `MAJOR`/`MINOR`/`PATCH` prefix from
 [Branches, commits, and PRs](#branches-commits-and-prs). It is its own workflow so that it can
 trigger on `edited`: a mistyped prefix is fixed by editing the title, and the check re-runs on its
