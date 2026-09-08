@@ -216,9 +216,11 @@ internal class PackageService(
     /// <remarks>
     /// The checksums are computed rather than read back from libalpm on purpose. libalpm fills its
     /// checksum fields from a sync database entry, and a package loaded off disk has no such entry,
-    /// so both come back null — while <c>repo-add</c> writes real values into the repository
-    /// database for the very same file. Reading them would leave the API and the database a pacman
-    /// client reads disagreeing about the same bytes.
+    /// so both come back null — reading them would store a null for every package this API accepts.
+    /// The SHA-256 is the one that has to match the repository database, since <c>repo-add</c>
+    /// records it there and a pacman client verifies against it. Pacman 7's <c>repo-add</c> no
+    /// longer writes <c>%MD5SUM%</c> at all; the MD5 is kept because this pass produces it for free
+    /// and older tooling still asks for it.
     /// </remarks>
     private async Task<UploadedFile> WriteAndHashAsync(
         Stream source,
