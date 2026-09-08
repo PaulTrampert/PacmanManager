@@ -45,6 +45,26 @@ jobs:
 
       # Antlr4BuildTasks runs the ANTLR jar to generate the pacman.conf parser, so the build
       # itself needs a JRE. Pinning one beats relying on whatever the runner image ships.
+      # The Test job is the heaviest thing on this runner: Testcontainers builds both images and
+      # starts Postgres and Keycloak, on top of the base images those builds pull. Report the
+      # headroom before and after, and drop the toolchains this job never touches, so that a
+      # resource failure shows up as a number rather than as a swallowed image-build error.
+      - name: Reclaim runner disk space
+        run: |
+          echo "::group::Before"
+          df -h /
+          free -m
+          echo "::endgroup::"
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/share/swift \
+            /usr/local/share/powershell \
+            /opt/hostedtoolcache/CodeQL || true
+          echo "::group::After"
+          df -h /
+          echo "::endgroup::"
+
       - name: Set up Java for the ANTLR build task
         uses: actions/setup-java@v4
         with:
@@ -85,6 +105,22 @@ jobs:
             --logger "trx" \
             --logger "console;verbosity=normal" \
             --results-directory artifacts/test-results
+
+      # Testcontainers reports a failed image build only as "image has not been created" and
+      # swallows the builder's own output, so capture the state it left behind.
+      - name: Docker and disk diagnostics
+        if: ${{ !cancelled() }}
+        run: |
+          echo "::group::Disk and memory"
+          df -h /
+          free -m
+          echo "::endgroup::"
+          echo "::group::Images"
+          docker images
+          echo "::endgroup::"
+          echo "::group::Containers"
+          docker ps -a
+          echo "::endgroup::"
 
       - name: Upload test results
         if: ${{ !cancelled() }}
