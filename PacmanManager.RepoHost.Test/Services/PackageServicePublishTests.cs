@@ -109,7 +109,7 @@ public class PackageServicePublishTests
             new PhysicalFileSystem(),
             _pathResolver,
             new RepositoryDatabaseLock(),
-            _libAlpm.Object,
+            new Lazy<ILibAlpm>(() => _libAlpm.Object),
             settings,
             new TestOutputLogger<PackageService>());
     }
@@ -171,8 +171,9 @@ public class PackageServicePublishTests
     [Test]
     public async Task PublishPackageAsync_ComputesBothChecksumsOverTheUploadedBytes()
     {
-        // libalpm reports no checksums for a package loaded off disk, and repo-add writes real ones
-        // into the same repository's database, so these have to be computed rather than read.
+        // libalpm reports no checksums for a package loaded off disk, so both have to be computed
+        // over the upload rather than read back. Pacman 7's repo-add records only %SHA256SUM%, so
+        // this is the only place the stored MD5 is held to the bytes it was computed from.
         // Act
         await PublishAsync();
 
@@ -496,7 +497,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
         Assert.Multiple(() =>
@@ -517,7 +518,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var stored = _dbContext.PacmanPackages.Single();
         Assert.Multiple(() =>
@@ -538,11 +539,11 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.Tool, Is.EqualTo("repo-add"));
-            Assert.That(thrown.StandardError, Does.Contain("lockfile"),
+            Assert.That(thrown.Diagnostics, Does.Contain("lockfile"),
                 "The diagnostics travel with the exception, so the reason is not lost.");
             Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
         });

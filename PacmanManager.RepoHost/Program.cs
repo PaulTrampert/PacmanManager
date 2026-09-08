@@ -120,6 +120,13 @@ try
     builder.Services.AddScoped<ILibAlpm>(p =>
         LibAlpm.FromConfig(p.GetRequiredService<PacmanConfig>()));
 
+    // Lazy<T> is not something Microsoft.Extensions.DependencyInjection resolves on its own, so the
+    // deferred handle consumers ask for is registered explicitly. It is scoped to match ILibAlpm:
+    // the value it produces is the scope's own instance and is disposed with the scope, and forcing
+    // it is what finally pays for regenerating the pacman config and calling alpm_initialize. A
+    // consumer that never reads a package file therefore never pays at all.
+    builder.Services.AddScoped(p => new Lazy<ILibAlpm>(p.GetRequiredService<ILibAlpm>));
+
     #endregion
 
     #region Request Pipeline

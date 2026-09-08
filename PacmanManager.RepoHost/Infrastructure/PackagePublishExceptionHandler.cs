@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using PacmanManager.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 
 namespace PacmanManager.RepoHost.Infrastructure;
@@ -31,8 +32,8 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// </list>
 /// <para>
 /// Everything else is left unhandled and surfaces as a <c>500</c>, including
-/// <see cref="RepositoryDatabaseToolException"/>: a tool that failed for its own reasons is a
-/// server problem, not something the caller can fix by sending a different request.
+/// <see cref="CliToolFailedException"/>: a tool that failed for its own reasons is a server
+/// problem, not something the caller can fix by sending a different request.
 /// </para>
 /// </remarks>
 /// <param name="problemDetailsService">Writes the response body.</param>

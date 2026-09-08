@@ -1,3 +1,4 @@
+using PacmanManager.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 
@@ -161,7 +162,7 @@ public interface IPackageService
     /// The repository already holds this package, for this architecture, at that version or a
     /// newer one.
     /// </exception>
-    /// <exception cref="RepositoryDatabaseToolException">
+    /// <exception cref="CliToolFailedException">
     /// <c>repo-add</c> could not write the repository's database, so nothing was published.
     /// </exception>
     Task<PublishPackageResult?> PublishPackageAsync(

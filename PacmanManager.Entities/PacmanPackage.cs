@@ -123,8 +123,9 @@ public record PacmanPackage
     public required string Sha256Sum { get; set; }
 
     /// <summary>
-    /// MD5 checksum of the uploaded bytes. Recorded because <c>repo-add</c> writes both checksums
-    /// into the repository database.
+    /// MD5 checksum of the uploaded bytes, computed rather than read from libalpm. Pacman 7's
+    /// <c>repo-add</c> records only <c>%SHA256SUM%</c>; this is kept because the same pass produces
+    /// it for free and older tooling still asks for MD5.
     /// </summary>
     [Required]
     [MaxLength(PackageValidationConstants.Md5SumLength)]
