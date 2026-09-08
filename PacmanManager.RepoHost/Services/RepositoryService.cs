@@ -152,7 +152,13 @@ internal class RepositoryService(
         {
             await dbContext.AddAsync(repository, cancellationToken);
 
-            await cliRunner.RunToolAsync(new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath), cancellationToken);
+            // repo-add creates the empty database that makes the repository real, so a failure here
+            // has to fail the request. Checked, because the runner reports a tool that ran and
+            // failed only through its exit code: an unchecked call would commit a row naming a
+            // database file that was never written.
+            await cliRunner.RunToolCheckedAsync(
+                new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath),
+                cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }

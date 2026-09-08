@@ -390,9 +390,8 @@ internal class PackageService(
             fileSystem.CreateDirectory(pathResolver.GetRepositoryDirectory(repository.Id));
             fileSystem.Move(uploadPath, destination, overwrite: true);
 
-            await RunDatabaseToolAsync(
+            await cliRunner.RunToolCheckedAsync(
                 new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, destination),
-                repository.Id,
                 cancellationToken);
             addSucceeded = true;
 
@@ -449,9 +448,8 @@ internal class PackageService(
         string? previousFileName,
         bool created)
     {
-        await RunDatabaseToolAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, package.Name),
-            repository.Id,
             CancellationToken.None);
 
         // Nothing references the file that was just moved into place: no row was committed, and
@@ -472,41 +470,9 @@ internal class PackageService(
             return;
         }
 
-        await RunDatabaseToolAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, previousPath),
-            repository.Id,
             CancellationToken.None);
-    }
-
-    /// <summary>
-    /// Runs one of the pacman database tools and turns a non-zero exit into an exception, since the
-    /// runner itself only reports the code.
-    /// </summary>
-    /// <remarks>
-    /// Every failure is the same failure: the repository database did not change, and what the
-    /// caller can do about it does not depend on why. The tools distinguish their reasons only in
-    /// prose — there is no exit code for a lock file it could not take — so guessing at the reason
-    /// from the message would only be right some of the time, and a wrong guess (a package whose
-    /// name happens to contain the word) would advise a client to retry something that will never
-    /// succeed. The diagnostics are logged where an operator will see them and the exception
-    /// carries them too.
-    /// </remarks>
-    /// <exception cref="RepositoryDatabaseToolException">The tool exited non-zero.</exception>
-    private async Task RunDatabaseToolAsync(ICliTool tool, Guid repositoryId, CancellationToken cancellationToken)
-    {
-        var output = new CollectingCliOutputHandler();
-        var exitCode = await cliRunner.RunToolAsync(tool, output, cancellationToken);
-        if (exitCode == 0)
-        {
-            return;
-        }
-
-        var diagnostics = string.IsNullOrWhiteSpace(output.StdErr) ? output.StdOut : output.StdErr;
-        logger.LogError(
-            "'{Tool}' exited with code {ExitCode} against repository {RepositoryId}: {Diagnostics}",
-            tool.Name, exitCode, repositoryId, diagnostics);
-
-        throw new RepositoryDatabaseToolException(tool.Name, exitCode, diagnostics);
     }
 
     /// <summary>

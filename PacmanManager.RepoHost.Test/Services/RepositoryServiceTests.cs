@@ -85,7 +85,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64", IsPublic = true};
-        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         // Act
@@ -109,7 +109,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "owned-repo", Architecture = "x86_64" };
-        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<CancellationToken>()))
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         // Act
@@ -319,7 +319,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
-        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.Is<CancellationToken>(ct => true)))
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
         _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz")))).Returns(true);
@@ -329,6 +329,49 @@ public class RepositoryServiceTests
         {
             Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
             _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))), Times.Once);
+        });
+    }
+
+    /// <summary>
+    /// The exit code is the only thing <c>repo-add</c> says about having failed, so a creation that
+    /// ignored it would answer 201 with a repository whose database file was never written.
+    /// </summary>
+    /// <remarks>
+    /// This asserts all three halves of failing properly: the caller is told, the row is not
+    /// committed, and whatever partial database file the tool left behind is removed. Every
+    /// non-zero exit is the same <c>CliToolFailedException</c> — a lock file the tool could
+    /// not take included — because the tools distinguish their reasons only in prose.
+    /// </remarks>
+    [Test]
+    public async Task CreateRepositoryAsync_Fails_WhenRepoAddExitsNonZero()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "unwritable-repo", Architecture = "x86_64" };
+        _mockCliRunner
+            .Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockFileSystem
+            .Setup(f => f.Exists(It.Is<string>(s => s.EndsWith(".db.tar.gz"))))
+            .Returns(true);
+
+        // Act
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+            async () => await _service.CreateRepositoryAsync(request));
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(thrown!.Tool, Is.EqualTo("repo-add"));
+            Assert.That(thrown.ExitCode, Is.EqualTo(1));
+
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "unwritable-repo"),
+                Is.False, "the row must not be committed when the database file was never written");
+
+            _mockFileSystem.Verify(
+                f => f.Delete(It.Is<string>(s =>
+                    s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))),
+                Times.Once);
         });
     }
 
