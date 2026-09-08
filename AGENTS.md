@@ -31,6 +31,12 @@ that build the RepoHost and Migrations Docker images and start Postgres and Keyc
 A full `dotnet test` therefore needs a working Docker daemon and takes minutes. When iterating on
 non-E2E logic, filter down to the unit fixtures instead.
 
+**Note on non-Arch hosts:** `AlpmPackageTests` and `AlpmDatabaseTests.GetPackages_ReturnsListOfPackages`
+read the host's local pacman database and expect an installed package named `pacman`, so they only
+pass on an Arch machine. Everything else, the fixture packages included, works anywhere libalpm is
+installed. `docs/cloud-environment.md` covers running the repository from a claude.ai cloud session,
+where that applies.
+
 ## Running the stack
 
 ```bash
@@ -185,6 +191,10 @@ path that already exists. That way a sub-agent only ever works; it never has to 
 
 * `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`; never replace the symlink with a copy,
   since the point is that there is only one set of instructions to keep current.
+* `.claude/hooks/session-start.sh` provisions a remote (cloud) session: the .NET SDK, pacman
+  tooling, libalpm, a JRE for ANTLR, and the Docker daemon. It is a no-op locally.
+  `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
+  environment needs before the E2E tests can run.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
   and its known gaps.
 * `.run/` holds Rider run configurations.
