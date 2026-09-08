@@ -65,9 +65,7 @@ public class RepositoryServiceTests
 
         _service = new RepositoryService(
             _dbContext,
-            new RepositoryDatabaseToolRunner(
-                _mockCliRunner.Object,
-                new TestOutputLogger<RepositoryDatabaseToolRunner>()),
+            _mockCliRunner.Object,
             _actors,
             new RepositoryAccessPolicy(),
             _mockPacmanSettings.Object,
@@ -341,7 +339,7 @@ public class RepositoryServiceTests
     /// <remarks>
     /// This asserts all three halves of failing properly: the caller is told, the row is not
     /// committed, and whatever partial database file the tool left behind is removed. Every
-    /// non-zero exit is the same <c>RepositoryDatabaseToolException</c> — a lock file the tool could
+    /// non-zero exit is the same <c>CliToolFailedException</c> — a lock file the tool could
     /// not take included — because the tools distinguish their reasons only in prose.
     /// </remarks>
     [Test]
@@ -358,7 +356,7 @@ public class RepositoryServiceTests
             .Returns(true);
 
         // Act
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.CreateRepositoryAsync(request));
 
         // Assert

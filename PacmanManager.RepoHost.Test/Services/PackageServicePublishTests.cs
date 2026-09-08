@@ -105,8 +105,7 @@ public class PackageServicePublishTests
             _actors,
             new RepositoryAccessPolicy(),
             new PackageAccessPolicy(),
-            new RepositoryDatabaseToolRunner(_cliRunner.Object,
-                new TestOutputLogger<RepositoryDatabaseToolRunner>()),
+            _cliRunner.Object,
             new PhysicalFileSystem(),
             _pathResolver,
             new RepositoryDatabaseLock(),
@@ -497,7 +496,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
         Assert.Multiple(() =>
@@ -518,7 +517,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var stored = _dbContext.PacmanPackages.Single();
         Assert.Multiple(() =>
@@ -539,11 +538,11 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<RepositoryDatabaseToolException>(async () => await PublishAsync());
+        var thrown = Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.Tool, Is.EqualTo("repo-add"));
-            Assert.That(thrown.StandardError, Does.Contain("lockfile"),
+            Assert.That(thrown.Diagnostics, Does.Contain("lockfile"),
                 "The diagnostics travel with the exception, so the reason is not lost.");
             Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
         });

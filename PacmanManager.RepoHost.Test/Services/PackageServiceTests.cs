@@ -66,9 +66,7 @@ public class PackageServiceTests
             _actors,
             new RepositoryAccessPolicy(),
             new PackageAccessPolicy(),
-            new RepositoryDatabaseToolRunner(
-                Mock.Of<ICliToolRunner>(),
-                new TestOutputLogger<RepositoryDatabaseToolRunner>()),
+            Mock.Of<ICliToolRunner>(),
             Mock.Of<IFileSystem>(),
             Mock.Of<IPackagePathResolver>(),
             new RepositoryDatabaseLock(),

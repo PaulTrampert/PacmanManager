@@ -15,9 +15,9 @@ namespace PacmanManager.CliTools;
 /// That is deliberate: a runner generic over every tool cannot know which non-zero codes are
 /// failures, since plenty of tools use them to answer a question. It does mean the burden sits with
 /// the caller, and that ignoring a failure looks exactly like not caring about the result. A caller
-/// that does care is better served by a small wrapper of its own that checks the code once and
-/// throws — <c>PacmanManager.RepoHost</c>'s <c>IRepositoryDatabaseToolRunner</c> is one — than by
-/// repeating the check at every call site and eventually forgetting one.
+/// that does care should opt in to the check rather than repeat it at every call site and
+/// eventually forget one: <see cref="CliToolRunnerExtensions.RunToolCheckedAsync(ICliToolRunner,ICliTool,CancellationToken)"/>
+/// runs the tool the same way and throws <see cref="CliToolFailedException"/> on a non-zero exit.
 /// </para>
 /// </remarks>
 public interface ICliToolRunner

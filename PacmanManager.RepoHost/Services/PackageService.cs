@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using LibAlpmSharp;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.CliTools;
@@ -30,7 +31,7 @@ internal class PackageService(
     IActorAccessor actorAccessor,
     RepositoryAccessPolicy accessPolicy,
     PackageAccessPolicy packagePolicy,
-    IRepositoryDatabaseToolRunner databaseTools,
+    ICliToolRunner cliRunner,
     IFileSystem fileSystem,
     IPackagePathResolver pathResolver,
     IRepositoryDatabaseLock databaseLock,
@@ -376,9 +377,8 @@ internal class PackageService(
             fileSystem.CreateDirectory(pathResolver.GetRepositoryDirectory(repository.Id));
             fileSystem.Move(uploadPath, destination, overwrite: true);
 
-            await databaseTools.RunAsync(
+            await cliRunner.RunToolCheckedAsync(
                 new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, destination),
-                repository.Id,
                 cancellationToken);
             addSucceeded = true;
 
@@ -435,9 +435,8 @@ internal class PackageService(
         string? previousFileName,
         bool created)
     {
-        await databaseTools.RunAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, package.Name),
-            repository.Id,
             CancellationToken.None);
 
         // Nothing references the file that was just moved into place: no row was committed, and
@@ -458,9 +457,8 @@ internal class PackageService(
             return;
         }
 
-        await databaseTools.RunAsync(
+        await cliRunner.RunToolCheckedAsync(
             new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, previousPath),
-            repository.Id,
             CancellationToken.None);
     }
 
