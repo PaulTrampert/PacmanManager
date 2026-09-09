@@ -112,28 +112,26 @@ With the environment above:
 | | Status |
 | :--- | :--- |
 | `dotnet build` (the repository's typecheck and lint) | Works |
-| `LibAlpmSharp.Test`, apart from the local-database tests below | Works — the fixture packages load through the real `libalpm` |
+| `LibAlpmSharp.Test` | Works — the fixture packages load through the real `libalpm`, and the local-database fixtures seed their own |
 | `PacmanManager.CliTools.Test` | Works |
 | `PacmanManager.RepoHost.Test` unit fixtures, `repo-add`/`repo-remove` included | Works |
 | `PacmanManager.AurClient.Test` | Works only with the `archlinux.org` domains allowed; those six tests call the live AUR |
 | `PacmanManager.RepoHost.Test` end to end fixtures | Works only with the Docker and Arch domains allowed |
 
-**Thirty `LibAlpmSharp.Test` cases fail on any non-Arch host, and the environment cannot fix that.**
-All 29 of `AlpmPackageTests` and `AlpmDatabaseTests.GetPackages_ReturnsListOfPackages` open the
-host's *local* pacman database and ask for the installed package named `pacman`. On Arch that is a
-real entry; on the Ubuntu cloud image `/var/lib/pacman/local` is empty, `GetPackage` returns
-`null`, and the assertions fail. The interop itself is fine — `LibAlpm.Initialize()` and
-`LoadPackageFile` both work against Ubuntu's `libalpm 13.0.2`, and the remaining 252 tests pass.
-Filter them out while working in the cloud:
+**`LibAlpmSharp.Test` needs no filter here.** The fixtures that want installed packages seed a
+local database under a temporary root (`PacmanManager.TestUtils.LocalPackageDatabase`) and point
+`LibAlpm.Initialize(root, dbPath)` at it, so they read known fixture metadata rather than whatever
+the host has installed, and they pass against Ubuntu's `libalpm 13.0.2` exactly as they do against
+Arch's:
 
 ```bash
-dotnet test LibAlpmSharp.Test \
-    --filter "FullyQualifiedName!~AlpmPackageTests&FullyQualifiedName!~AlpmDatabaseTests.GetPackages"
+dotnet test LibAlpmSharp.Test
 ```
 
-The lasting fix belongs in the tests — seeding a local database fixture under a temporary root and
-pointing `LibAlpm.Initialize(root, dbPath)` at it, rather than reading whatever the host happens to
-have installed.
+The one case that still depends on the host is
+`LibAlpmTests.Initialize_WithDefaultPaths_CreatesInstance`, whose subject is the `/` and
+`/var/lib/pacman` defaults themselves. It warns and stops where those paths are not a pacman
+database the current user may open, which on the cloud image depends on whether the session is root.
 
 ## Resource limits
 
