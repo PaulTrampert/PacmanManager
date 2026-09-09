@@ -165,18 +165,37 @@ deployment's users are colleagues rather than strangers — and would not be acc
 multi-tenant service. A deployment that grows into the second case needs a reserved-name list and an
 administrative transfer, which is [deferred](#deferred-work).
 
-### `(Name, Architecture)`, not `Name` alone
+### Open question: `(Name, Architecture)` or `Name` alone
 
-The pair stays the key, so one user may still own both an `x86_64` and an `any` repository called
-`custom` — the capability
+**This is deliberately not settled, and does not need to be to start the work.** The application is
+pre-release, so the index can be narrowed later by an issue of its own; what follows is the
+reasoning, and the position the first implementation takes.
+
+The pair is the key for now, so one user may still own both an `x86_64` and an `any` repository
+called `custom` — the capability
 [`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name) documents today, and
 the reason the route needs an architecture segment at all.
 
-The consequence is that a name is not owned by a person: Alice may hold `custom`/`x86_64` while Bob
-holds `custom`/`any`. In practice a client never sees both, because `$arch` expands to the machine's
-architecture and never to `any`, so a given machine consistently resolves `[custom]` to one of them.
-Making `Name` alone unique would remove the oddity at the cost of the multi-architecture capability,
-which is a worse trade for a real feature against a curiosity.
+The consequence, and the reason this is a question rather than a decision, is that a *name* is then
+not owned by a person: Alice may hold `custom`/`x86_64` while Bob holds `custom`/`any`. In practice
+no client sees both, because `$arch` expands to the machine's architecture and never to `any`, so a
+given machine consistently resolves `[custom]` to one of them. But "the name `custom`" belonging to
+nobody in particular is a mental model most people do not have about a global namespace, and it is a
+plausible source of surprise.
+
+The two positions:
+
+* **`(Name, Architecture)` unique** — what [issue 1](#1-globally-unique-repository-names--major)
+  implements. Keeps multi-architecture repositories under one name; accepts split ownership of a
+  name.
+* **`Name` unique** — a name belongs to exactly one repository and therefore one owner. Removes the
+  surprise; costs the multi-architecture capability, since a user could then have `custom` for
+  `x86_64` *or* `any` but not both.
+
+Choosing the pair first is the reversible direction: narrowing `(Name, Architecture)` to `Name`
+later is an index change and a migration, while widening the other way would have to invent an
+architecture for rows that never had one. Nothing else in this document depends on which is chosen —
+the route carries both segments regardless.
 
 ### What changes in the code
 
@@ -480,6 +499,10 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **Reserved repository names and administrative transfer**, which is what a deployment open to
   strangers needs before [squatting](#squatting-and-the-absence-of-a-dispute-process) becomes
   somebody's problem.
+* **Settling [`(Name, Architecture)` versus `Name` alone](#open-question-name-architecture-or-name-alone).**
+  Deferred while the application is pre-release, when it is still an index change and a migration
+  rather than a breaking change to live deployments. It should be decided before the first release,
+  because that is the point at which the cheap direction closes.
 * **A directory index** at `/repositories/{name}/{arch}/`. pacman never needs one, but it is the
   first thing a human opens the URL expecting to see.
 * **Serving package files through a reverse proxy.** Streaming hundreds of megabytes through Kestrel
