@@ -19,6 +19,12 @@ reachable by `pacman` only if this application accepts Basic credentials — and
 handed to a package manager on a laptop must not be the account password, and must not be able to
 change anything.
 
+That last requirement turns out to be a special case of a general one — a credential carrying a
+claim that says what it may be used for — so this document specifies the claim as well, and how a
+`Bearer` token can carry one. That half is not needed by `pacman`, and is deliberately last in the
+plan; it is here because it is the same mechanism, and describing it anywhere else would mean two
+statements of one rule.
+
 ## Goals
 
 * A user can mint, list and revoke long-lived access tokens for their own account.
@@ -27,14 +33,19 @@ change anything.
 * **A token cannot write anything, through any route, present or future.**
 * Verification is cheap enough to sit in front of a route that is called once per package
   downloaded.
+* What a credential may be used for is carried by the credential and decided in one place. The
+  scheme it arrived under is an implementation detail of the handler, not something a service or a
+  route ever asks about.
 
 ## Non-goals for this work
 
 Recorded here so the issues stay bounded; each has a follow-up in
 [Deferred work](#deferred-work).
 
-* **Scoped tokens.** A token grants its owner's read access, whole. There is no per-repository or
-  per-operation narrowing.
+* **Minting a narrowed access token.** Every `PacmanAccessToken` is issued the same
+  [scope](#the-scope-claim), `*-read-*`: its owner's read access, whole. The mechanism that would
+  let a user mint a narrower one is [deferred](#deferred-work) — the enforcement is not, because it
+  is the same mechanism a `Bearer` token's scopes go through.
 * **Tokens that can write.** Not a limitation to be lifted later by relaxing this design — a
   writing credential is a different thing, with a different threat model, and would need its own.
 * **Basic auth as a general alternative to `Bearer`.** `Bearer` remains what the management API is
@@ -44,7 +55,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 
 ---
 
-## Read-only is a property of the actor, not of the route
+## Authority is a property of the actor, not of the route
 
 The requirement is that Basic auth can never write. The obvious implementation is to accept the
 `Basic` scheme only on the [pacman routes](pacman-controller.md), which are all reads. That is true
@@ -52,37 +63,127 @@ today and stops being true the first time somebody adds a write route and reache
 list without thinking about it.
 
 So the restriction goes where this codebase already puts its authorization invariants — into the
-`Actor`, which is [the single thing every service authorizes against](authorization-plan.md#the-pieces):
+`Actor`, which is
+[the single thing every service authorizes against](authorization-plan.md#the-pieces). The
+credential decides what its bearer may do; the route never does, and no service ever asks which
+scheme a request arrived under.
 
-```csharp
-public bool IsReadOnly { get; }
+### The scope claim
 
-public static Actor ReadOnlyFor(User user) => new(user, isSystem: false, isReadOnly: true);
+Both schemes produce a principal carrying the same two things: the existing
+`AuthnConstants.AppUserIdClaimType` claim, which says **who**, and a **scope claim**, which says
+**what this credential may be used for**.
+
+The claim type is `pacman-manager` and it is multi-valued. Each value has three parts:
+
+```
+<entity>-<action>-<id>
 ```
 
-`RepositoryAccessPolicy.CheckWrite`, `CheckCreate` and `PackageAccessPolicy.CheckPublish` each
-return `RepositoryAccess.Forbidden` for a read-only actor, checked **first**, before the ownership
-tests. A token therefore cannot write through any route, present or future, including one that
-forgets to think about schemes at all — which is the same structural argument that put enforcement
-in the service layer instead of an action filter in the first place.
+| Part | Values |
+| :--- | :--- |
+| `entity` | `repository`, `package`, `user`, `token`, or `*` |
+| `action` | `read`, `create`, `write`, `delete`, `publish`, or `*` |
+| `id` | the `Guid` the operation is scoped to, or `*` |
 
-`VisibleTo` is deliberately **not** affected. A read-only actor sees exactly what that user sees,
-their own private repositories included. Read-only restricts what may be done, not what may be
-known.
+For `repository`, `user` and `token` the id is that entity's own. For `package` it is the
+**repository's**, because a package is only ever reached through one and `CheckPublish` is already a
+question about a repository; scoping to a single package id would be a rule with no call site.
+
+`*-read-*` is "read anything this user can read". `package-publish-0199…` is "publish into that one
+repository and do nothing else". A credential carries as many values as it needs and they are ORed:
+permitted if any one of them matches.
+
+Three rules make the claim safe to reason about, and all three are requirements rather than
+observations:
+
+* **A scope never grants, it only narrows.** `repository-read-<id>` on a credential whose owner
+  cannot see `<id>` grants nothing. The claim states what the credential may be used for *within its
+  owner's existing permissions*, and every rule in
+  [`authorization-plan.md`](authorization-plan.md#authorization-rules) still runs afterwards,
+  unchanged. An identity provider can hand out any claim it likes; it cannot hand out access.
+* **An absent claim means unrestricted** — exactly the user's own permissions, which is today's
+  behaviour. Every `Bearer` token Keycloak currently issues is in that state, so this is additive
+  rather than a flag day, and a deployment against an OIDC provider that cannot be taught to emit
+  the claim keeps working.
+* **An unparseable value is ignored and logged**, never fatal and never permissive. A provider that
+  mangles a value must not be able to escalate through it, and a credential whose every value is
+  unparseable ends up granting nothing rather than everything.
+
+Nothing here departs from OIDC. The specification reserves no claim named `pacman-manager` and
+explicitly allows additional claims, so this is an application claim in the ordinary sense: Keycloak
+emits it from a protocol mapper on a client scope, and any other provider can be configured to emit
+the same list. What this design must **not** do is overload the OAuth 2.0 `scope` claim, which has
+its own syntax, its own registry and its own consumers in the middle of the pipeline.
+
+### `Basic` produces a read-only scope
+
+A `PacmanAccessToken` authenticates its owner and is issued exactly one scope value, `*-read-*`.
+That is the whole mechanism by which "a token cannot write" is true: not a check on the scheme, not
+a check on the route, but a credential that arrives already unable to name a write.
+
+### Scopes on a `Bearer` token
+
+The same claim, issued by the identity provider rather than by us, lets a caller hold a token that
+can do less than they can — the OAuth client on a build machine that may publish to one repository
+and read nothing else, say. Nothing in this application mints that token and nothing validates the
+claim beyond parsing it: it is the provider's statement about its own token, and the three rules
+above bound what such a statement can mean.
+
+### How the actor enforces it
+
+`Actor` carries the parsed scope, and read-only becomes a question asked of it rather than a
+separate flag:
+
+```csharp
+public ActorScope Scope { get; }
+
+public bool IsReadOnly => !Scope.PermitsAnyWrite;
+
+public static Actor For(User user, ActorScope scope) => new(user, isSystem: false, scope);
+```
+
+`RepositoryAccessPolicy.CheckWrite`, `CheckCreate` and `PackageAccessPolicy.CheckPublish` each ask
+the scope **first**, before the ownership tests, and return `RepositoryAccess.Forbidden` when it
+does not permit that operation on that entity. A credential therefore cannot exceed its scope
+through any route, present or future, including one that forgets to think about schemes at all —
+which is the same structural argument that put enforcement in the service layer instead of an action
+filter in the first place.
+
+`ActorScope.Unrestricted` is what an absent claim parses to and what `Actor.System` and
+`FixedActorAccessor` use, so background jobs and tools are unaffected.
 
 `Forbidden` (`403`) rather than `Unauthenticated` (`401`) is the right verdict, including on a
 private repository the actor owns: the caller is authenticated, re-authenticating will not help, and
 they already know the repository exists. Nothing leaks.
 
-### Why not a claim, or a scheme check, or a filter
+### Visibility respects the scope, but only where the scope is narrower
+
+`VisibleTo`, and with it `RepositoryService.VisibleAsync`, intersects the visibility predicate with
+the scope's read grants. A scope whose read values all carry `*` for `id` — every Basic token, and
+every Bearer token without the claim — leaves the predicate exactly as it is today, so a read-only
+actor still sees everything its user sees, their own private repositories included. **Read-only
+restricts what may be done, not what may be known.** A scope naming ids narrows the listing to those
+ids as well as the get.
+
+The distinction worth keeping straight, because it is the one a reader will trip on: narrowing what
+a *credential* may reach is not the same as hiding what *exists*. A repository its owner can see but
+this credential is not scoped to is absent from this credential's listing; it has not become a
+secret, and the same user with a wider credential still sees it.
+
+### Why not a claim read by each service, or a scheme check, or a filter
 
 Three alternatives were considered.
 
-A **claim inspected by each service** puts the rule in every service instead of in one place, which
-is what `RepositoryAccessPolicy` exists to prevent. An **authorization filter** on the write routes
-only protects HTTP callers, which is the reason
+A **claim read at each call site** — every service pulling `pacman-manager` off the principal and
+interpreting it — puts the rule in every service instead of in one place, which is what
+`RepositoryAccessPolicy` exists to prevent. The claim is the transport; the `Actor` is the one place
+that understands it, parsed once at the edge. A **scheme check** (`if (scheme == "Basic")`) is the
+route-shaped version of the same mistake and stops being true the first time a second read-only
+credential exists. An **authorization filter** on the write routes only protects HTTP callers, which
+is the reason
 [`authorization-plan.md`](authorization-plan.md#architecture-strategy-enforcement-in-the-service-layer)
-rejected a filter for the repository rules. Checking `IsReadOnly` in the **`IActorAccessor`** cannot
+rejected a filter for the repository rules. Checking the scope in the **`IActorAccessor`** cannot
 work at all: the accessor produces the actor, and has no idea what is about to be done with it.
 
 The verdict methods are the one place that already knows an operation is a write. That is where the
@@ -193,21 +294,52 @@ which is harmless — they write near-identical values, and the column has no re
 
 ---
 
-## The Basic handler
+## Scheme selection, and the handler
 
-An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` registered as a second scheme. `Bearer`
-stays the **default** scheme, so nothing about the existing management API changes; `Basic` is opted
-into by the routes that accept it.
+### The `Authorization` prefix picks the handler
 
-The handler decodes `Authorization: Basic base64(username:token)`, parses the token, loads the row by
-id, checks expiry, compares the hash, and issues a principal carrying the existing
-`AuthnConstants.AppUserIdClaimType` claim plus a marker claim identifying the credential as
-read-only.
+Registering a second scheme is not enough on its own, and this is the part of the design most likely
+to be got wrong. `Program.cs` registers
+`AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()`, and the authentication
+middleware runs **only the default scheme**. Nor can the pacman routes opt in with
+`[Authorize(AuthenticationSchemes = "Basic")]`: those routes are `[AllowAnonymous]`, which is
+precisely the metadata that suppresses that attribute. A `Basic` header would reach the `Bearer`
+handler, which returns `NoResult`, the request would proceed as anonymous, and the Basic handler
+would never run at all.
+
+So the default becomes a **policy scheme that forwards on the header prefix**, which is the one
+mechanism that runs before any endpoint metadata is consulted:
+
+```csharp
+builder.Services.AddAuthentication(AuthnConstants.SelectorScheme)
+    .AddPolicyScheme(AuthnConstants.SelectorScheme, AuthnConstants.SelectorScheme, options =>
+        options.ForwardDefaultSelector = context =>
+            context.Request.Headers.Authorization.ToString()
+                .StartsWith("Basic ", StringComparison.OrdinalIgnoreCase)
+                ? AuthnConstants.BasicScheme
+                : JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer()
+    .AddScheme<BasicAuthenticationSchemeOptions, BasicAuthenticationHandler>(
+        AuthnConstants.BasicScheme, _ => { });
+```
+
+The prefix is the whole selection rule: `Basic` goes to the Basic handler, and everything else —
+`Bearer`, an unrecognised scheme, an absent header — goes to `Bearer` exactly as it does today.
+Nothing about the existing management API changes, and no route names a scheme.
+
+### The handler
+
+An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` whose whole body delegates to
+[`IBasicAuthenticationService`](#2-ibasicauthenticationservice-and-iaccesstokenservice--minor): it
+decodes `Authorization: Basic base64(username:token)`, and the service parses the token, loads the
+row by id, checks expiry and compares the hash. The principal that comes back carries the existing
+`AuthnConstants.AppUserIdClaimType` claim plus the [`*-read-*` scope claim](#basic-produces-a-read-only-scope).
 
 Reusing `app_user_id` is what makes the rest of the pipeline unchanged: `CurrentUserService` already
 resolves that claim to a `User`, and `HttpContextActorAccessor` already turns a `User` into an
-`Actor`. The only change there is that the accessor produces `Actor.ReadOnlyFor(user)` when the
-marker claim is present.
+`Actor`. The only change there is that the accessor reads the `pacman-manager` claim off the
+principal — without caring which scheme produced it — and builds the actor with the resulting
+[scope](#the-scope-claim).
 
 `ClaimsTransformer` must be a no-op for this scheme. It short-circuits when `app_user_id` is already
 present, which it is, so no change is needed — but there is a test to write that pins it, because a
@@ -252,10 +384,33 @@ existing, and the single most confusing failure this feature could produce.
 
 The requirement is therefore explicit: **if an `Authorization: Basic` header is present and does not
 validate, the response is `401` with `WWW-Authenticate: Basic realm="pacman"`, whatever the endpoint
-allows.** Only the *absence* of credentials falls through to anonymous. The implementing issue owns
-the mechanism — the cleanest is for the handler to write the challenge itself rather than relying on
-`HandleChallengeAsync` being reached — and owns the test that pins it, because nothing else in the
-pipeline will catch a regression here.
+allows.** Only the *absence* of credentials falls through to anonymous.
+
+[The forwarding scheme](#the-authorization-prefix-picks-the-handler) gets the handler invoked, which
+is half of it. The other half is that a failed authentication result on an `[AllowAnonymous]`
+endpoint is discarded before anything challenges, so the handler's own `HandleChallengeAsync` is
+never reached. A short piece of middleware immediately after `UseAuthentication()` closes it:
+
+```csharp
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true &&
+        context.Request.Headers.Authorization.ToString()
+            .StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.Headers.WWWAuthenticate = "Basic realm=\"pacman\"";
+        return;
+    }
+
+    await next(context);
+});
+```
+
+It is deliberately incurious: it asks only whether a Basic header was offered and not accepted, so
+it cannot develop an opinion about which routes take the scheme, and it sits before authorization so
+an `[AllowAnonymous]` endpoint cannot swallow it. The implementing issue owns the test that pins it,
+because nothing else in the pipeline will catch a regression here.
 
 Note the asymmetry with the visibility rules, which is correct rather than an inconsistency. Bad
 credentials are a fact about the caller and disclose nothing about what exists, so they are answered
@@ -289,24 +444,66 @@ repository's packages, and for the same reason.
 | `POST` | `/api/v1/users/me/tokens` | Required | `201` token, **secret included once** | `400`, `401`, `409` |
 | `DELETE` | `/api/v1/users/me/tokens/{tokenId}` | Required | `204` | `401`, `404` |
 
-These routes require **`Bearer`**. A token cannot be used to mint another token, which follows from
-[read-only actors](#read-only-is-a-property-of-the-actor-not-of-the-route) without needing a rule of
-its own: minting is a write.
+These routes require **`Bearer`**, which follows from the header prefix alone: a request carrying a
+`Basic` credential is authenticated by that scheme, and the `*-read-*` scope it arrives with cannot
+name a write. A token therefore cannot be used to mint another token without any rule saying so —
+minting is a write.
 
 `me` is the only subject, for the reason
 [User Management](user-management.md#me-is-the-only-way-to-reach-the-write-route) gives — a route
 incapable of naming another user has no authorization check to forget. Note that this document does
 not otherwise depend on that one; the reasoning is shared, the code is not.
 
+### The listing follows the standard shape
+
+`GET /api/v1/users/me/tokens` takes `PaginationParams`, an `AccessTokenFilter` and
+`SortOptions<AccessTokenSortField>`, exactly as [every other listing](packages-api.md#listing) does.
+
+| Parameter | Applied by | Meaning |
+| :--- | :--- | :--- |
+| `nameContains` | `StringContainsQuery` | Substring of the token's name, matched case-insensitively by lowering both sides as the package search does. |
+| `expiresAfter` | `GreaterThanQuery` | Tokens whose `ExpiresAt` is later than this. A non-expiring token has a null `ExpiresAt` and is therefore excluded by it. |
+
+`AccessTokenSortField`: `CreatedAt`, `Name`, `ExpiresAt`, `LastUsedAt`. `CreatedAt` is first and
+therefore the default, carrying `[DefaultSortDirection(SortDirection.Descending)]` so that the token
+a user just minted is at the top of the page they land on.
+
+The filter is ANDed onto a query already restricted to the calling user's own tokens, which is the
+[same relationship](authorization-plan.md#authorization-rules) every other filter has to visibility:
+it can only ever remove rows.
+
+One user's token count is bounded by their patience, so paging here is arguably overkill. It is the
+shape anyway, for two reasons: a listing that ships without pagination cannot grow it later without
+breaking every caller, and a reader of this API should not have to learn which listings are special.
+
 `409` on `POST` is a duplicate token name for that user, raised as `ItemExistsException` and mapped
 by a new arm on `AuthorizationExceptionHandler`, without which it would fall through to a `500`
 exactly as `PackageForbiddenException` would have. That exception has existed unused since the
 original authorization work — [`authorization-plan.md`](authorization-plan.md#known-gaps) records it
-as a known gap — and this is its first use. [Pacman Controller](pacman-controller.md#1-globally-unique-repository-names--major)
-needs the same arm for a repository name collision; whichever of the two issues lands first adds it,
+as a known gap — and this is its first use, unless
+[Pacman Controller](pacman-controller.md#1a-itemexistsexception--409--patch) — which needs the same
+arm for a repository name collision — has already landed. Whichever of the two goes first adds it,
 and the second finds it already there.
 
 ### Models
+
+```jsonc
+// CreateAccessTokenRequest — the POST body
+{ "name": "laptop", "expiresAt": null }
+```
+
+`name` is required and validated against `AccessTokenValidationConstants.NameMaxLength`; a name the
+user already has is the `409` above. `expiresAt` is optional and, when present, **must be in the
+future** — a past date is a `400`, not a token that is dead on arrival. There is no maximum: a
+credential that lives in a `pacman.conf` on a machine somebody administers by hand is one whose
+lifetime the owner is better placed to judge than we are, and
+[expiry notifications](#deferred-work) are the thing that would make a cap humane.
+
+**An omitted or null `expiresAt` means the token never expires**, which is expected to be the common
+case by some distance — these are configuration-file credentials, and revocation is
+[a delete](#revocation-is-a-delete) rather than a date. Stating the default explicitly is worth the
+line precisely because the safer-looking reading (omitted means "some sensible default lifetime") is
+the wrong one.
 
 ```jsonc
 // AccessToken — what the listing returns. No secret.
@@ -339,51 +536,105 @@ succeeds; the unique index on `(UserId, Name)` exists and the FK cascades from `
 
 *Depends on:* nothing.
 
-### 2. `IAccessTokenService` — `MINOR`
+### 2. `IBasicAuthenticationService` and `IAccessTokenService` — `MINOR`
 
-Minting (format, `RandomNumberGenerator`, SHA-256, the once-only return), parsing, verification
-(primary key lookup, expiry, `FixedTimeEquals`), listing, deletion, and the coarse `LastUsedAt`
-update with its configurable resolution.
+Two services, because the work divides cleanly along whether an `Actor` exists yet.
+
+**`IBasicAuthenticationService` is not actor-scoped** and has one job: turn a set of Basic
+credentials into a `ClaimsPrincipal`, or into nothing. Parsing the token, the primary-key lookup,
+the expiry check, the `FixedTimeEquals` hash comparison, the claims it issues, and the coarse
+`LastUsedAt` write all live here. It cannot take `IActorAccessor`, and the reason is structural
+rather than awkward: the accessor depends on `ICurrentUserService`, which depends on the
+authenticated principal, which is the thing this service produces. It runs *before* an actor exists.
+
+**`IAccessTokenService` is actor-scoped** like every other service, and manages tokens on behalf of
+the caller: minting (format, `RandomNumberGenerator`, SHA-256, the once-only return), the
+[listing](#the-listing-follows-the-standard-shape), and deletion. Every method takes the actor's own
+tokens as its subject, so a caller can never name another user's.
+
+The split is the point. A single service holding both would have a method that deliberately bypasses
+the actor sitting next to methods that depend on it, which is exactly the shape somebody later
+copies by accident; two types, with two jobs and two rules about what they may assume, cannot be
+confused for one another. It also gives the enforcement test something crisp to say.
+
+**Why not `IUserService`.** Token management is arguably user management, and `IUserService` already
+exists — but it is not actor-scoped and cannot become so, because `ClaimsTransformer` calls it
+during authentication, before there is an actor to scope to. Putting actor-scoped methods on it
+would recreate the mixed-authority problem this issue exists to avoid. `IAccessTokenService` is
+therefore its own service, injected into `AccessTokensController` alongside nothing else, and
+`IUserService` is left exactly as it is.
+
+**Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by both — the authentication
+service for the pre-auth lookup by id, the token service for everything a user does to their own
+tokens — and the enforcement test names both and asserts that nothing else does. That is a deliberate
+departure from the one-method rule
+[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
+`PacmanRepositories`, and it is safe for a reason worth writing down: the pre-auth query has no
+visibility rule to duplicate. It is a lookup by primary key whose result authenticates somebody
+rather than being shown to them.
 
 *Acceptance:* unit tests that a minted token verifies; that a token differing in one character does
 not; that a malformed, truncated or wrongly-prefixed string is rejected without throwing; that an
 unknown token id is rejected; that an expired token is rejected; that the stored hash is not the
 token and the token is not recoverable from the row; that a minted secret is Base64Url and therefore
 URL-safe; that `LastUsedAt` is written when stale and skipped when fresh; and that a failure to write
-it does not fail verification.
+it does not fail verification. The `LastUsedAt` resolution is a configuration key with an entry in
+`appsettings.json` and a default of one hour, tested at both a stale and a fresh value.
+
+Actor-scoped tests on `IAccessTokenService`: listing returns only the actor's own tokens, filtered
+and sorted as specified; deleting another user's token is a `404`-shaped miss rather than a
+forbidden; and an enforcement test asserts the two services are the only things naming
+`DbContext.PacmanAccessTokens`.
 
 *Depends on:* 1.
 
-### 3. Read-only actors — `MINOR`
+### 3. Scoped actors — `MINOR`
 
-`Actor.IsReadOnly` and `Actor.ReadOnlyFor`; the read-only arm in `RepositoryAccessPolicy.CheckWrite`,
-`CheckCreate` and `PackageAccessPolicy.CheckPublish`.
+`ActorScope` and its parser (the `<entity>-<action>-<id>` grammar, `*` in any position, unparseable
+values dropped with a log, `ActorScope.Unrestricted` for an absent claim); `Actor.Scope` with
+`IsReadOnly` derived from it; the scope arm in `RepositoryAccessPolicy.CheckWrite`, `CheckCreate`
+and `PackageAccessPolicy.CheckPublish`, checked before the ownership tests; and the intersection of the
+scope's read grants into `VisibleTo`.
 
 Separate from issue 4 because it is a pure policy change with no HTTP in it, testable entirely by
 `RepositoryAccessPolicyTests` and `PackageAccessPolicyTests`, and reviewable on its own — which is
 the property that makes it worth reviewing carefully, since it is the guarantee the whole document
 rests on.
 
-*Acceptance:* both policy test fixtures gain a read-only row for every write verdict, including a
-read-only owner of a private repository getting `Forbidden` rather than `NotFound`, and assert that
-`VisibleTo` is unchanged for a read-only actor — the case where getting it wrong would silently hide
-a user's own private repositories from their own client.
+*Acceptance:* parser unit tests for each wildcard position, a Guid id, an unknown entity, an unknown
+action, a malformed value among valid ones, and an empty claim. Both policy test fixtures gain a
+`*-read-*` row for every write verdict, including a read-only owner of a private repository getting
+`Forbidden` rather than `NotFound`. A test that a scope naming an id the actor cannot see grants
+nothing — the rule that a scope narrows and never widens. A test that `VisibleTo` is **unchanged**
+for a scope whose read values all carry `*`, which is the case where getting it wrong would silently
+hide a user's own private repositories from their own client, and a test that a scope naming ids
+narrows the listing to them.
 
 *Depends on:* nothing.
 
 ### 4. The `Basic` scheme and its handler — `MINOR`
 
-The scheme, its options, the handler, the marker claim, `HttpContextActorAccessor` producing a
-read-only actor from it, and the present-but-invalid-is-a-`401` behaviour.
+The [selector policy scheme](#the-authorization-prefix-picks-the-handler) and the constants naming
+it, the `Basic` scheme and its options, the handler over `IBasicAuthenticationService`, the scope
+claim it issues, `HttpContextActorAccessor` building an `Actor` from whatever scope claim the
+principal carries, and the
+[present-but-invalid-is-a-`401` middleware](#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
+
+Swagger is untouched: `Basic` gets no security definition and the OAuth flow stays exactly as it is.
+That is a deliberate omission rather than an oversight, and it is [deferred](#deferred-work).
 
 *Acceptance:* handler unit tests cover a valid header, a missing header, a malformed one, a
 non-Basic scheme, a wrong secret, an unknown token id and an expired token, and assert every failure
 produces the same undifferentiated `401`. A test asserts the username field is ignored: the same
 token authenticates with `token:`, with the owner's display name, and with an arbitrary string.
 
+A test asserts the selector routes by prefix: a `Bearer` request is still handled by the JWT scheme
+untouched, an absent header still falls through to anonymous, and an unrecognised scheme is treated
+as `Bearer` rather than as `Basic`.
+
 An E2E test asserts that a Basic-authenticated `POST` to `/api/v1/repositories` is a `403` — the test
 that proves the restriction is a property of the credential rather than of the route, and the one
-that would catch someone later removing the read-only arm. A further test asserts a token does not
+that would catch someone later removing the scope arm. A further test asserts a token does not
 appear in the request log, and one asserts a Basic-authenticated request creates no
 `ExternalProviderUserMapping`.
 
@@ -396,16 +647,37 @@ but it must not go untested in both.
 
 ### 5. `AccessTokensController` — `MINOR`
 
-The three routes, the two wire models, the `ControllerConstants` template, and the
-`ItemExistsException` → `409` arm if it is not already there.
+The three routes, the three wire models
+([`CreateAccessTokenRequest`, `AccessToken` and `CreatedAccessToken`](#models)), the
+[`AccessTokenFilter` and `AccessTokenSortField`](#the-listing-follows-the-standard-shape), the
+`ControllerConstants` template, and the `ItemExistsException` → `409` arm if it is not already
+there.
 
 *Acceptance:* E2E tests: creating a token returns the secret exactly once, and listing tokens never
 returns it, asserted against the raw response body; the returned token then authenticates a request;
-deleting it makes it stop authenticating; a second token with the same name is a `409`; another
-user's token is a `404` to delete; every route is a `401` unauthenticated; and a Basic-authenticated
-caller cannot mint a token. A handler test asserts `ItemExistsException` produces `409`.
+deleting it makes it stop authenticating; a second token with the same name is a `409`; a past
+`expiresAt` is a `400` and an omitted one produces a token with no expiry; another user's token is a
+`404` to delete; the listing pages, filters and sorts, and never shows another user's token; every
+route is a `401` unauthenticated; and a Basic-authenticated caller cannot mint a token. A handler
+test asserts `ItemExistsException` produces `409`.
 
 *Depends on:* 2, 4.
+
+### 6. Scopes on a `Bearer` token — `MINOR`
+
+The other half of [the scope claim](#the-scope-claim): a `pacman-manager` client scope in
+`keycloak/localdev.json` with the protocol mapper that emits the claim, and the documentation of the
+value grammar for anyone configuring a different provider. No application code beyond what issue 3
+already built — that is the property worth demonstrating, and the reason this is last rather than
+first.
+
+*Acceptance:* E2E tests with a token carrying `*-read-*` (writes are `403`), one carrying
+`package-publish-<repositoryId>` (that publish succeeds, a publish to another repository is `403`),
+one carrying a scope for a repository the user cannot see (grants nothing), and one carrying no
+claim at all (unrestricted, exactly as today — the compatibility guarantee).
+
+*Depends on:* 3, and — for a real token to test with — a Keycloak realm change, so expect it to
+touch `compose.yaml`'s `auth` service configuration rather than only C#.
 
 ---
 
@@ -415,8 +687,15 @@ Worth filing as issues, but explicitly out of scope for the work above.
 
 * **An audit trail for tokens** — revocations, and the address a token was last used from — which
   would change revocation from a delete to a soft delete.
-* **Scoped tokens**, narrowing a credential to particular repositories, so that a build machine's
-  token is not equivalent to its owner's whole read access.
+* **Minting a narrowed access token.** The enforcement exists from issue 3, and a `Bearer` token can
+  already carry a scope; what is missing is a way for a user to *ask* for a `PacmanAccessToken`
+  carrying anything other than `*-read-*` — a scope field on the create request, and a concept in the
+  UI to go with it.
+* **A `Basic` security definition in Swagger.** `ConfigureSwaggerGenOptions` wires the OAuth flow
+  and says nothing about `Basic`, so "try it out" against a pacman route cannot send a token. Very low
+  priority: the routes it would exercise are meant to be driven by `pacman`, and a `curl` line in
+  [the consuming guide](pacman-controller.md#5-document-consuming-a-hosted-repository--patch) covers
+  the human case.
 * **A credential that can publish.** Today a build pipeline still needs an OAuth client to push a
   package. That is the right default, but a purpose-built publishing credential — scoped to one
   repository, and distinct from these — is the obvious next thing to want.

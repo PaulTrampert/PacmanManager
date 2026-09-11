@@ -12,7 +12,9 @@ description of `main` does not mislead. The per-field sort direction of issue 14
 member, rather than the per-listing `switch` sketched under [Listing](#listing); and
 `PackageService` takes `Lazy<ILibAlpm>`, so the anonymous read routes do not pay for
 `alpm_initialize`. The [Deferred work](#deferred-work) at the end of this document is still
-outstanding.
+outstanding, though two of its items are now designed rather than merely noted: serving a
+pacman-consumable repository, and the unused `ItemExistsException`, both of which
+[`pacman-controller.md`](pacman-controller.md) picks up.
 
 ## Goals
 
@@ -32,7 +34,8 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * Postgres full-text search and relevance ranking.
 * Serving a repository in the layout a `pacman` client expects (`Server = …`), which needs the
   `.db.tar.gz` and the package files under one base URL. The `content` route below downloads a
-  package by id; it is a management route, not a pacman mirror.
+  package by id; it is a management route, not a pacman mirror. This is the subject of
+  [`pacman-controller.md`](pacman-controller.md).
 
 ---
 
@@ -748,6 +751,8 @@ Worth filing as issues, but explicitly out of scope for the work above.
   `.db.tar.gz` cannot be fetched at all. A `pacman` client configured with `Server = …` needs the
   database and every package file resolvable under one base URL by the basename `repo-add` recorded.
   Until that exists, this API can publish packages but nothing can install them.
+  **Designed in [`pacman-controller.md`](pacman-controller.md)**; the issue that adds the controller
+  deletes this bullet.
 * **Postgres full-text search** with a generated `tsvector` column, a GIN index and relevance
   ranking, replacing the substring match inside `PackageFilter.BuildQueryExpression`. Ranking also
   needs a `Relevance` member on `PackageSortField`, which is the part that cannot be faked with
@@ -765,4 +770,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   reports the drift — closes the last gap in the failure handling above.
 * **Quotas.** Nothing bounds how much a user can upload.
 * **`ItemExistsException` is still unused**, as noted in `authorization-plan.md`; a name collision
-  in either API surfaces as a `500` rather than a `409`.
+  in either API surfaces as a `500` rather than a `409`. **Designed in
+  [`pacman-controller.md`](pacman-controller.md#1a-itemexistsexception--409--patch) and
+  [`basic-auth.md`](basic-auth.md#5-accesstokenscontroller--minor)**, whichever of the two lands
+  first; that issue deletes this bullet.
