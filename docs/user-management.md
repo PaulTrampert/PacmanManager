@@ -61,8 +61,15 @@ naming the old value, along with a table of retired names to stop a released nam
 somebody else.
 
 All of that existed to support one path segment. [Dropping the segment](pacman-controller.md#the-route-root)
-removes the whole apparatus, and with it a class of failure where a user's client quietly starts
-tracking a stranger's repository.
+removes the whole apparatus.
+
+It does not, on its own, remove the class of failure where a user's client quietly starts tracking a
+stranger's repository: a *repository* rename releases a name into a global namespace with the same
+consequence, one level up. What it does is reduce two occurrences of that hazard to one, and the
+remaining one is
+[answered where it now lives](pacman-controller.md#renaming-a-repository) — a reserved name, a
+temporary redirect, and a release only once nothing is asking for it. A user rename, by contrast, now
+has no effect on any URL at all, which is the stronger outcome and the one worth having.
 
 `User` therefore keeps exactly what it has: an `Id` that identifies it, a `DisplayName` that is a
 label with no uniqueness requirement, and an `Email` that is personal data and stays out of every
@@ -152,8 +159,15 @@ the wire models are `PublicUserInfo` and `CurrentUser` rather than `User`.
 | :--- | :--- | :--- |
 | `displayNameContains` | `StringContainsQuery` | Substring of the display name. |
 
-`UserSortField`: `DisplayName`, `Created`. `DisplayName` is first, so an unsorted listing is
+`UserSortField`: `DisplayName`, and nothing else. It is first, so an unsorted listing is
 alphabetical, and it carries `[DefaultSortDirection(SortDirection.Ascending)]`.
+
+**There is deliberately no `Created`.** `User` is `Id`, `DisplayName` and `Email` and nothing more —
+it has no creation timestamp — so a sort by one would mean a column, a migration and a backfill in
+service of an ordering nobody has asked for. A single-member enum still earns its place: it keeps
+this listing on the same `SortOptions<TSortField>` shape as every other one, so a second sort field
+later is an added enum member rather than a new query parameter. Adding the column is
+[deferred](#deferred-work).
 
 `displayNameContains` must be **case-insensitive**, which the naive `Contains` is not: it is
 case-sensitive under both Npgsql, where it translates to a case-sensitive `LIKE`, and
@@ -218,8 +232,9 @@ past.
 `GET /api/v1/users`, the filter, the sort field enum with its default direction, and the paged
 listing.
 
-*Acceptance:* service unit tests for each filter and sort field, and for the unsorted default being
-alphabetical by display name. A test that `displayNameContains` matches a term whose case differs
+*Acceptance:* service unit tests for the filter and for the unsorted default being alphabetical by
+display name. No migration and no schema change: the sort field enum has one member and `User` is
+untouched. A test that `displayNameContains` matches a term whose case differs
 from the stored value, which fails against the naive `Contains`. An E2E test asserts the listing
 exposes no email, against the raw body.
 
@@ -247,5 +262,8 @@ Worth filing as issues, but explicitly out of scope for the work above.
   [`IUserAccessPolicy`](#there-is-no-iuseraccesspolicy) something to decide.
 * **Account deletion**, which needs an answer for the repositories and packages a user owns before
   it can be specified at all.
+* **A creation timestamp on `User`**, which is what a `Created` member on
+  [`UserSortField`](#listing) would need and the reason there isn't one. Additive — a nullable
+  column, or a non-nullable one backfilled from the earliest thing that references each user.
 * **A username**, if a friendlier profile URL is ever wanted. Additive, and — now that no repository
   URL depends on it — free of the rename hazard that made it expensive here.
