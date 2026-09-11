@@ -145,6 +145,15 @@ field that is only sometimes populated is a field that will one day be populated
 { "id": "0197…", "displayName": "Paul", "email": "paul@example.com" }
 ```
 
+```jsonc
+// WriteUserRequest — the body of PATCH /api/v1/users/me, every property optional
+{ "displayName": "Paul" }
+```
+
+`WriteUserRequest` follows `WriteRepositoryRequest`'s naming. It is the model the patch is *against*,
+so it holds the writable surface of a user — today just `displayName` — and gains a property when
+something else becomes writable, without the route changing shape.
+
 **A note on the naming convention.** [`packages-api.md`](packages-api.md#entity) records that
 entities take a `Pacman` prefix and the wire model keeps the bare name. `User` is the exception: the
 entity shipped unprefixed, and renaming it to `PacmanUser` would touch the whole solution for
@@ -191,6 +200,47 @@ is otherwise accepted as given.
 
 `PATCH` rather than `PUT`, so that a route which grows a second writable field later does not force
 callers to resend the first.
+
+**The patch itself is [`PTrampert.SimplePatch`](https://github.com/PaulTrampert/PTrampert.SimplePatch)**,
+rather than anything hand-rolled. It solves the one problem that makes `PATCH` harder than `PUT`:
+telling a property that was **omitted** from one that was explicitly sent as `null`. A plain write
+model cannot express the difference — a null `DisplayName` has to mean either "leave it alone" or
+"clear it", and whichever convention is chosen, the other operation becomes unreachable.
+
+The action takes the generated patch object instead of the write model:
+
+```csharp
+[HttpPatch("me")]
+public async Task<ActionResult<CurrentUser>> PatchCurrentUser(
+    [FromBody] IPatchObject<WriteUserRequest> patch)
+```
+
+Three properties of the library decide the shape of the rest:
+
+* **`Patch(target)` returns a new instance and does not mutate the target**, and its target is the
+  *write model*, not the entity. So the route reads the current user, projects it to a
+  `WriteUserRequest` of its present values, applies the patch to that, and hands the result to
+  `IUserService`. The entity is never patched directly, which keeps the service's input a validated
+  model rather than a half-applied one.
+* **Validation attributes survive onto the patch object**, and a `[Required]` property is only
+  required *when it is present*. `[Required]` plus `[MaxLength(DisplayNameMaxLength)]` on
+  `WriteUserRequest.DisplayName` therefore reads exactly as intended: omit it and nothing happens,
+  send it and it must be a valid display name. The controller keeps its ordinary `ModelState` check.
+* **Registration is one line**, `opts.JsonSerializerOptions.AddSimplePatchConverters()`, added to the
+  `AddJsonOptions` block `Program.cs` already has for camelCase, null omission and string enums.
+
+Adding the package is consistent with `CONTRIBUTING.md`'s dependency rule — check what is already
+there before adding to it. `PTrampert.QueryObjects` is already a `RepoHost` dependency and every
+listing in this API is built on it, so this is the same ecosystem rather than a new one.
+
+One thing the implementing issue has to check rather than assume: the patch type is **generated**,
+so its Swagger schema is not the write model's. `PATCH /api/v1/users/me` must still document a body
+with an optional `displayName`, and if it does not, that is a `ConfigureSwaggerGenOptions` problem to
+solve in the same issue rather than a surprise for the next person.
+
+`PUT /api/v1/repositories/{id}` is untouched by this. It is a `PUT` precisely because it replaces the
+whole writable surface, and the omitted-versus-null question does not arise; if it ever becomes a
+`PATCH`, it gains the same treatment.
 
 ---
 
@@ -242,12 +292,20 @@ exposes no email, against the raw body.
 
 ### 4. `PATCH /api/v1/users/me` — `MINOR`
 
-Changing the display name.
+Changing the display name, with `WriteUserRequest`, the `PTrampert.SimplePatch` package reference,
+`AddSimplePatchConverters()` on the existing `AddJsonOptions` block, and the service method behind
+it.
 
 *Acceptance:* E2E tests: the change takes effect and is visible from `GET /api/v1/users/{userId}`;
 an over-long name is a `400`; the route is a `401` unauthenticated; and there is no route by which
 one user can change another's, asserted by `PATCH /api/v1/users/{someOtherId}` returning `404` from
 routing rather than being handled.
+
+The patch semantics get their own tests, because they are the reason the library is here: an empty
+body `{}` leaves the display name untouched and is a `200` rather than a `400`; a body naming only
+`displayName` changes only it; and an explicit `{"displayName": null}` is a `400` from the `Required`
+attribute rather than silently clearing the name. A test also asserts the route's Swagger schema
+still shows an optional `displayName`, since the patch type is generated rather than declared.
 
 *Depends on:* 2.
 
