@@ -392,9 +392,17 @@ somebody reaches for the credential.
 One deployment detail the implementing issue has to handle rather than assume: `Program.cs` does not
 configure forwarded headers, so behind the reverse proxy that
 [terminates TLS](#transport) `RemoteIpAddress` is the proxy's address and the log is worthless for
-this purpose. Either `UseForwardedHeaders` is configured — with a known-proxy list, since an
-unrestricted one lets a caller forge the value — or the header is read explicitly and logged as what
-it is. Logging an address nobody can rely on would be worse than logging none.
+this purpose. Either `UseForwardedHeaders` is configured or the header is read explicitly and logged
+as what it is. Logging an address nobody can rely on would be worse than logging none.
+
+If it is `UseForwardedHeaders`, two things about the options matter. **The defaults trust loopback
+only**, so a proxy on a compose bridge network is ignored and nothing appears to happen — the classic
+way this is got wrong. And the list that accepts a subnet is **`KnownIPNetworks`**
+(`IList<System.Net.IPNetwork>`, so `IPNetwork.Parse("172.16.0.0/12")`), which is what a container
+network wants since the proxy's address is not stable; `KnownProxies` takes individual addresses, and
+the older `KnownNetworks` is `[Obsolete]` on net10.0 along with
+`Microsoft.AspNetCore.HttpOverrides.IPNetwork`. Whichever is used, it must name something: clearing
+the lists trusts whatever any caller cares to send, which is worse than the problem being solved.
 
 ### Two services own this, not one
 
