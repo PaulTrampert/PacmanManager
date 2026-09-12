@@ -509,7 +509,7 @@ validated.** A token identifies its owner on its own, so there is nothing for th
 The documented form uses the literal `token`, which is self-describing in a config file:
 
 ```ini
-Server = https://token:pmt_0199…_kJ8…@packages.example.com/repositories/$repo/$arch
+Server = https://token:pmt_0199…_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
 An earlier draft of this design *required* the username to equal the owner's, which was worth doing

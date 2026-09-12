@@ -52,7 +52,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 ## The route root
 
 ```
-/repositories/{repoName}/{repoArch}/{fileName}
+/pacman/{repoName}/{repoArch}/{fileName}
 ```
 
 Four things about this shape are deliberate.
@@ -91,7 +91,7 @@ writes as `$repo/$arch`:
 
 ```ini
 [myrepo]
-Server = https://packages.example.com/repositories/$repo/$arch
+Server = https://packages.example.com/pacman/$repo/$arch
 SigLevel = Optional TrustAll
 ```
 
@@ -100,14 +100,20 @@ and sends as an `Authorization: Basic` header. The username is a
 [self-describing placeholder and is not validated](basic-auth.md#the-token-goes-in-the-password-field-and-the-username-is-ignored):
 
 ```ini
-Server = https://token:pmt_0199…_kJ8…@packages.example.com/repositories/$repo/$arch
+Server = https://token:pmt_0199…_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
-**Two roots name the same resource, and that is intentional.** `/api/v1/repositories/{id}` is the
-management representation — JSON, versioned, keyed by id. `/repositories/{name}/{arch}` is the
-pacman representation — tarballs, unversioned, keyed by the name a client configures. The shared
-noun says they are the same thing; the `/api/v1` prefix says which representation you are asking
-for.
+**The root names the client, not the resource.** `/api/v1/repositories/{id}` is the management
+representation — JSON, versioned, keyed by id. `/pacman/{name}/{arch}` is the same repository seen
+through the only lens `pacman` has — tarballs, unversioned, keyed by the name a client configures.
+Naming the root after the consumer rather than the noun is what keeps the two from being read as one
+API with an inconsistent style, because they are not: one is ours to design and the other is a wire
+format `repo-add` and `makepkg` define.
+
+It also leaves `/repositories` unclaimed, which matters for a reason outside this document: a web UI
+served from this same host will want the short, obvious paths, and a root reserved for a package
+manager is a poor thing to have taken one. Nothing here needs that segment, so nothing here takes
+it.
 
 ---
 
@@ -288,7 +294,7 @@ which is the same rule Arch applies and the same rule `repo-add` would enforce f
 
 ## Resolution
 
-The `/repositories` routes are served by a new `IPacmanRepoService`. It resolves a path to a file and
+The `/pacman` routes are served by a new `IPacmanRepoService`. It resolves a path to a file and
 **owns no database access of its own**, which is the design decision worth stating first, because it
 is the question a reader asks immediately.
 
@@ -324,7 +330,7 @@ Dropping the owner segment removed a step from this list. There is no username t
 
 The repository name is matched **exactly as stored**, which is what `GetRepositoryByNameAsync`
 already does and what the database's unique index enforces, and the architecture segment is compared
-to `SupportedArchitectures` the same way. A request for `/repositories/MyRepo/x86_64/…` against a
+to `SupportedArchitectures` the same way. A request for `/pacman/MyRepo/x86_64/…` against a
 repository named `myrepo` is a `404`.
 
 Repository names are already case-sensitive everywhere else in this API, and pacman's `$repo`
@@ -386,7 +392,7 @@ before any of this is consulted.
 
 **The database file name must match the repository name.** `pacman` requests its database as
 `{Server}/{sectionName}.db`, and the path segment is `{repoName}`; a request for
-`/repositories/myrepo/x86_64/other.db` is a `404`, not a redirect and not a served database. Serving
+`/pacman/myrepo/x86_64/other.db` is a `404`, not a redirect and not a served database. Serving
 the database under whatever `*.db` name was asked for would mean two names for one resource and a
 `pacman.conf` whose section name is silently meaningless. Since `$repo` *is* the section name, and
 the namespace is now global, a correctly configured client is exact by construction and the
@@ -500,7 +506,7 @@ forever afterwards.
 1. **The old name is reserved**, immediately and automatically. Nobody else can claim it, and the
    repository that gave it up can always take it back.
 2. **For 30 days the old URL redirects** to the new one, per file:
-   `/repositories/custom/x86_64/custom.db` → `/repositories/custom2/x86_64/custom2.db`. Clients keep
+   `/pacman/custom/x86_64/custom.db` → `/pacman/custom2/x86_64/custom2.db`. Clients keep
    working, unaware. The target is resolved from the retirement's `RepositoryId` at request time, to
    **whatever that repository is called now** — so a repository renamed twice inside the window
    redirects both old names straight at the current one, with no chain to follow and no second hop.
@@ -605,8 +611,7 @@ Both windows are configuration, not literals, with 30 days as the default.
 ## HTTP behaviour
 
 `pacman` is an HTTP client with specific expectations, and meeting them is the difference between a
-repository that works and one that works *well*. All of this applies to every `/repositories`
-response.
+repository that works and one that works *well*. All of this applies to every `/pacman` response.
 
 **Conditional GET.** libalpm sets libcurl's `CURLOPT_TIMECOND` from the local database file's
 modification time, so every `pacman -Sy` sends `If-Modified-Since`. Without a `Last-Modified`
@@ -801,7 +806,7 @@ asserts the service names neither `DbContext` `DbSet` — the property the whole
 
 ### 4. `PacmanController` — `MINOR`
 
-The routes under `/repositories/{repoName}/{repoArch}/{fileName}`, thin as ever, plus the HTTP
+The routes under `/pacman/{repoName}/{repoArch}/{fileName}`, thin as ever, plus the HTTP
 behaviour: `Last-Modified`, `ETag`, `304`, `Range`/`206`, `Content-Length`, `Vary: Authorization`,
 `application/octet-stream`, and `[ApiVersionNeutral]`. Most of that is one `File(stream, contentType,
 fileName, lastModified, entityTag, enableRangeProcessing)` call with the right arguments — the
@@ -920,7 +925,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   [the last requester alone](#recording-who-is-still-asking), plus the asynchronous messaging that
   would email them. Together they turn a rename from something a user finds out about when their
   updates break into something they are told about while the redirect still works.
-* **A directory index** at `/repositories/{name}/{arch}/`. pacman never needs one, but it is the
+* **A directory index** at `/pacman/{name}/{arch}/`. pacman never needs one, but it is the
   first thing a human opens the URL expecting to see.
 * **Serving package files through a reverse proxy.** Streaming hundreds of megabytes through Kestrel
   works but occupies a request thread's worth of resources for the duration; `X-Accel-Redirect` or
