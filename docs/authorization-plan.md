@@ -17,6 +17,40 @@ enforcement lives where it does.
 | **Write/Delete** | Public | Not Owner | `403 Forbidden` (Identify as public, deny access) |
 | **Create** | n/a | Unauthenticated | `401 Unauthorized` |
 
+### What hiding existence covers
+
+"Hide existence" in the table above is a promise about the *repository*: whether it exists, who owns
+it, what it holds, and whether it is yours. It is not a promise about every string associated with
+it, and one narrowing is accepted deliberately.
+
+**A repository's name is public, even when the repository is private.** Repository names are a
+global namespace, unique on `(Name, Architecture)` across the deployment, so that a `pacman.conf`
+section name and the name this application knows are always the same string —
+[`pacman-controller.md`](pacman-controller.md#repository-names-are-globally-unique) has the full
+reasoning. A namespace that refuses duplicates cannot avoid telling a caller that a duplicate is
+what they have, so creating or renaming into a taken name fails, and that failure is observable.
+Anyone can therefore discover whether a name is in use, one guess at a time, **including when the
+repository holding it is private**.
+
+This is inherent to a global namespace rather than a defect in the enforcement above — npm, PyPI,
+crates.io and Docker Hub all disclose name existence the same way — and it is accepted as the price
+of the section-name property. Two bounds on it are requirements, not observations:
+
+*   **The `409` discloses nothing but "taken".** Not the owner, not whether the repository is
+    public, not when it was created.
+*   **The collision response is the only new signal.** Every row of the table above still holds. A
+    private repository is still `404` by id and by name, still absent from
+    `GET /api/v1/repositories`, and still `404` from every package and pacman route.
+
+So the property to state to a user is that a private repository's *name* is not a secret, while its
+existence-as-yours, its owner, its contents and its packages are. A name that has to be unguessable
+must be chosen to be unguessable.
+
+*This describes the namespace after the index change in*
+[`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major) *lands.
+Until then uniqueness is per owner, as* [Looking a repository up by name](#looking-a-repository-up-by-name)
+*describes, and no name is disclosed.*
+
 ## Architecture Strategy: Enforcement in the Service Layer
 
 An earlier draft of this plan proposed an `IAsyncAuthorizationFilter` attribute applied to
@@ -105,9 +139,17 @@ bare string, which means the lookup matches at most one row and needs no tie-bre
 Supplying an owner is not a way around the visibility rules: the key selects a row from the
 already-visible set, so naming someone else's private repository still returns nothing.
 
-Note that the owner is identified by user id. A friendlier URL form (`{owner}/{name}/{arch}`, as
-pacman's `Server` setting would want) needs a stable, unique, user-facing name on `User`, which
-does not exist yet.
+Note that the owner is identified by user id.
+
+*Both paragraphs above are superseded by*
+[`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major)*, which
+makes the index* `Name` *alone and reduces* `RepositoryKey` *to that name — architecture moves onto
+the repository as* `SupportedArchitectures`*, so it is no longer part of any key. That issue owns
+rewriting this section. The friendlier URL form this section used to call for —*
+`{owner}/{name}/{arch}` *— was abandoned along with the user-facing name on* `User` *it would have
+needed; a globally unique repository name removes the owner from the URL entirely, and*
+[`user-management.md`](user-management.md#why-there-is-no-username) *records why that is the better
+trade.*
 
 ## Known gaps
 
@@ -115,4 +157,8 @@ does not exist yet.
     remove the file is logged and ignored, leaving an orphaned file that nothing references.
 *   Renaming a repository into a collision with the `(OwnerId, Name, Architecture)` index surfaces
     as a `DbUpdateException`, and so a `500`, rather than a `409`. `ItemExistsException` exists for
-    this but is not yet raised anywhere.
+    this but is not yet raised anywhere. This is fixed by
+    [`pacman-controller.md`](pacman-controller.md#1a-itemexistsexception--409--patch), which
+    raises it on the collision that exists today; a global namespace then turns that collision from
+    a rare edge case into something a user hits routinely, which is what finally made it worth
+    fixing.
