@@ -274,8 +274,12 @@ which is the same rule Arch applies and the same rule `repo-add` would enforce f
   and the wire model validates each element against it. It must also be non-empty: a repository that
   supports nothing can serve nothing.
 * `RepositoryFilter.Architecture` can no longer be `[EqualsQuery]`, because the column is now a
-  collection. It moves into `BuildQueryExpression`, the escape hatch `PackageFilter.Search` already
-  uses for the same reason.
+  collection. It becomes
+  [`[ContainsQuery]`](https://github.com/PaulTrampert/PTrampert.QueryObjects/blob/main/PTrampert.QueryObjects/Attributes/ContainsQueryAttribute.cs),
+  which is exactly this case: it requires the target property to be a collection and builds
+  `repository.SupportedArchitectures.Contains(architecture)`, which Npgsql turns into an array
+  containment test. It ignores a null value by default, like every other filter member, so an unset
+  `architecture` still contributes nothing. No `BuildQueryExpression` escape hatch is needed.
 * `PacmanPackage`'s unique index becomes `(RepositoryId, Name, Architecture)`.
 * Publishing resolves which databases a package belongs in, and `RepositoryDatabase` gains the
   architecture — see [Storage layout](#storage-layout).
