@@ -368,6 +368,73 @@ The write is best-effort: a failure to record use is logged and never fails a re
 otherwise authorized. Two concurrent requests may both decide the value is stale and both write it,
 which is harmless — they write near-identical values, and the column has no reader that cares.
 
+### Every use is logged
+
+`LastUsedAt` answers "is this token still in service". It cannot answer "where was it used from",
+and that is the question somebody asks when a token may have leaked. A full audit trail is
+[deferred](#deferred-work); **a log line is not**, and it costs nothing to write now.
+
+Every successful verification logs, at minimum:
+
+* **The token id** — the `Guid` half of the presented credential. It is
+  [not secret](#format), which is what makes it safe to log and useful to correlate.
+* **The client IP address** the request arrived from.
+
+The timestamp comes free from the logging configuration, and the owning user is derivable from the
+token id, so those are not repeated into the message. Failures are logged the same way, with the
+token id when the string parsed far enough to yield one.
+
+**The secret is never logged, in any form** — not the token string, not the header, not a prefix of
+it. That constraint already exists for [the `Authorization` header](#transport); this section is the
+place it would most plausibly be broken, because a log line about a credential is exactly where
+somebody reaches for the credential.
+
+One deployment detail the implementing issue has to handle rather than assume: `Program.cs` does not
+configure forwarded headers, so behind the reverse proxy that
+[terminates TLS](#transport) `RemoteIpAddress` is the proxy's address and the log is worthless for
+this purpose. Either `UseForwardedHeaders` is configured — with a known-proxy list, since an
+unrestricted one lets a caller forge the value — or the header is read explicitly and logged as what
+it is. Logging an address nobody can rely on would be worse than logging none.
+
+### Two services own this, not one
+
+The work divides cleanly along whether an `Actor` exists yet, and the two halves become two services
+because of it.
+
+**`IBasicAuthenticationService` is not actor-scoped** and has one job: turn a set of Basic
+credentials into a `ClaimsPrincipal`, or into nothing. Parsing the token, the primary-key lookup, the
+expiry check, the `FixedTimeEquals` hash comparison, the claims it issues, the coarse `LastUsedAt`
+write and [the use log](#every-use-is-logged) all live here. It cannot take `IActorAccessor`, and the
+reason is structural rather than awkward: the accessor depends on `ICurrentUserService`, which
+depends on the authenticated principal, which is the thing this service produces. It runs *before* an
+actor exists.
+
+**`IAccessTokenService` is actor-scoped** like every other service, and manages tokens on behalf of
+the caller: minting (format, `RandomNumberGenerator`, SHA-256, the once-only return), the
+[listing](#the-listing-follows-the-standard-shape), and deletion. Every method takes the actor's own
+tokens as its subject, so a caller can never name another user's.
+
+The split is the point. A single service holding both would have a method that deliberately bypasses
+the actor sitting next to methods that depend on it, which is exactly the shape somebody later copies
+by accident; two types, with two jobs and two rules about what they may assume, cannot be confused
+for one another.
+
+**Why not `IUserService`.** Token management is arguably user management, and `IUserService` already
+exists — but it is not actor-scoped and cannot become so, because `ClaimsTransformer` calls it during
+authentication, before there is an actor to scope to. Putting actor-scoped methods on it would
+recreate the mixed-authority problem this split exists to avoid. `IAccessTokenService` is therefore
+its own service, injected into `AccessTokensController` alongside nothing else, and `IUserService` is
+left exactly as it is.
+
+**Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by both — the authentication
+service for the pre-auth lookup by id, the token service for everything a user does to their own
+tokens — and the enforcement test names both and asserts that nothing else does. That is a deliberate
+departure from the one-method rule
+[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
+`PacmanRepositories`, and it is safe for a reason worth writing down: the pre-auth query has no
+visibility rule to duplicate. It is a lookup by primary key whose result authenticates somebody
+rather than being shown to them.
+
 ---
 
 ## Scheme selection, and the handler
@@ -406,7 +473,7 @@ Nothing about the existing management API changes, and no route names a scheme.
 ### The handler
 
 An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` whose whole body delegates to
-[`IBasicAuthenticationService`](#2-ibasicauthenticationservice-and-iaccesstokenservice--minor): it
+[`IBasicAuthenticationService`](#2a-ibasicauthenticationservice--minor): it
 decodes `Authorization: Basic base64(username:token)`, and the service parses the token, loads the
 row by id, checks expiry and compares the hash. The principal that comes back carries the existing
 `AuthnConstants.AppUserIdClaimType` claim plus the
@@ -539,7 +606,10 @@ not otherwise depend on that one; the reasoning is shared, the code is not.
 | Parameter | Applied by | Meaning |
 | :--- | :--- | :--- |
 | `nameContains` | `StringContainsQuery` | Substring of the token's name, matched case-insensitively by lowering both sides as the package search does. |
-| `expiresAfter` | `GreaterThanQuery` | Tokens whose `ExpiresAt` is later than this. A non-expiring token has a null `ExpiresAt` and is therefore excluded by it. |
+
+There is no filter on expiry. Sorting by `ExpiresAt` puts the tokens nearest to lapsing together,
+which is the question a user actually asks, and a filter for it would be a second way to ask the same
+thing over a handful of rows.
 
 `AccessTokenSortField`: `CreatedAt`, `Name`, `ExpiresAt`, `LastUsedAt`. `CreatedAt` is first and
 therefore the default, carrying `[DefaultSortDirection(SortDirection.Descending)]` so that the token
@@ -618,57 +688,45 @@ succeeds; the unique index on `(UserId, Name)` exists and the FK cascades from `
 
 *Depends on:* nothing.
 
-### 2. `IBasicAuthenticationService` and `IAccessTokenService` — `MINOR`
+### 2a. `IBasicAuthenticationService` — `MINOR`
 
-Two services, because the work divides cleanly along whether an `Actor` exists yet.
+The pre-auth half, [as described above](#two-services-own-this-not-one): parsing the presented
+string, the primary-key lookup, the expiry check, the `FixedTimeEquals` comparison, the principal and
+its claims, the coarse `LastUsedAt` write, and [the use log](#every-use-is-logged). Not actor-scoped,
+and nothing here takes `IActorAccessor`.
 
-**`IBasicAuthenticationService` is not actor-scoped** and has one job: turn a set of Basic
-credentials into a `ClaimsPrincipal`, or into nothing. Parsing the token, the primary-key lookup,
-the expiry check, the `FixedTimeEquals` hash comparison, the claims it issues, and the coarse
-`LastUsedAt` write all live here. It cannot take `IActorAccessor`, and the reason is structural
-rather than awkward: the accessor depends on `ICurrentUserService`, which depends on the
-authenticated principal, which is the thing this service produces. It runs *before* an actor exists.
-
-**`IAccessTokenService` is actor-scoped** like every other service, and manages tokens on behalf of
-the caller: minting (format, `RandomNumberGenerator`, SHA-256, the once-only return), the
-[listing](#the-listing-follows-the-standard-shape), and deletion. Every method takes the actor's own
-tokens as its subject, so a caller can never name another user's.
-
-The split is the point. A single service holding both would have a method that deliberately bypasses
-the actor sitting next to methods that depend on it, which is exactly the shape somebody later
-copies by accident; two types, with two jobs and two rules about what they may assume, cannot be
-confused for one another. It also gives the enforcement test something crisp to say.
-
-**Why not `IUserService`.** Token management is arguably user management, and `IUserService` already
-exists — but it is not actor-scoped and cannot become so, because `ClaimsTransformer` calls it
-during authentication, before there is an actor to scope to. Putting actor-scoped methods on it
-would recreate the mixed-authority problem this issue exists to avoid. `IAccessTokenService` is
-therefore its own service, injected into `AccessTokensController` alongside nothing else, and
-`IUserService` is left exactly as it is.
-
-**Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by both — the authentication
-service for the pre-auth lookup by id, the token service for everything a user does to their own
-tokens — and the enforcement test names both and asserts that nothing else does. That is a deliberate
-departure from the one-method rule
-[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
-`PacmanRepositories`, and it is safe for a reason worth writing down: the pre-auth query has no
-visibility rule to duplicate. It is a lookup by primary key whose result authenticates somebody
-rather than being shown to them.
+Verification needs a token to verify, so minting the format lives here too — as an internal detail
+this service owns, which [issue 2b](#2b-iaccesstokenservice--minor) then exposes to a user.
 
 *Acceptance:* unit tests that a minted token verifies; that a token differing in one character does
 not; that a malformed, truncated or wrongly-prefixed string is rejected without throwing; that an
 unknown token id is rejected; that an expired token is rejected; that the stored hash is not the
-token and the token is not recoverable from the row; that a minted secret is Base64Url and therefore
-URL-safe; that `LastUsedAt` is written when stale and skipped when fresh; and that a failure to write
-it does not fail verification. The `LastUsedAt` resolution is a configuration key with an entry in
-`appsettings.json` and a default of one hour, tested at both a stale and a fresh value.
+token and the token is not recoverable from the row; and that a minted secret is Base64Url and
+therefore URL-safe.
 
-Actor-scoped tests on `IAccessTokenService`: listing returns only the actor's own tokens, filtered
-and sorted as specified; deleting another user's token is a `404`-shaped miss rather than a
-forbidden; and an enforcement test asserts the two services are the only things naming
-`DbContext.PacmanAccessTokens`.
+`LastUsedAt` is written when stale and skipped when fresh, a failure to write it does not fail
+verification, and its resolution is a configuration key with an entry in `appsettings.json` and a
+default of one hour, tested at both a stale and a fresh value.
+
+The log is asserted, not assumed: a successful verification writes the token id and the client
+address, a failed one writes the token id where the string yielded one, and **no test-visible log
+line contains the secret** — asserted against a captured log rather than by reading the code.
 
 *Depends on:* 1.
+
+### 2b. `IAccessTokenService` — `MINOR`
+
+The actor-scoped half: minting on behalf of the caller (over the format
+[issue 2a](#2a-ibasicauthenticationservice--minor) owns), the
+[listing](#the-listing-follows-the-standard-shape), and deletion. Every method's subject is the
+actor's own tokens.
+
+*Acceptance:* listing returns only the actor's own tokens, filtered and sorted as specified;
+deleting another user's token is a `404`-shaped miss rather than a forbidden; minting returns the
+secret exactly once and never again. An enforcement test asserts that this service and
+`IBasicAuthenticationService` are the only things naming `DbContext.PacmanAccessTokens`.
+
+*Depends on:* 2a.
 
 ### 3. Scoped actors — `MINOR`
 
@@ -722,7 +780,10 @@ principal carries, and the
 [present-but-invalid-is-a-`401` middleware](#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
 
 Swagger is untouched: `Basic` gets no security definition and the OAuth flow stays exactly as it is.
-That is a deliberate omission rather than an oversight, and it is [deferred](#deferred-work).
+That is a decision, not a backlog item. Swagger is how somebody learns to drive this API, and the
+answer it should give is `Bearer` — `Basic` exists for `pacman`, which cannot speak OAuth, and
+advertising it beside the OAuth flow would present it as an equivalent way in. It is not one, and
+nothing should suggest it is.
 
 *Acceptance:* handler unit tests cover a valid header, a missing header, a malformed one, a
 non-Basic scheme, a wrong secret, an unknown token id and an expired token, and assert every failure
@@ -744,7 +805,7 @@ pacman routes do not exist yet. Add a test-only anonymous endpoint, or defer tha
 [Pacman Controller](pacman-controller.md#4-pacmancontroller--minor) — the implementing issue picks,
 but it must not go untested in both.
 
-*Depends on:* 2, 3.
+*Depends on:* 2a, 3.
 
 ### 5. `AccessTokensController` — `MINOR`
 
@@ -762,7 +823,7 @@ deleting it makes it stop authenticating; a second token with the same name is a
 route is a `401` unauthenticated; and a Basic-authenticated caller cannot mint a token. A handler
 test asserts `ItemExistsException` produces `409`.
 
-*Depends on:* 2, 4.
+*Depends on:* 2b, 4.
 
 ### 6. Scopes on a `Bearer` token — `MINOR`
 
@@ -798,25 +859,26 @@ a `403`).
 
 Worth filing as issues, but explicitly out of scope for the work above.
 
-* **An audit trail for tokens** — revocations, and the address a token was last used from — which
+* **A queryable audit trail for tokens.** [Use is logged](#every-use-is-logged), which answers the
+  question that matters after a suspected leak, and that is the whole interim measure. What is
+  deferred is history a *user* can read — every use rather than the last, and revocations, which
   would change revocation from a delete to a soft delete.
-* **Minting a narrowed access token.** The enforcement exists from issue 3, and a `Bearer` token can
-  already carry scopes; what is missing is a way for a user to *ask* for a `PacmanAccessToken`
-  carrying anything other than `pacman-manager:*:read` — a scope field on the create request, and a
-  concept in the UI to go with it.
-* **Per-instance authorization**, so that a credential can be narrowed to one repository rather than
-  to repositories as a kind.
-  [Deliberately outside what `scope` can express](#why-instances-are-not-in-here), and there are
-  three specified ways to add it when it is wanted: **RFC 9396** rich authorization
-  requests (`authorization_details` with `actions` and an `identifier` per entry, returned with the
-  token and in introspection), **UMA 2.0** as implemented by Keycloak's Authorization Services (an
-  RPT carrying per-resource permissions), and **RFC 8693** token exchange (narrow at mint time and
-  leave the grammar alone). Whichever is chosen, the intersection rule above is what keeps it safe.
-* **A `Basic` security definition in Swagger.** `ConfigureSwaggerGenOptions` wires the OAuth flow
-  and says nothing about `Basic`, so "try it out" against a pacman route cannot send a token. Very low
-  priority: the routes it would exercise are meant to be driven by `pacman`, and a `curl` line in
-  [the consuming guide](pacman-controller.md#5-document-consuming-a-hosted-repository--patch) covers
-  the human case.
+* **Minting a narrowed `PacmanAccessToken`.** Only the Basic half is missing. A narrowed **`Bearer`**
+  credential already works and needs nothing from us: register a client that requests a smaller set
+  of scopes, which is what client scopes are for and what every OIDC provider does. What has no
+  equivalent is a user asking for a `PacmanAccessToken` carrying anything other than
+  `pacman-manager:*:read`, because this application mints those itself — a scope field on the create
+  request, and a concept in the UI to go with it.
+* **Per-instance authorization** — narrowing a credential to one repository rather than to
+  repositories as a kind. **Postponed indefinitely**, and recorded here so the question is not
+  reopened from scratch rather than because it is queued: a repository host of this size has no
+  demonstrated need for it, and every mechanism that provides it is a large change.
+  [It is deliberately outside what `scope` can express](#why-instances-are-not-in-here), and the
+  three specified ways in are **RFC 9396** rich authorization requests (`authorization_details` with
+  `actions` and an `identifier` per entry, returned with the token and in introspection), **UMA
+  2.0** as implemented by Keycloak's Authorization Services (an RPT carrying per-resource
+  permissions), and **RFC 8693** token exchange (narrow at mint time and leave the grammar alone).
+  Whichever is chosen, the intersection rule above is what keeps it safe.
 * **A credential that can publish.** Today a build pipeline still needs an OAuth client to push a
   package. That is the right default, but a purpose-built publishing credential — scoped to one
   repository, and distinct from these — is the obvious next thing to want.
