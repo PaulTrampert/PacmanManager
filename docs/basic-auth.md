@@ -292,31 +292,56 @@ since nothing deletes a user.
 
 ### Format
 
+A token is **two strings**, one for each half of a Basic credential:
+
 ```
-pmt_{tokenId:N}_{base64url(32 random bytes)}
+username: pmt_{tokenId:N}
+password: pms_{base64url(32 random bytes)}
 ```
 
-`pmt_` identifies the string as one of ours, which is what lets a secret scanner recognise a leaked
-token and what stops a support conversation being about an unlabelled blob. `tokenId:N` is the row's
-primary key in hex. The secret is 32 bytes from `RandomNumberGenerator`, Base64Url encoded to 43
-characters. The whole thing is 80 characters, comfortably inside any header limit.
+`pmt_{tokenId:N}` is the token's **identifier**: the row's primary key in hex, 36 characters. It is
+not secret. `pms_{…}` is the **secret**: 32 bytes from `RandomNumberGenerator`, Base64Url encoded to
+43 characters, 47 with the prefix. Both are comfortably inside any header limit.
 
-**Splitting the identifier from the secret is the point of the format.** Verification is a primary
-key lookup followed by exactly one hash comparison. Without it, verification would have to hash the
-presented secret against every stored row, which is `O(tokens)` work on every single HTTP request —
-and `pacman -Su` on a large repository issues one request per package.
+**Each half carries its own prefix**, and for different reasons. `pms_` is what lets a secret
+scanner recognise a leaked secret on its own — in a CI variable, a paste, a password field — where a
+bare 43-character Base64Url string would be indistinguishable from any other random blob. `pmt_`
+makes the username self-describing in a config file or a log, and lets a future credential type be
+told apart by its prefix rather than by guessing. A secret found without its identifier can still be
+traced to its row, since `TokenHash` is a deterministic hash of it; that is an investigation, not a
+hot path, so it needs no index.
 
-Base64**url**, not Base64: the token is written into a `Server` URL's userinfo, where `+` and `/`
+**Separating the identifier from the secret is the point of the format.** Verification is
+[one query on the primary key](#verification-is-one-query). Without an identifier, verification would
+have to hash the presented secret against every stored row, which is `O(tokens)` work on every single
+HTTP request — and `pacman -Su` on a large repository issues one request per package.
+
+Putting the two halves in the two fields Basic auth already has, rather than joining them into one
+string in the password, has three consequences worth having:
+
+* **Parsing is two prefix checks, not a split.** A joined `pmt_{id}_{secret}` would have to split on
+  exactly the first two underscores, because the Base64Url alphabet contains `_`.
+* **The loggable half and the secret half arrive separately.** The handler can log the username
+  freely and never touch the password, rather than carving the secret off a single string before
+  logging anything.
+* **Credential stores behave.** `.netrc`, git credential helpers and OS keyrings key an entry on host
+  and username, so several tokens for one host sit side by side instead of overwriting each other.
+
+The cost is two values to copy rather than one. That is acceptable because hand-written client
+configuration is not the expected path: a generated repository configuration or installer script is
+[planned](pacman-controller.md#deferred-work), and it writes both.
+
+Base64**url**, not Base64: the secret is written into a `Server` URL's userinfo, where `+` and `/`
 are not safe. Encoding it correctly at the point it is minted is cheaper than every consumer
-remembering to escape it.
+remembering to escape it. The identifier is hex and needs no such care.
 
-The token id is a lookup key and is not secret. Knowing one without the matching secret is worth
-nothing, so the fact that ids are enumerable and that a v7 GUID discloses its creation time costs
-nothing here.
+Knowing an identifier without the matching secret is worth nothing, so the fact that ids are
+enumerable and that a v7 GUID discloses its creation time costs nothing here.
 
 ### Hashing
 
-`SHA-256` over the secret bytes, unsalted, compared with `CryptographicOperations.FixedTimeEquals`.
+`SHA-256` over the 32 decoded secret bytes, unsalted, and compared in the database; see
+[Verification is one query](#verification-is-one-query).
 
 **Not bcrypt, Argon2 or PBKDF2, and this is a deliberate departure from how a password would be
 stored.** Those are slow *on purpose*, to make guessing a low-entropy human-chosen secret expensive.
@@ -327,19 +352,52 @@ turns a security control into a self-inflicted denial of service. This is the sa
 GitHub's personal access tokens, which are also a fast hash over a high-entropy random value.
 
 Unsalted for the same reason: a salt defeats precomputation across a stolen table, and there is
-nothing to precompute against a uniformly random 256-bit value. `FixedTimeEquals` is still required —
-the comparison is against a value an attacker supplies.
+nothing to precompute against a uniformly random 256-bit value.
 
 **This reasoning is load-bearing and must not be generalised.** It holds only because the secret is
 generated by this application from a CSPRNG. If a user-chosen value ever becomes acceptable here,
 the fast hash becomes wrong on the same day. The XML docs on the minting and verification methods
 say so.
 
+### Verification is one query
+
+The service parses both fields, hashes the presented secret, and asks for the row matching **both**
+at once:
+
+```csharp
+var token = await dbContext.PacmanAccessTokens
+    .Where(t => t.Id == tokenId && t.TokenHash == presentedHash)
+    .SingleOrDefaultAsync(cancellationToken);
+```
+
+An unknown identifier and a wrong secret are then the same outcome — no row — reached by the same
+path. The hash is computed before the query in both cases, and nothing branches on which half was
+wrong. Fetching by id and comparing in memory would not have that property: an unknown id skips the
+comparison and returns sooner, telling a caller whether a token id exists. Ids are not secret, so
+that would be a small leak, but closing it costs nothing.
+
+The primary key already serves this query. No index on `(Id, TokenHash)` is needed, and a unique one
+would add nothing: `Id` is unique on its own, so the pair already is.
+
+**There is no `FixedTimeEquals`.** The comparison happens in the database, which does not compare in
+constant time, and that is safe for a reason specific to comparing *hashes*. An attacker controls the
+secret, not its hash, so learning how many leading bytes of `SHA-256(guess)` match the stored value
+tells them nothing about which secret to try next. The constant-time requirement is for comparing
+raw secrets, which this design never does. The XML docs on the query say so, so that nobody later
+"fixes" it by moving the comparison into memory — or, worse, by storing the secret.
+
+**Expiry is checked on the returned row, not in the predicate.** A request that reaches that check
+has presented the right identifier and the right secret, so distinguishing "expired" from "no match"
+discloses nothing to anyone who does not already hold the token — and "my token expired" is the
+failure a user most needs diagnosed. The response is the same `401` either way; the distinction is
+in the log.
+
 ### The token is shown once
 
-`POST /api/v1/users/me/tokens` returns the full string in its `201` response body and it is never
+`POST /api/v1/users/me/tokens` returns the secret in its `201` response body and it is never
 retrievable again, because only the hash is kept. Every other route that mentions a token returns
-its id, name and dates only.
+its id, username, name and dates only — the username is not secret, and showing it is what lets a
+user match a line in a config file to a token in the listing.
 
 ### Revocation is a delete
 
@@ -376,16 +434,19 @@ and that is the question somebody asks when a token may have leaked. A full audi
 
 Every successful verification logs, at minimum:
 
-* **The token id** — the `Guid` half of the presented credential. It is
-  [not secret](#format), which is what makes it safe to log and useful to correlate.
+* **The token id** — parsed from the username. It is [not secret](#format), which is what makes it
+  safe to log and useful to correlate.
 * **The client IP address** the request arrived from.
 
 The timestamp comes free from the logging configuration, and the owning user is derivable from the
 token id, so those are not repeated into the message. Failures are logged the same way, with the
-token id when the string parsed far enough to yield one.
+token id when the username parsed as one, and with the reason: a malformed credential, no match, or
+an expired token. **An unknown id and a wrong secret are both logged as "no match"**, because
+[the query](#verification-is-one-query) cannot tell them apart; the logged id is enough for an
+operator to check whether the row exists.
 
-**The secret is never logged, in any form** — not the token string, not the header, not a prefix of
-it. That constraint already exists for [the `Authorization` header](#transport); this section is the
+**The secret is never logged, in any form** — not the password field, not the header, not a prefix
+of either. That constraint already exists for [the `Authorization` header](#transport); this section is the
 place it would most plausibly be broken, because a log line about a credential is exactly where
 somebody reaches for the credential.
 
@@ -410,8 +471,8 @@ The work divides cleanly along whether an `Actor` exists yet, and the two halves
 because of it.
 
 **`IBasicAuthenticationService` is not actor-scoped** and has one job: turn a set of Basic
-credentials into a `ClaimsPrincipal`, or into nothing. Parsing the token, the primary-key lookup, the
-expiry check, the `FixedTimeEquals` hash comparison, the claims it issues, the coarse `LastUsedAt`
+credentials into a `ClaimsPrincipal`, or into nothing. Parsing both fields,
+[the lookup on id and hash](#verification-is-one-query), the expiry check, the claims it issues, the coarse `LastUsedAt`
 write and [the use log](#every-use-is-logged) all live here. It cannot take `IActorAccessor`, and the
 reason is structural rather than awkward: the accessor depends on `ICurrentUserService`, which
 depends on the authenticated principal, which is the thing this service produces. It runs *before* an
@@ -482,8 +543,8 @@ Nothing about the existing management API changes, and no route names a scheme.
 
 An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` whose whole body delegates to
 [`IBasicAuthenticationService`](#2a-ibasicauthenticationservice--minor): it
-decodes `Authorization: Basic base64(username:token)`, and the service parses the token, loads the
-row by id, checks expiry and compares the hash. The principal that comes back carries the existing
+decodes `Authorization: Basic base64(username:password)`, and the service parses the identifier from
+the username and the secret from the password, looks the row up by both, and checks expiry. The principal that comes back carries the existing
 `AuthnConstants.AppUserIdClaimType` claim plus the
 [`pacman-manager:*:read` scope](#basic-produces-a-read-only-scope).
 
@@ -501,30 +562,27 @@ Basic-authenticated request must never provision a user or an `ExternalProviderU
 from an unknown token id from a wrong secret from an expired token. The failures are logged with the
 distinction; the response does not carry it.
 
-### The token goes in the password field, and the username is ignored
+### The identifier goes in the username, the secret in the password
 
-The credential is `Authorization: Basic base64(anything:pmt_…)`. **The username field is not
-validated.** A token identifies its owner on its own, so there is nothing for the username to add.
-
-The documented form uses the literal `token`, which is self-describing in a config file:
+The credential is `Authorization: Basic base64(pmt_…:pms_…)`, and **both fields are required and
+validated**. A username that is missing, lacks the `pmt_` prefix or is not a hex GUID after it, or a
+password that is missing, lacks the `pms_` prefix or does not decode to exactly 32 bytes, fails
+before any database access — with the same `401` as every other failure.
 
 ```ini
-Server = https://token:pmt_0199…_kJ8…@packages.example.com/pacman/$repo/$arch
+Server = https://pmt_0199…:pms_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
-An earlier draft of this design *required* the username to equal the owner's, which was worth doing
-then and is not now. The point of the check was to fail loudly after a rename: when a repository URL
-contained its owner's name, a user who renamed themselves had a stale `pacman.conf` carrying the old
-name in two places, and matching the credential to the owner turned a half-working configuration
-into one clean `401`. [Repositories are no longer addressed by their
-owner](pacman-controller.md#repository-names-are-globally-unique) and there is no username to
-rename, so the check would now protect against nothing while adding a way for a correct token to be
-rejected.
+The username is not an account name, and nothing compares it to one. It names the token, and the
+token names its owner. [There is no username on `User`](user-management.md#why-there-is-no-username)
+for it to be confused with.
 
-Basic auth requires *some* userinfo to be present — libcurl sends a header for
-`https://user@host` and for `https://:pass@host` alike — so the field cannot simply be omitted from
-the URL. Naming it `token` is a convention, not a constraint: any value authenticates, and the
-handler must not grow an opinion about it later without a reason better than tidiness.
+An earlier draft of this design put the whole token in the password and **ignored** the username,
+following the convention GitHub, GitLab and npm use. That convention suits a token typed into config
+by hand, as one string to copy. Here the field does work instead of carrying a placeholder, for the
+reasons under [Format](#format) — two prefix checks rather than a split, a loggable half that arrives
+separately, and one credential-store entry per token — and hand-written configuration is not the path
+this service expects users to take.
 
 ### Present-but-invalid credentials are a `401`, and this is easy to get wrong
 
@@ -659,16 +717,20 @@ the wrong one.
 
 ```jsonc
 // AccessToken — what the listing returns. No secret.
-{ "id": "0199…", "name": "laptop", "createdAt": "…", "expiresAt": null, "lastUsedAt": "…" }
+{ "id": "0199…", "username": "pmt_0199…", "name": "laptop", "createdAt": "…", "expiresAt": null,
+  "lastUsedAt": "…" }
 ```
 
 ```jsonc
 // CreatedAccessToken — the 201 from POST, and the only place the secret ever appears
-{ "id": "0199…", "name": "laptop", "createdAt": "…", "expiresAt": null, "lastUsedAt": null,
-  "token": "pmt_0199…_kJ8…" }
+{ "id": "0199…", "username": "pmt_0199…", "name": "laptop", "createdAt": "…", "expiresAt": null,
+  "lastUsedAt": null, "secret": "pms_kJ8…" }
 ```
 
-Two models rather than one with a nullable `token`, for the reason the user models split on `email`:
+`username` is derived from `id` rather than stored, and is on both models so that a client never has
+to know how the one is spelled from the other.
+
+Two models rather than one with a nullable `secret`, for the reason the user models split on `email`:
 a field that is only sometimes populated is a field that will one day be populated by accident. Here
 that accident would put a live credential in a listing.
 
@@ -696,26 +758,31 @@ succeeds; the unique index on `(UserId, Name)` exists and the FK cascades from `
 ### 2a. `IBasicAuthenticationService` — `MINOR`
 
 The pre-auth half, [as described above](#two-services-own-this-not-one): parsing the presented
-string, the primary-key lookup, the expiry check, the `FixedTimeEquals` comparison, the principal and
-its claims, the coarse `LastUsedAt` write, and [the use log](#every-use-is-logged). Not actor-scoped,
+username and password, [the lookup on id and hash](#verification-is-one-query), the expiry check,
+the principal and its claims, the coarse `LastUsedAt` write, and [the use log](#every-use-is-logged). Not actor-scoped,
 and nothing here takes `IActorAccessor`.
 
 Verification needs a token to verify, so minting the format lives here too — as an internal detail
 this service owns, which [issue 2b](#2b-iaccesstokenservice--minor) then exposes to a user.
 
-*Acceptance:* unit tests that a minted token verifies; that a token differing in one character does
-not; that a malformed, truncated or wrongly-prefixed string is rejected without throwing; that an
-unknown token id is rejected; that an expired token is rejected; that the stored hash is not the
-token and the token is not recoverable from the row; and that a minted secret is Base64Url and
-therefore URL-safe.
+*Acceptance:* unit tests that a minted token verifies; that a secret differing in one character does
+not; that a malformed, truncated or wrongly-prefixed username or password is rejected without
+throwing and without querying — including the two prefixes swapped between the fields, and a secret
+containing `_`, which is in the Base64Url alphabet and must not confuse the parser; that an unknown
+token id is rejected; that a real id with another token's secret is rejected; that an expired token
+is rejected; that the stored hash is not the secret and the secret is not recoverable from the row;
+and that a minted secret is Base64Url and therefore URL-safe.
+
+The lookup is asserted to be a single query predicated on both id and hash, so that an unknown id
+and a wrong secret take the same path; a test that moves the comparison into memory must fail.
 
 `LastUsedAt` is written when stale and skipped when fresh, a failure to write it does not fail
 verification, and its resolution is a configuration key with an entry in `appsettings.json` and a
 default of one hour, tested at both a stale and a fresh value.
 
 The log is asserted, not assumed: a successful verification writes the token id and the client
-address, a failed one writes the token id where the string yielded one, and **no test-visible log
-line contains the secret** — asserted against a captured log rather than by reading the code.
+address, a failed one writes the token id where the username yielded one along with the reason —
+malformed, no match, or expired — and **no test-visible log line contains the secret** — asserted against a captured log rather than by reading the code.
 
 *Depends on:* 1.
 
@@ -792,8 +859,9 @@ nothing should suggest it is.
 
 *Acceptance:* handler unit tests cover a valid header, a missing header, a malformed one, a
 non-Basic scheme, a wrong secret, an unknown token id and an expired token, and assert every failure
-produces the same undifferentiated `401`. A test asserts the username field is ignored: the same
-token authenticates with `token:`, with the owner's display name, and with an arbitrary string.
+produces the same undifferentiated `401`. Tests assert the username is required: the right secret
+with an empty username, with the owner's display name, with an arbitrary string, or with another
+token's identifier is the same `401`.
 
 A test asserts the selector routes by prefix: a `Bearer` request is still handled by the JWT scheme
 untouched, an absent header still falls through to anonymous, and an unrecognised scheme is treated
@@ -820,7 +888,8 @@ The three routes, the three wire models
 `ControllerConstants` template, and raising `ItemExistsException` on a duplicate token name.
 
 *Acceptance:* E2E tests: creating a token returns the secret exactly once, and listing tokens never
-returns it, asserted against the raw response body; the returned token then authenticates a request;
+returns it, asserted against the raw response body; the listing shows the same `username` the create
+returned; the returned username and secret then authenticate a request;
 deleting it makes it stop authenticating; a second token with the same name is a `409`; a past
 `expiresAt` is a `400` and an omitted one produces a token with no expiry; another user's token is a
 `404` to delete; the listing pages, filters and sorts, and never shows another user's token; every

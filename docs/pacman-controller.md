@@ -96,11 +96,11 @@ SigLevel = Optional TrustAll
 ```
 
 For a private repository the same line carries credentials, which libcurl reads out of the userinfo
-and sends as an `Authorization: Basic` header. The username is a
-[self-describing placeholder and is not validated](basic-auth.md#the-token-goes-in-the-password-field-and-the-username-is-ignored):
+and sends as an `Authorization: Basic` header. The username is
+[the token's identifier and the password its secret](basic-auth.md#the-identifier-goes-in-the-username-the-secret-in-the-password):
 
 ```ini
-Server = https://token:pmt_0199…_kJ8…@packages.example.com/pacman/$repo/$arch
+Server = https://pmt_0199…:pms_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
 **The root names the client, not the resource.** `/api/v1/repositories/{id}` is the management
@@ -930,8 +930,13 @@ Worth filing as issues, but explicitly out of scope for the work above.
   works but occupies a request thread's worth of resources for the duration; `X-Accel-Redirect` or
   `X-Sendfile` would hand it to the proxy. Only worth doing once there is a deployment with a proxy
   in front.
-* **`Usage` and mirrorlists.** Nothing generates a `pacman.conf` fragment or a mirrorlist for a user,
-  which is the obvious convenience once more than one host serves the same repositories.
+* **A generated repository configuration or installer script.** Nothing yet produces a `repo.conf`
+  fragment — section, `Server` line with the token's username and secret, and `SigLevel` — or a script
+  that installs one. This is the intended way for users to configure a client, and it is what makes
+  [a token being two values](basic-auth.md#format) cost nothing in practice; until it exists,
+  [issue 5](#5-document-consuming-a-hosted-repository--patch) documents the manual form.
+* **Mirrorlists.** Nothing generates a mirrorlist for a user, which is the obvious convenience once
+  more than one host serves the same repositories.
 * **Rate limiting and download quotas.** Nothing bounds how often an anonymous caller can pull a
   public repository.
 * **Reconciling a repository database from the rows**, already filed under
