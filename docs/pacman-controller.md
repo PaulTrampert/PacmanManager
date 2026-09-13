@@ -686,25 +686,24 @@ usability trap and the reason [issue 5](#5-document-consuming-a-hosted-repositor
 
 One issue per heading. Dependencies are noted; anything without a dependency can start immediately.
 
-### 1a. `ItemExistsException` → `409` — `PATCH`
+### 1a. Raise `ItemExistsException` on repository name collisions — `PATCH`
 
 Raise `ItemExistsException` on the **existing** `(OwnerId, Name, Architecture)` collision, from create
-and from update, and add the arm to `AuthorizationExceptionHandler` that maps it to `409` — the
-`DbUpdateException` → `500` that [`authorization-plan.md`](authorization-plan.md#known-gaps) records
-as a known gap.
+and from update, replacing the `DbUpdateException` → `500` that
+[`authorization-plan.md`](authorization-plan.md#known-gaps) records as a known gap. The mapping to
+`409` is [a story of its own](authorization-plan.md#itemexistsexception--409--patch), shared with
+[Basic Auth](basic-auth.md#5-accesstokenscontroller--minor).
 
 It goes first rather than last for a sequencing reason: once names are global, collisions stop being
 an edge case and become something users hit routinely. Landing the index first would mean shipping a
-period where the routine outcome is a `500`. It also closes a standing gap on its own merits, and
-removes the "whichever of the two issues lands first adds it" coordination with
-[Basic Auth](basic-auth.md#5-accesstokenscontroller--minor).
+period where the routine outcome is a `500`. It also closes a standing gap on its own merits.
 
 *Acceptance:* service unit tests that a colliding create and a colliding update each raise
-`ItemExistsException`; a handler test that it produces `409`. **A test asserts the body names neither
+`ItemExistsException`; an E2E test that each produces a `409`. **A test asserts the body names neither
 the owner nor anything else about the colliding repository.** The `packages-api.md` deferred bullet
 recording the exception as unused is deleted.
 
-*Depends on:* nothing.
+*Depends on:* [`ItemExistsException` → `409`](authorization-plan.md#itemexistsexception--409--patch).
 
 ### 1b. Globally unique repository names — `MAJOR`
 

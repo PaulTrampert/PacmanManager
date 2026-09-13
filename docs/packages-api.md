@@ -771,6 +771,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **Quotas.** Nothing bounds how much a user can upload.
 * **`ItemExistsException` is still unused**, as noted in `authorization-plan.md`; a name collision
   in either API surfaces as a `500` rather than a `409`. **Designed in
-  [`pacman-controller.md`](pacman-controller.md#1a-itemexistsexception--409--patch) and
-  [`basic-auth.md`](basic-auth.md#5-accesstokenscontroller--minor)**, whichever of the two lands
-  first; that issue deletes this bullet.
+  [`authorization-plan.md`](authorization-plan.md#itemexistsexception--409--patch)**, which maps it
+  to `409`, and
+  [`pacman-controller.md`](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch),
+  which raises it on a repository name collision and deletes this bullet.

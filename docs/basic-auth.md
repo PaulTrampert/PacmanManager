@@ -631,14 +631,11 @@ One user's token count is bounded by their patience, so paging here is arguably 
 shape anyway, for two reasons: a listing that ships without pagination cannot grow it later without
 breaking every caller, and a reader of this API should not have to learn which listings are special.
 
-`409` on `POST` is a duplicate token name for that user, raised as `ItemExistsException` and mapped
-by a new arm on `AuthorizationExceptionHandler`, without which it would fall through to a `500`
-exactly as `PackageForbiddenException` would have. That exception has existed unused since the
-original authorization work — [`authorization-plan.md`](authorization-plan.md#known-gaps) records it
-as a known gap — and this is its first use, unless
-[Pacman Controller](pacman-controller.md#1a-itemexistsexception--409--patch) — which needs the same
-arm for a repository name collision — has already landed. Whichever of the two goes first adds it,
-and the second finds it already there.
+`409` on `POST` is a duplicate token name for that user, raised as `ItemExistsException`. The arm on
+`AuthorizationExceptionHandler` that maps it to `409` — without which it would fall through to a
+`500` — is [a story of its own](authorization-plan.md#itemexistsexception--409--patch), because
+[Pacman Controller](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
+needs the same arm for a repository name collision and neither document depends on the other.
 
 ### Models
 
@@ -820,18 +817,16 @@ but it must not go untested in both.
 The three routes, the three wire models
 ([`CreateAccessTokenRequest`, `AccessToken` and `CreatedAccessToken`](#models)), the
 [`AccessTokenFilter` and `AccessTokenSortField`](#the-listing-follows-the-standard-shape), the
-`ControllerConstants` template, and the `ItemExistsException` → `409` arm if it is not already
-there.
+`ControllerConstants` template, and raising `ItemExistsException` on a duplicate token name.
 
 *Acceptance:* E2E tests: creating a token returns the secret exactly once, and listing tokens never
 returns it, asserted against the raw response body; the returned token then authenticates a request;
 deleting it makes it stop authenticating; a second token with the same name is a `409`; a past
 `expiresAt` is a `400` and an omitted one produces a token with no expiry; another user's token is a
 `404` to delete; the listing pages, filters and sorts, and never shows another user's token; every
-route is a `401` unauthenticated; and a Basic-authenticated caller cannot mint a token. A handler
-test asserts `ItemExistsException` produces `409`.
+route is a `401` unauthenticated; and a Basic-authenticated caller cannot mint a token.
 
-*Depends on:* 2b, 4.
+*Depends on:* 2b, 4, and [`ItemExistsException` → `409`](authorization-plan.md#itemexistsexception--409--patch).
 
 ### 6. Scopes on a `Bearer` token — `MINOR`
 

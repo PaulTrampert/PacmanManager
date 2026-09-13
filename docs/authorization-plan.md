@@ -24,7 +24,7 @@ it, what it holds, and whether it is yours. It is not a promise about every stri
 it, and one narrowing is accepted deliberately.
 
 **A repository's name is public, even when the repository is private.** Repository names are a
-global namespace, unique on `(Name, Architecture)` across the deployment, so that a `pacman.conf`
+global namespace, unique on `Name` alone across the deployment, so that a `pacman.conf`
 section name and the name this application knows are always the same string —
 [`pacman-controller.md`](pacman-controller.md#repository-names-are-globally-unique) has the full
 reasoning. A namespace that refuses duplicates cannot avoid telling a caller that a duplicate is
@@ -157,8 +157,37 @@ trade.*
     remove the file is logged and ignored, leaving an orphaned file that nothing references.
 *   Renaming a repository into a collision with the `(OwnerId, Name, Architecture)` index surfaces
     as a `DbUpdateException`, and so a `500`, rather than a `409`. `ItemExistsException` exists for
-    this but is not yet raised anywhere. This is fixed by
-    [`pacman-controller.md`](pacman-controller.md#1a-itemexistsexception--409--patch), which
-    raises it on the collision that exists today; a global namespace then turns that collision from
-    a rare edge case into something a user hits routinely, which is what finally made it worth
-    fixing.
+    this but is not yet raised anywhere. This is fixed in two steps:
+    [the `409` arm](#itemexistsexception--409--patch) below, and
+    [`pacman-controller.md`](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch),
+    which raises the exception on the collision that exists today; a global namespace then turns that
+    collision from a rare edge case into something a user hits routinely, which is what finally made
+    it worth fixing.
+
+## Implementation plan
+
+Stories that no single feature document owns, because more than one feature needs them.
+
+### `ItemExistsException` → `409` — `PATCH`
+
+The arm on `AuthorizationExceptionHandler` that maps `ItemExistsException` to `409 Conflict`, and
+nothing else. Nothing raises the exception yet; that is left to the stories with a collision to
+report — [Pacman Controller 1a](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
+for a repository name and [Basic Auth 5](basic-auth.md#5-accesstokenscontroller--minor) for a token
+name — and both depend on this one.
+
+It is a story of its own because both of those need it and neither depends on the other. Folding it
+into either would make one feature wait on the other, or leave the two racing to add it; on its own it
+is a few lines and a handler test.
+
+**The arm writes a fixed title and no `Detail`**, where the existing arms copy `exception.Message`
+into it. A `409` on a repository name must disclose nothing but "taken" — see
+[What hiding existence covers](#what-hiding-existence-covers) — and keeping the message out of the
+body makes that true for every raise site by construction, rather than by each one remembering to
+word its message carefully.
+
+*Acceptance:* `AuthorizationExceptionHandlerTests` gains a case asserting that `ItemExistsException`
+is handled, sets `409`, and writes a problem-details body that does not contain the exception's
+message.
+
+*Depends on:* nothing.
