@@ -259,7 +259,11 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   [Continuous integration](#continuous-integration). They install the same toolchain as
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
-  and its known gaps.
+  and its known gaps. A new design document starts from `docs/design-doc-template.md`, which carries
+  both the skeleton and the rules behind it: the body states *what* will be built, the argument for
+  each decision lives in an Appendix that records what was rejected, each section ends with a
+  bulleted **Why** footer linking those entries, and every `###` under the implementation plan is one
+  issue with its own acceptance criteria and dependencies.
 * `.run/` holds Rider run configurations.
 * `test-fixtures/` holds binary fixtures shared by more than one test project — currently the
   minimal pacman package under `test-fixtures/packages` and the same package one version on, both
