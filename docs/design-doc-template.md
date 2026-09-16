@@ -1,8 +1,8 @@
 # Design Document Template
 
 Status: **template**. Copy everything below the first horizontal rule into `docs/<name>.md` and fill
-it in. `docs/user-management.md` is the reference implementation of the format — read it if a
-section here is unclear.
+it in. [`user-management.md`](user-management.md) is the reference implementation of the format —
+read it if a section here is unclear.
 
 ## How to use this file
 
