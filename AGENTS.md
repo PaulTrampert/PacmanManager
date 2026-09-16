@@ -247,6 +247,24 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   make obvious.
 * GitHub repo: <https://github.com/PaulTrampert/PacmanManager>.
 
+### Issue and pull request size
+
+**One issue per pull request, and one pull request per issue.** An issue that cannot be delivered
+as a single reviewable PR is two issues; split it before starting rather than growing the branch.
+
+**Keep the PR small enough that a reviewer can hold the whole change in their head.** Changes that
+are usually that size:
+
+* adding a single method to a class, together with the interface change that goes with it;
+* a diff under roughly 300 lines, tests aside;
+* a new class with a single method on it.
+
+Those are illustrations, not thresholds to measure against. Some changes are unavoidably large —
+changing the signature of a widely used method has to land in one piece, since nothing builds
+half-way through — but a large pull request should be the exception rather than the habit. When
+cutting issues from a design document, prefer several independent issues to a chain of dependent
+ones.
+
 ## Repository metadata
 
 * `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`; never replace the symlink with a copy,
@@ -259,7 +277,14 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   [Continuous integration](#continuous-integration). They install the same toolchain as
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
-  and its known gaps.
+  and its known gaps. A new design document starts from `docs/design-doc-template.md`, which carries
+  both the skeleton and the rules behind it: the body states *what* will be built, the argument for
+  each decision lives in an Appendix that records what was rejected, each section ends with a
+  bulleted **Why** footer linking those entries, and every `###` under the implementation plan is one
+  issue with its own acceptance criteria and dependencies. A design document on `main` is settled —
+  implement it as written. Deviating from one during implementation needs sign-off from a project
+  owner, and the same change must update the plan, add an Appendix entry saying why, and update
+  every dependent issue.
 * `.run/` holds Rider run configurations.
 * `test-fixtures/` holds binary fixtures shared by more than one test project — currently the
   minimal pacman package under `test-fixtures/packages` and the same package one version on, both
