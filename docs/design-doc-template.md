@@ -41,8 +41,8 @@ bullet is a link to an Appendix entry. Use the bulleted form even when there is 
 
     **Why:**
 
-    * [`CurrentUser` is a separate model](#why-currentuser-is-a-separate-model)
-    * [`User` keeps its bare name](#why-user-keeps-its-bare-name)
+    * [‹appendix entry›](#‹anchor›)
+    * [‹another appendix entry›](#‹anchor›)
 
 A footer goes at the end of every specification section and every implementation story that has an
 Appendix entry bearing on it. A section with no footer is one whose reasoning was never written
