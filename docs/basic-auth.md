@@ -1001,6 +1001,28 @@ GitHub's personal access tokens, which are also a fast hash over a high-entropy 
 Unsalted for the same reason: a salt defeats precomputation across a stolen table, and there is
 nothing to precompute against a uniformly random 256-bit value.
 
+Salting would also cost something structural, which is the stronger argument and the one most likely
+to be overlooked. A per-row salt lives on the row, so the salt has to be read before the hash can be
+computed, and the lookup stops being
+[one query predicated on both halves](#why-verification-is-a-single-query) and becomes fetch-by-id
+followed by an in-memory comparison. That is not an extra round trip — it is still one primary-key
+lookup — but it gives up the property that an unknown identifier and a wrong secret are the same
+outcome reached by the same path, handing back the token-id enumeration oracle that shape closes for
+free. The compute is not the reason: a 32-byte secret and a 48-byte salted one both fit in a single
+SHA-256 block, so the two cost the same tens of nanoseconds against a database round trip three
+orders of magnitude larger.
+
+If a stronger scheme is ever genuinely needed, **it is its own piece of work, and it will almost
+certainly invalidate every existing token.** Only the hash is stored, so there is nothing to
+re-derive a new one from: every user would have to mint replacements and edit every `pacman.conf`
+holding one. **This is an accepted risk.** It is recorded here so that the migration is understood as
+part of the price of changing the scheme, rather than discovered halfway through doing it.
+
+A **global pepper** — an application-held secret mixed in as `SHA-256(pepper ‖ secret)` — is the one
+variation that would not cost the query shape, since it is not per-row and is therefore still
+computable before the lookup. It buys little against a 256-bit random value, but it is the option to
+reach for first if a database-only compromise ever becomes the threat worth answering.
+
 ### Why verification is a single query
 
 An unknown identifier and a wrong secret must be the same outcome, reached by the same path. Fetching
