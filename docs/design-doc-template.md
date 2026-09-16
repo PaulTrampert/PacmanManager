@@ -21,8 +21,8 @@ decide by asking which of these it serves:
 1. **A human can review the plan for correctness.** The body states *what* will be built, so a
    reviewer can judge whether it is right without wading through justification.
 2. **The reasons are preserved.** They move to the Appendix; they are never deleted. Later readers —
-   the author six months on, and agents — need to know why something is the way it is, and what is
-   already settled.
+   the author six months on, and agents — need to know why something is the way it is, and which
+   alternatives were weighed and rejected before it got there.
 3. **An agent can cut implementation stories from it.** Each `###` under the implementation plan is
    one issue, already carrying its acceptance criteria and dependencies.
 
@@ -45,7 +45,10 @@ bullet is a link to an Appendix entry. Use the bulleted form even when there is 
     * [`User` keeps its bare name](#why-user-keeps-its-bare-name)
 
 A footer goes at the end of every specification section and every implementation story that has an
-Appendix entry bearing on it. A section with nothing settled about it has no footer.
+Appendix entry bearing on it. A section with no footer is one whose reasoning was never written
+down — because it was self-evident, or because the specification was right first time. It is not
+less settled than a section with three links: what settles the plan is the document landing on
+`main`, not the presence of an argument for it.
 
 ## Restructuring an existing document into this format
 
@@ -63,17 +66,28 @@ document is for — e.g. "This document is the source the implementation issues 
 
 **How to read it.** The plan states what will be built. The argument for each decision — including
 what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
-**Why** footer linking the entries that bear on it. A decision with an appendix entry is settled:
-implement it as written and raise an issue rather than re-deciding it.
+**Why** footer linking the entries that bear on it. Once this document is on `main` the whole plan
+is settled, whether or not a given detail has a Why entry: implement it as written and raise an
+issue rather than re-deciding it.
 
-> **Guidance.** Keep that paragraph close to verbatim; it is the contract between the body and the
-> Appendix. If this document is one of a set, follow it with a short list of the siblings and a
-> sentence on what depends on what — a reader's first question is whether they can start.
+Deviating from the plan during implementation is allowed, but never quietly. A deviation **must**
+have sign-off from a project owner, and **must** carry all three of:
+
+* the plan updated to say what is actually being built;
+* an Appendix entry recording why it changed;
+* every dependent issue updated to match.
+
+> **Guidance.** Keep those two paragraphs and the deviation list close to verbatim; they are the
+> contract between the body and the Appendix. If this document is one of a set, follow them with a
+> short list of the siblings and a sentence on what depends on what — a reader's first question is
+> whether they can start.
 
 ## Goals
 
-> **Guidance.** Three to six bullets, each an outcome a reader could check the finished work
-> against. Not a task list.
+> **Guidance.** Each bullet is an outcome a reader could check the finished work against, not a
+> task list. **At least one** — a design document with no clear goal is not a design document.
+> Six is a soft ceiling rather than a limit: needing more than six is usually a sign the work
+> wants splitting across more than one design document.
 
 * ‹outcome›
 
@@ -126,8 +140,8 @@ One issue per heading. Dependencies are noted; anything without a dependency can
 
 > **Guidance.** This section is what an agent reads to file issues, so each heading must stand on
 > its own. Number them, and end each heading with the change level the PR title will carry —
-> `PATCH`, `MINOR` or `MAJOR`. Keep each one small enough for a reviewer to hold in their head, and
-> prefer independent issues to a chain; see `AGENTS.md` on one small PR per issue.
+> `PATCH`, `MINOR` or `MAJOR`. Cut each one to the size of a single pull request and prefer
+> independent issues to a chain; see **Issue and pull request size** in `AGENTS.md`.
 
 ### ‹N›. ‹What this issue builds› — ‹PATCH | MINOR | MAJOR›
 
@@ -164,9 +178,11 @@ Worth filing as issues, but explicitly out of scope for the work above.
 ## Appendix
 
 The argument for each decision in the plan, including what was considered and rejected. Nothing
-here adds a requirement — the plan above is the specification. These entries record what is
-**settled**: if implementation suggests a different choice, the entry is the thing to argue with,
-in an issue, rather than something to quietly depart from.
+here adds a requirement — the plan above is the specification, and it is the plan, once merged,
+that is settled. These entries are the supporting reasoning: if implementation suggests a different
+choice, they are what to argue with, in an issue, rather than something to quietly depart from.
+A deviation that is agreed to updates the plan, this Appendix and the dependent issues together, as
+the **How to read it** paragraph at the top sets out.
 
 > **Guidance.** One `###` entry per decision, titled so the Why-footer link reads as a sentence
 > — "Why `CurrentUser` is a separate model", "There is no `IUserAccessPolicy`". Every entry is the
