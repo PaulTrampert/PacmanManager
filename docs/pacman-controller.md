@@ -500,20 +500,23 @@ recording the exception as unused is deleted.
 
 ### 1b. Globally unique repository names — `MAJOR`
 
-The index change and what follows mechanically from it: unique on `Name` alone, a new index on
-`OwnerId`, `RepositoryKey` collapsing to a name and `GetRepositoryByNameAsync` with it, a migration
-named `AddIndex_IX_PacmanRepositories_Name`, and the correction to
-[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name).
+The service change: the collision check becomes `Name` alone, `RepositoryKey` collapses to a name and
+`GetRepositoryByNameAsync` takes a `string`, and the correction to
+[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name). The database index
+is not touched; that is [issue 1c](#1c-the-global-name-index-and-its-migration--patch).
 
-Breaking for any existing client and for `IRepositoryService`'s callers, hence `MAJOR`. No data
-migration is needed — the application is not live.
+Breaking for any existing client and for `IRepositoryService`'s callers, hence `MAJOR`.
 
-*Acceptance:* `dotnet ef migrations list` shows the migration; applying it against the compose
-Postgres succeeds and the old composite index is gone. Service unit tests: two users cannot both
-create `custom`; a rename into a taken name is a `409`; a rename to the repository's own current name
-is a no-op rather than a self-collision. A test asserts a private repository is still a `404` by id
-and absent from the listing for a non-owner, so the collision response is the only new signal —
-the bound on
+*Constraints:* uniqueness is enforced by the service alone until 1c lands. The collision check must
+therefore compare against every repository, not only the visible ones: a name held by a private
+repository the caller cannot see is still a `409`.
+
+*Acceptance:* service unit tests: two users cannot both create `custom`, including when the first
+one's `custom` is private; a rename into a taken name is a `409`; a rename to the repository's own
+current name is a no-op rather than a self-collision; `GetRepositoryByNameAsync` finds a repository
+by name alone and still returns nothing for a private repository the caller may not see. A test
+asserts a private repository is still a `404` by id and absent from the listing for a non-owner, so
+the collision response is the only new signal — the bound on
 [the disclosure this change accepts](#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not).
 Existing tests that create same-named repositories under different owners are updated.
 
@@ -524,8 +527,28 @@ Existing tests that create same-named repositories under different owners are up
 * [repository names became globally unique](#why-repository-names-became-globally-unique)
 * [the key is `Name` alone](#why-the-key-is-name-alone)
 * [a public name is an acceptable trade](#why-a-public-name-is-an-acceptable-trade)
+* [the service change lands before the index](#why-the-service-change-lands-before-the-index)
 
-### 1c. `SupportedArchitectures` — `MAJOR`
+### 1c. The global name index and its migration — `PATCH`
+
+The schema change: the unique index on `PacmanRepository` becomes `Name` alone, a new non-unique
+index on `OwnerId` replaces the prefix scan the composite index gave `RepositoryFilter.ownerId`, and
+a migration named `AddIndex_IX_PacmanRepositories_Name`. No data migration is needed — the
+application is not live.
+
+*Acceptance:* `dotnet ef migrations list` shows the migration; applying it against the compose
+Postgres succeeds, the old composite index is gone, and both new indexes exist. An E2E test that two
+users creating `custom` still produces a `409` rather than a `500`, which is what proves 1b's check
+runs before the database's.
+
+*Depends on:* 1b. It must not land first.
+
+**Why:**
+
+* [the key is `Name` alone](#why-the-key-is-name-alone)
+* [the service change lands before the index](#why-the-service-change-lands-before-the-index)
+
+### 1d. `SupportedArchitectures` — `MAJOR`
 
 [Architecture moves off the key and onto the repository](#a-repository-supports-architectures-a-package-has-one):
 `SupportedArchitectures` as a `string[]` with `any` disallowed and the allowed set a shared constant,
@@ -544,7 +567,7 @@ repository may hold `foo`/`x86_64` and `foo`/`aarch64` as two packages, and may 
 alongside either. A filter test for `architecture=` against the collection column, which no longer
 translates as an equality.
 
-*Depends on:* 1b.
+*Depends on:* 1c.
 
 **Why:**
 
@@ -567,7 +590,7 @@ for two. An E2E test creates a repository, publishes a package, deletes the repo
 `{DATA_DIR}/repositories/{id}` no longer exists — which subsumes the six-files assertion and the
 package files with it.
 
-*Depends on:* 1c.
+*Depends on:* 1d.
 
 **Why:**
 
@@ -606,7 +629,7 @@ package whose architecture token disagrees with the requested `{repoArch}` is a 
 name and architecture segments are case-sensitive. An enforcement test asserts the service names
 neither `DbContext` `DbSet`.
 
-*Depends on:* 1b, 1c, 2.
+*Depends on:* 1b, 1d, 2.
 
 **Why:**
 
@@ -1056,3 +1079,14 @@ It goes first rather than last for a sequencing reason: once names are global, c
 an edge case and become something users hit routinely. Landing the index first would mean shipping a
 period where the routine outcome is a `500`. It also closes a standing gap on its own merits — which
 is what finally makes the `DbUpdateException` → `500` worth fixing.
+
+### Why the service change lands before the index
+
+Uniqueness moves in two steps, service first. Once 1b lands, a name collision across owners is a
+`409` raised by `RepositoryService`, while the database still accepts the row; 1c then makes the
+database agree. The other order would add the global index while the service still checks
+`(OwnerId, Name, Architecture)`, so a second owner choosing a taken name would get a
+`DbUpdateException` and a `500` — the same known gap 1a closed, reopened for the case users hit most.
+
+Splitting them also keeps each review to one kind of change: 1b is a signature change and its tests,
+reviewed as code; 1c is an index and a migration, reviewed against the database.

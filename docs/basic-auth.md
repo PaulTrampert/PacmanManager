@@ -92,7 +92,7 @@ space-delimited, case-sensitive list of opaque strings. Every value of ours has 
 `pacman-manager:repositories:read` reads repositories. `pacman-manager:*:read` is "read anything
 this user can read". `pacman-manager:packages:publish` is "publish packages and nothing else".
 `pacman-manager:repositories:*` is every operation on repositories. A credential carries as many
-values as it needs and they are ORed: permitted if any one of them matches.
+values as it needs and they are `OR`'d: permitted if any one of them matches.
 
 Three rules govern the claim, and all three are requirements rather than observations:
 
@@ -198,16 +198,27 @@ storage types from wire models.
 | `Id` | `Guid` | Primary key, `Guid.CreateVersion7()`. Also the token's **lookup key**; see below. |
 | `UserId` | `Guid` | FK to `User`, required, cascade delete. |
 | `User` | nav | |
-| `Name` | `string` | A label the user chose, so a list of tokens is legible. Unique per user. |
+| `Name` | `string` | A label the user chose, so a list of tokens is legible. Shown exactly as entered. |
+| `NormalizedName` | `string` | `Name.ToLowerInvariant()`. Used for indexing and matching, **never shown**. |
 | `TokenHash` | `string` | Base64 SHA-256 of the secret. |
 | `CreatedAt` | `DateTimeOffset` | |
 | `ExpiresAt` | `DateTimeOffset?` | Optional. A token past it fails to authenticate. |
 | `LastUsedAt` | `DateTimeOffset?` | Coarsely maintained; see [Recording use](#recording-use). |
 
-Unique index on `(UserId, Name)`. Validation limits go in
-`PacmanManager.Entities.AccessTokenValidationConstants`, alongside the existing per-entity constants.
+Unique index on **`(UserId, NormalizedName)`**, so `laptop` and `Laptop` are the same name and the
+second is a `409`. Validation limits go in `PacmanManager.Entities.AccessTokenValidationConstants`,
+alongside the existing per-entity constants; `NormalizedName` shares `Name`'s maximum length.
 Cascade delete from `User` is what makes account deletion tractable later; it is not reachable today,
 since nothing deletes a user.
+
+* `NormalizedName` is written by the service, from `Name`, in the same statement that writes `Name`.
+  Nothing else sets it, and no wire model carries it — in or out.
+* Lowering uses the **invariant culture**, never the current one, so the same name normalizes the
+  same way on every host.
+
+**Why:**
+
+* [a token name has a normalized copy](#why-a-token-name-has-a-normalized-copy)
 
 ### Format
 
@@ -315,47 +326,86 @@ both logged as "no match"**, because [the query](#verification-is-one-query) can
 **The secret is never logged, in any form** — not the password field, not the header, not a prefix of
 either.
 
-One deployment detail the implementing issue must handle rather than assume: `Program.cs` does not
-configure forwarded headers, so behind the reverse proxy that [terminates TLS](#transport)
-`RemoteIpAddress` is the proxy's address. Either `UseForwardedHeaders` is configured or the header is
-read explicitly and logged as what it is. If it is `UseForwardedHeaders`:
-
-* **The defaults trust loopback only**, so a proxy on a compose bridge network is ignored and nothing
-  appears to happen.
-* The list that accepts a subnet is **`KnownIPNetworks`** (`IList<System.Net.IPNetwork>`, so
-  `IPNetwork.Parse("172.16.0.0/12")`), which is what a container network wants since the proxy's
-  address is not stable. `KnownProxies` takes individual addresses, and the older `KnownNetworks` is
-  `[Obsolete]` on net10.0 along with `Microsoft.AspNetCore.HttpOverrides.IPNetwork`.
-* It must name something: clearing the lists trusts whatever any caller cares to send.
+The address logged is `HttpContext.Connection.RemoteIpAddress`, and it is only the client's address
+once [trusted forwarded-header sources](#trusted-forwarded-header-sources) are configured. Behind the
+reverse proxy that [terminates TLS](#transport) it is otherwise the proxy's.
 
 **Why:**
 
 * [every use is logged before there is an audit trail](#why-every-use-is-logged-before-there-is-an-audit-trail)
 
+### Trusted forwarded-header sources
+
+`Program.cs` configures no forwarded headers today. It gains `UseForwardedHeaders`, driven by a
+configuration section naming the proxies whose `X-Forwarded-*` headers are believed:
+
+```jsonc
+// appsettings.json
+"ForwardedHeaders": {
+  "TrustedSources": [ "10.0.0.5", "172.16.0.0/12" ]
+}
+```
+
+* **Each entry is a single IP address or a subnet in CIDR notation.** An entry containing `/` is
+  parsed with `System.Net.IPNetwork.Parse` and added to `KnownIPNetworks`; any other entry is parsed
+  with `IPAddress.Parse` and added to `KnownProxies`. IPv4 and IPv6 are both accepted.
+* **An entry that parses as neither fails startup**, through options validation, naming the entry.
+  A mistyped proxy address must not quietly become a proxy that is not trusted.
+* The headers forwarded are `X-Forwarded-For` and `X-Forwarded-Proto`, and `UseForwardedHeaders` runs
+  **before** `UseAuthentication()` and before request logging, so everything downstream sees the
+  client's address.
+* **An absent or empty section keeps ASP.NET Core's defaults**, which trust loopback only. The lists
+  are never cleared: an empty list must not mean "trust every caller", since that lets any client
+  forge the address the use log records.
+* Use `KnownIPNetworks` (`IList<System.Net.IPNetwork>`) for subnets. The older `KnownNetworks` is
+  `[Obsolete]` on net10.0, along with `Microsoft.AspNetCore.HttpOverrides.IPNetwork`.
+* `appsettings.json` carries the section with an empty `TrustedSources`, so the key is discoverable,
+  and the setting is overridable from the environment like every other key
+  (`ForwardedHeaders__TrustedSources__0`).
+
+**Why:**
+
+* [trusted proxies are configuration](#why-trusted-proxies-are-configuration)
+
 ### Two services own this, not one
 
-**`IBasicAuthenticationService` is not actor-scoped** and has one job: turn a set of Basic
-credentials into a `ClaimsPrincipal`, or into nothing. Parsing both fields,
-[the lookup on id and hash](#verification-is-one-query), the expiry check, the claims it issues, the
-coarse `LastUsedAt` write and [the use log](#every-use-is-logged) all live here. **It cannot take
-`IActorAccessor`**: the accessor depends on `ICurrentUserService`, which depends on the authenticated
-principal, which is the thing this service produces.
+**Verification is a method on `IUserService`**, which is already not actor-aware:
 
-**`IAccessTokenService` is actor-scoped** like every other service: minting (format,
-`RandomNumberGenerator`, SHA-256, the once-only return), the
+```csharp
+/// Returns the user the access token belongs to if and only if the token is valid; otherwise null.
+Task<User?> GetUserByAccessTokenAsync(string username, string password, CancellationToken ct = default);
+```
+
+* It takes the two decoded Basic fields and returns the owning **`User`, or `null`** — for a malformed
+  field, an unknown identifier, a wrong secret and an expired token alike. It never throws for a bad
+  credential.
+* Parsing both fields, [the lookup on id and hash](#verification-is-one-query), the expiry check, the
+  coarse `LastUsedAt` write and [the use log](#every-use-is-logged) all happen inside it. The method
+  stays free of HTTP: the client address reaches its log lines through a logging scope the
+  [handler](#the-handler) opens around the call, not through a parameter or `HttpContext`.
+* **It returns a `User`, not a `ClaimsPrincipal`.** Building the principal and its claims is
+  [the handler's](#the-handler) job.
+* **It cannot take `IActorAccessor`**: the accessor depends on `ICurrentUserService`, which depends on
+  the authenticated principal, which is what this method's result is used to build. `UserService`
+  takes no actor today and must not start.
+* The token format — parsing `pmt_`/`pms_`, generating a secret, hashing it — is a static
+  `AccessTokenFormat` with no dependencies, shared by this method and by minting.
+
+**`IAccessTokenService` is actor-scoped** like every other service: minting (over
+`AccessTokenFormat`, `RandomNumberGenerator`, the once-only return), the
 [listing](#the-listing-follows-the-standard-shape), and deletion. Every method takes the actor's own
 tokens as its subject, so a caller can never name another user's.
 
-`IUserService` is left exactly as it is.
-
-**Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by both, and the enforcement test
-names both and asserts that nothing else does. This is a deliberate departure from the one-method
-rule [`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
+**Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by `UserService` and
+`AccessTokenService`, and the enforcement test names both and asserts that nothing else does. This is
+a deliberate departure from the one-method rule
+[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
 `PacmanRepositories`.
 
 **Why:**
 
 * [two services, not one](#why-two-services-not-one)
+* [verification is on `IUserService`](#why-verification-is-on-iuserservice)
 * [token management is not on `IUserService`](#why-token-management-is-not-on-iuserservice)
 
 ---
@@ -389,10 +439,10 @@ Nothing about the existing management API changes, and **no route names a scheme
 
 ### The handler
 
-An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` whose whole body delegates to
-[`IBasicAuthenticationService`](#2a-ibasicauthenticationservice--minor): it decodes
-`Authorization: Basic base64(username:password)`, and the service parses the identifier from the
-username and the secret from the password, looks the row up by both, and checks expiry.
+An `AuthenticationHandler<BasicAuthenticationSchemeOptions>` that decodes
+`Authorization: Basic base64(username:password)` and passes both fields, with the client address, to
+[`IUserService.GetUserByAccessTokenAsync`](#two-services-own-this-not-one) inside a logging scope
+carrying the client address. A `null` is a failure; a `User` becomes the principal.
 
 * The principal carries the existing `AuthnConstants.AppUserIdClaimType` claim plus the
   [`pacman-manager:*:read` scope](#basic-produces-a-read-only-scope). Reusing `app_user_id` is what
@@ -505,7 +555,7 @@ document does not otherwise depend on that one; the reasoning is shared, the cod
 
 | Parameter | Applied by | Meaning |
 | :--- | :--- | :--- |
-| `nameContains` | `StringContainsQuery` | Substring of the token's name, matched case-insensitively by lowering both sides as the package search does. |
+| `nameContains` | `StringContainsQuery` | Substring of the token's name, case-insensitive: the term is lowered with `ToLowerInvariant()` once in C# and matched against `NormalizedName`. |
 
 * `AccessTokenSortField`: `CreatedAt`, `Name`, `ExpiresAt`, `LastUsedAt`. `CreatedAt` is first and
   therefore the default, carrying `[DefaultSortDirection(SortDirection.Descending)]`.
@@ -531,7 +581,7 @@ document does not otherwise depend on that one; the reasoning is shared, the cod
 ```
 
 * `name` is required and validated against `AccessTokenValidationConstants.NameMaxLength`; a name the
-  user already has is the `409` above.
+  user already has, compared case-insensitively through `NormalizedName`, is the `409` above.
 * `expiresAt` is optional and, when present, **must be in the future** — a past date is a `400`, not
   a token that is dead on arrival. There is no maximum.
 * **An omitted or null `expiresAt` means the token never expires.** Stating the default explicitly is
@@ -567,7 +617,7 @@ One issue per heading. Dependencies are noted; anything without a dependency can
 **The numbering is not the order.** Issue 6 is the realm change, and
 [it has to land before issue 3](#every-existing-token-becomes-powerless) turns enforcement on. It is
 last in this list because it is the smallest and the least interesting, not because it is the last
-thing to do.
+thing to do. Issue 7 is the same: it is small and independent, and it lands before issue 4.
 
 ### 1. `PacmanAccessToken` entity and migration — `MINOR`
 
@@ -575,31 +625,39 @@ The entity as tabulated, `AccessTokenValidationConstants`, `PacmanAccessTokens` 
 `PacmanManagerDbContext`, and a migration named `AddTable_PacmanAccessTokens`.
 
 *Acceptance:* `dotnet ef migrations list` shows it; applying it against the compose Postgres
-succeeds; the unique index on `(UserId, Name)` exists and the FK cascades from `User`.
+succeeds; the unique index on `(UserId, NormalizedName)` exists, there is no unique index on `Name`,
+and the FK cascades from `User`.
 
 *Depends on:* nothing.
 
-### 2a. `IBasicAuthenticationService` — `MINOR`
+**Why:**
 
-The pre-auth half, [as described above](#two-services-own-this-not-one): parsing the presented
-username and password, [the lookup on id and hash](#verification-is-one-query), the expiry check,
-the principal and its claims, the coarse `LastUsedAt` write, and [the use log](#every-use-is-logged).
-Not actor-scoped, and nothing here takes `IActorAccessor`.
+* [a token name has a normalized copy](#why-a-token-name-has-a-normalized-copy)
 
-Verification needs a token to verify, so minting the format lives here too — as an internal detail
-this service owns, which [issue 2b](#2b-iaccesstokenservice--minor) then exposes to a user.
+### 2a. `IUserService.GetUserByAccessTokenAsync` — `MINOR`
+
+The pre-auth half, [as described above](#two-services-own-this-not-one): the method on
+`IUserService` and `UserService`, taking the presented username and password and returning the
+owning `User` or `null` — parsing, [the lookup on id and hash](#verification-is-one-query), the
+expiry check, the coarse `LastUsedAt` write, and [the use log](#every-use-is-logged). `UserService`
+stays not actor-scoped, and nothing here takes `IActorAccessor`.
+
+Verification needs a token to verify, so the static `AccessTokenFormat` — parsing, generating and
+hashing — lands here too, and [issue 2b](#2b-iaccesstokenservice--minor) mints over it.
 
 *Constraints:* the fast unsalted hash under [Hashing](#hashing) is correct only for a CSPRNG-generated
 secret, and the single-query lookup under [Verification is one query](#verification-is-one-query) is
 a requirement rather than an optimisation. Both carry XML docs saying so.
 
-*Acceptance:* unit tests that a minted token verifies; that a secret differing in one character does
-not; that a malformed, truncated or wrongly-prefixed username or password is rejected without
+*Acceptance:* unit tests that a minted token returns its owner; that every failure below returns
+`null` rather than throwing; that a secret differing in one character does not verify; that a
+malformed, truncated or wrongly-prefixed username or password is rejected without
 throwing and without querying — including the two prefixes swapped between the fields, and a secret
 containing `_`, which is in the Base64Url alphabet and must not confuse the parser; that an unknown
 token id is rejected; that a real id with another token's secret is rejected; that an expired token
 is rejected; that the stored hash is not the secret and the secret is not recoverable from the row;
-and that a minted secret is Base64Url and therefore URL-safe.
+and that a minted secret is Base64Url and therefore URL-safe. `AccessTokenFormat` has unit tests of
+its own, needing no database.
 
 The lookup is asserted to be a single query predicated on both id and hash, so that an unknown id
 and a wrong secret take the same path; a test that moves the comparison into memory must fail.
@@ -608,10 +666,10 @@ and a wrong secret take the same path; a test that moves the comparison into mem
 verification, and its resolution is a configuration key with an entry in `appsettings.json` and a
 default of one hour, tested at both a stale and a fresh value.
 
-The log is asserted, not assumed: a successful verification writes the token id and the client
-address, a failed one writes the token id where the username yielded one along with the reason —
+The log is asserted, not assumed: a successful verification writes the token id, a failed one writes the token id where the username yielded one along with the reason —
 malformed, no match, or expired — and **no test-visible log line contains the secret**, asserted
-against a captured log rather than by reading the code.
+against a captured log rather than by reading the code. The client address is the handler's to
+assert, in issue 4, since it arrives through the handler's logging scope.
 
 *Depends on:* 1.
 
@@ -622,18 +680,22 @@ against a captured log rather than by reading the code.
 * [there is no constant-time comparison](#why-there-is-no-constant-time-comparison)
 * [`LastUsedAt` is coarse](#why-lastusedat-is-coarse)
 * [every use is logged before there is an audit trail](#why-every-use-is-logged-before-there-is-an-audit-trail)
+* [verification is on `IUserService`](#why-verification-is-on-iuserservice)
 
 ### 2b. `IAccessTokenService` — `MINOR`
 
-The actor-scoped half: minting on behalf of the caller (over the format
-[issue 2a](#2a-ibasicauthenticationservice--minor) owns), the
+The actor-scoped half: minting on behalf of the caller (over the `AccessTokenFormat`
+[issue 2a](#2a-iuserservicegetuserbyaccesstokenasync--minor) adds, and writing `NormalizedName`
+alongside `Name`), the
 [listing](#the-listing-follows-the-standard-shape), and deletion. Every method's subject is the
 actor's own tokens.
 
 *Acceptance:* listing returns only the actor's own tokens, filtered and sorted as specified;
 deleting another user's token is a `404`-shaped miss rather than a forbidden; minting returns the
-secret exactly once and never again. An enforcement test asserts that this service and
-`IBasicAuthenticationService` are the only things naming `DbContext.PacmanAccessTokens`.
+secret exactly once and never again; a minted token's `NormalizedName` is its name lowered with the
+invariant culture, including under a non-invariant current culture such as `tr-TR`. An enforcement
+test asserts that `AccessTokenService` and `UserService` are the only things naming
+`DbContext.PacmanAccessTokens`.
 
 *Depends on:* 2a.
 
@@ -692,7 +754,7 @@ ownership rules underneath.
 ### 4. The `Basic` scheme and its handler — `MINOR`
 
 The [selector policy scheme](#the-authorization-prefix-picks-the-handler) and the constants naming
-it, the `Basic` scheme and its options, the handler over `IBasicAuthenticationService`, the scope
+it, the `Basic` scheme and its options, the handler over `IUserService.GetUserByAccessTokenAsync`, the scope
 claim it issues, `HttpContextActorAccessor` building an `Actor` from whatever scope claim the
 principal carries, and the
 [present-but-invalid-is-a-`401` middleware](#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
@@ -713,14 +775,15 @@ as `Bearer` rather than as `Basic`.
 An E2E test asserts that a Basic-authenticated `POST` to `/api/v1/repositories` is a `403` — the test
 that proves the restriction is a property of the credential rather than of the route. A further test
 asserts a token does not appear in the request log, and one asserts a Basic-authenticated request
-creates no `ExternalProviderUserMapping`.
+creates no `ExternalProviderUserMapping`. A handler test asserts the verification log lines carry
+the client address, from the logging scope the handler opens.
 
 The `[AllowAnonymous]`-plus-`401` behaviour needs an anonymous endpoint to test against, and the
 pacman routes do not exist yet. Add a test-only anonymous endpoint, or defer that single assertion to
 [Pacman Controller](pacman-controller.md#4-pacmancontroller--minor) — the implementing issue picks,
 but it must not go untested in both.
 
-*Depends on:* 2a, 3.
+*Depends on:* 2a, 3, 7.
 
 **Why:**
 
@@ -739,7 +802,7 @@ The three routes, the three wire models
 *Acceptance:* E2E tests: creating a token returns the secret exactly once, and listing tokens never
 returns it, asserted against the raw response body; the listing shows the same `username` the create
 returned; the returned username and secret then authenticate a request; deleting it makes it stop
-authenticating; a second token with the same name is a `409`; a past `expiresAt` is a `400` and an
+authenticating; a second token with the same name is a `409`, and so is one whose name differs only in case; a past `expiresAt` is a `400` and an
 omitted one produces a token with no expiry; another user's token is a `404` to delete; the listing
 pages, filters and sorts, and never shows another user's token; every route is a `401`
 unauthenticated; and a Basic-authenticated caller cannot mint a token.
@@ -783,6 +846,30 @@ a `403`).
 
 * [every existing token becomes powerless](#every-existing-token-becomes-powerless)
 * [the audience prefix is on every value](#why-the-audience-prefix-is-on-every-value)
+
+### 7. Trusted forwarded-header sources — `MINOR`
+
+The `ForwardedHeaders:TrustedSources` configuration section, its options type and validation, the
+empty entry in `appsettings.json`, and `UseForwardedHeaders` in `Program.cs` built from it — exactly
+as [Trusted forwarded-header sources](#trusted-forwarded-header-sources) specifies.
+
+*Constraints:* an empty or absent section must leave ASP.NET Core's loopback defaults in place, never
+clear them. Clearing `KnownProxies` and `KnownIPNetworks` is the easy mistake, and it lets any caller
+choose the address that is logged.
+
+*Acceptance:* options unit tests that a single IPv4 address, a single IPv6 address, an IPv4 CIDR and
+an IPv6 CIDR each land in the right list, and that an unparseable entry fails validation naming it.
+Integration tests over the pipeline: with a trusted source configured, a request from it carrying
+`X-Forwarded-For` reports the forwarded address as `RemoteIpAddress`; the same header from an
+untrusted address is ignored; and with the section empty, a forwarded header from a non-loopback
+address is ignored.
+
+*Depends on:* nothing. Must land before issue 4, so that no token is usable while its use log records
+the proxy's address.
+
+**Why:**
+
+* [trusted proxies are configuration](#why-trusted-proxies-are-configuration)
 
 ---
 
@@ -1080,14 +1167,15 @@ The constraint that the secret is never logged already exists for [the `Authoriz
 header](#transport); the use log is the place it would most plausibly be broken, because a log line
 about a credential is exactly where somebody reaches for the credential.
 
-Logging an address nobody can rely on would be worse than logging none, which is why the forwarded
-headers question has to be settled in the same issue rather than left as a follow-up.
+Logging an address nobody can rely on would be worse than logging none, which is why
+[trusted forwarded-header sources](#7-trusted-forwarded-header-sources--minor) land before the
+handler that makes a token usable, rather than as a follow-up.
 
 ### Why two services, not one
 
 The work divides cleanly along whether an `Actor` exists yet, and the two halves become two services
-because of it. `IBasicAuthenticationService` runs *before* an actor exists; `IAccessTokenService` is
-actor-scoped like every other service.
+because of it. Verification runs *before* an actor exists; `IAccessTokenService` is actor-scoped like
+every other service.
 
 A single service holding both would have a method that deliberately bypasses the actor sitting next
 to methods that depend on it, which is exactly the shape somebody later copies by accident. Two
@@ -1103,6 +1191,65 @@ Token management is arguably user management, and `IUserService` already exists 
 actor-scoped and cannot become so, because `ClaimsTransformer` calls it during authentication, before
 there is an actor to scope to. Putting actor-scoped methods on it would recreate the mixed-authority
 problem the split exists to avoid.
+
+### Why verification is on `IUserService`
+
+An earlier draft gave verification a service of its own, `IBasicAuthenticationService`, which turned a
+Basic credential into a `ClaimsPrincipal`. It was dropped in favour of one method on `IUserService`.
+
+`IUserService` is already the non-actor-aware service that answers "which user is this?" during
+authentication: `ClaimsTransformer` calls `GetUserByExternalIdAsync` with an identity provider's
+subject, before any actor exists. An access token is the same question asked with a different
+credential, so `GetUserByAccessTokenAsync` sits beside it and inherits the same rule about what it may
+assume. A second pre-auth service would have been a second place for that rule to be forgotten, and a
+type whose whole surface was one method.
+
+Returning a `User` rather than a `ClaimsPrincipal` keeps the split that already exists: the service
+finds the user, and the authentication layer decides how a user is represented to the pipeline.
+`ClaimsTransformer` already works that way, and the handler now does too.
+
+This does not contradict [token management not being on `IUserService`](#why-token-management-is-not-on-iuserservice).
+Verification is pre-auth and belongs with the other pre-auth lookups; minting, listing and deleting
+are actor-scoped and do not.
+
+### Why a token name has a normalized copy
+
+Token names are unique per user, and a user who has `laptop` and then asks for `Laptop` almost
+certainly means the same machine. Case-insensitive uniqueness is the rule; the question was how to
+express it.
+
+* **A case-insensitive index on `Name` itself** — `lower("Name")` as an expression index, or a
+  `citext` column — cannot be declared with data annotations, and this solution configures its model
+  with data annotations only; there is no `OnModelCreating` to put it in. `citext` is also
+  Npgsql-specific, and `Microsoft.EntityFrameworkCore.InMemory` would not honour it, so the service
+  tests would pass against a rule the database does not share.
+* **Case-sensitive uniqueness** leaves two near-identical rows in a listing and no way to tell which is
+  on which machine.
+
+A stored `NormalizedName` is an ordinary column with an ordinary `[Index]`, behaves identically under
+both providers, and serves `nameContains` too, so the listing's case-insensitive match needs no
+lowering in the query. `Name` keeps what the user typed, which is what they want to see. The invariant
+culture is required because the current culture's lowercasing differs between hosts — the Turkish
+dotted and dotless `i` being the standard example — and a normalization that depends on the host is
+not one.
+
+### Why trusted proxies are configuration
+
+`RemoteIpAddress` is only meaningful behind a reverse proxy if the proxy's forwarded headers are
+believed, and only safe if nobody else's are. Three alternatives lost:
+
+* **Reading `X-Forwarded-For` directly in the log line** would record whatever a caller cares to send,
+  and would fix only this one log rather than every consumer of the client address.
+* **Hardcoding the compose network's subnet** fits one deployment and is wrong for every other, and
+  the compose subnet is not stable anyway.
+* **Clearing `KnownProxies` and `KnownIPNetworks`** so that every source is trusted is the common
+  shortcut, and it lets any client forge the address.
+
+A configuration section of addresses and subnets is what every deployment can set correctly, and
+accepting both forms in one list means an operator writes what they know — a fixed proxy address, or
+the network a container proxy lives on — without learning which of two ASP.NET Core lists it belongs
+in. Failing startup on an unparseable entry follows from the same concern: a trusted proxy silently
+dropped reverts the log to the proxy's own address with nothing to say so.
 
 ### Why a policy scheme selects the handler
 

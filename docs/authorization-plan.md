@@ -46,7 +46,7 @@ So the property to state to a user is that a private repository's *name* is not 
 existence-as-yours, its owner, its contents and its packages are. A name that has to be unguessable
 must be chosen to be unguessable.
 
-*This describes the namespace after the index change in*
+*This describes the namespace after the global-uniqueness change in*
 [`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major) *lands.
 Until then uniqueness is per owner, as* [Looking a repository up by name](#looking-a-repository-up-by-name)
 *describes, and no name is disclosed.*
@@ -143,9 +143,10 @@ Note that the owner is identified by user id.
 
 *Both paragraphs above are superseded by*
 [`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major)*, which
-makes the index* `Name` *alone and reduces* `RepositoryKey` *to that name — architecture moves onto
-the repository as* `SupportedArchitectures`*, so it is no longer part of any key. That issue owns
-rewriting this section. The friendlier URL form this section used to call for —*
+reduces* `RepositoryKey` *to the name, and*
+[*issue 1c*](pacman-controller.md#1c-the-global-name-index-and-its-migration--patch)*, which makes the
+index* `Name` *alone — architecture moves onto the repository as* `SupportedArchitectures`*, so it is
+no longer part of any key. Issue 1b owns rewriting this section. The friendlier URL form this section used to call for —*
 `{owner}/{name}/{arch}` *— was abandoned along with the user-facing name on* `User` *it would have
 needed; a globally unique repository name removes the owner from the URL entirely, and*
 [`user-management.md`](user-management.md#why-there-is-no-username) *records why that is the better

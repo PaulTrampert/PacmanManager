@@ -158,7 +158,7 @@ Required behaviour:
 | unauthenticated | `401` |
 
 * The route reads the current user, projects it to a `WriteUserRequest` of its present values,
-  applies the patch to that, and hands the result to `IUserService`. **The entity is never patched
+  applies the patch to that, and hands the result to `IUserManagementService`. **The entity is never patched
   directly** — `Patch(target)` returns a new instance rather than mutating its target.
 * `WriteUserRequest.DisplayName` carries `[Required]` and
   `[MaxLength(UserValidationConstants.DisplayNameMaxLength)]` — the shared constant in
@@ -181,6 +181,30 @@ treatment.
 **Why:**
 
 * [`PATCH`, and `PTrampert.SimplePatch`](#why-patch-and-why-ptrampertsimplepatch)
+
+### The service
+
+The users API is served by a new **`IUserManagementService`**, not by `IUserService`.
+
+| Method | Returns | Serves |
+| :--- | :--- | :--- |
+| `GetCurrentUserAsync` | `CurrentUser` | `GET /api/v1/users/me` |
+| `GetUserByIdAsync` | `PublicUserInfo?` | `GET /api/v1/users/{userId}` |
+| `ListUsersAsync` | a page of `PublicUserInfo` | `GET /api/v1/users` |
+| `UpdateCurrentUserAsync` | `CurrentUser` | `PATCH /api/v1/users/me` |
+
+* The two `me` methods find the caller through `ICurrentUserService` and throw
+  `NoCurrentUserException` when there is none, which `AuthorizationExceptionHandler` already maps to
+  `401`. Neither takes a user id.
+* The service returns wire models, never the `User` entity, so no caller can project an email into an
+  anonymous response by accident.
+* **`IUserService` is not changed by this document.** It stays the pre-authentication service that
+  `ClaimsTransformer` and [Basic Auth's token verification](basic-auth.md#two-services-own-this-not-one)
+  use.
+
+**Why:**
+
+* [the users API has its own service](#why-the-users-api-has-its-own-service)
 
 ---
 
@@ -205,34 +229,33 @@ stable-paging tie-break.
 
 * [`ApplySort` becomes generic now](#why-applysort-becomes-generic-now)
 
-### 2. `UsersController` read routes — `MINOR`
+### 2. `IUserManagementService` — `MINOR`
 
-`GET /api/v1/users/{userId}`, `GET /api/v1/users/me`, the `CurrentUser` model, and the service
-methods behind them.
+The service [the users API is built on](#the-service): `IUserManagementService`, its implementation,
+its DI registration, the `CurrentUser` model, and `GetCurrentUserAsync` — the one method that gives
+the service something to test before the others arrive.
 
-*Acceptance:* E2E tests for each route; `me` returns the authenticated user and `401` without
-authentication; a `404` for an unknown id. The anonymous route never includes an email, asserted
-against the raw response body rather than a deserialised model so that an added property cannot slip
-past.
+*Acceptance:* service unit tests that `GetCurrentUserAsync` returns the current user projected to
+`CurrentUser`, and throws `NoCurrentUserException` when there is none.
 
 *Depends on:* nothing.
 
 **Why:**
 
+* [the users API has its own service](#why-the-users-api-has-its-own-service)
 * [`CurrentUser` is a separate model](#why-currentuser-is-a-separate-model)
 * [`User` keeps its bare name](#why-user-keeps-its-bare-name)
-* [there is no `IUserAccessPolicy`](#there-is-no-iuseraccesspolicy)
 
-### 3. `UserFilter`, `UserSortField` and the listing — `MINOR`
+### 3. `ListUsersAsync`, `UserFilter` and `UserSortField` — `MINOR`
 
-`GET /api/v1/users`, the filter, the sort field enum with its default direction, and the paged
-listing.
+The paged listing on `IUserManagementService`, and the filter and sort-field types it takes, as
+[Listing](#listing) specifies. No route.
 
-*Acceptance:* service unit tests for the filter and for the unsorted default being alphabetical by
-display name. No migration and no schema change: the sort field enum has one member and `User` is
-untouched. A test that `displayNameContains` matches a term whose case differs from the stored
-value, which fails against the naive `Contains`. An E2E test asserts the listing exposes no email,
-against the raw body.
+*Acceptance:* service unit tests for paging, for the filter, and for the unsorted default being
+alphabetical by display name. No migration and no schema change: the sort field enum has one member
+and `User` is untouched. A test that `displayNameContains` matches a term whose case differs from the
+stored value, which fails against the naive `Contains`. A test that the result is projected to
+`PublicUserInfo`, so no email can reach it.
 
 *Depends on:* 1, 2.
 
@@ -243,11 +266,41 @@ against the raw body.
 * [the listing can be anonymous](#why-the-listing-can-be-anonymous)
 * [there is no `emailContains`](#why-there-is-no-emailcontains)
 
-### 4. `PATCH /api/v1/users/me` — `MINOR`
+### 4. `GetUserByIdAsync` — `MINOR`
+
+The lookup by id on `IUserManagementService`, returning `PublicUserInfo` or `null`. No route.
+
+*Acceptance:* service unit tests that a known id returns that user as `PublicUserInfo` and an unknown
+id returns `null`.
+
+*Depends on:* 2.
+
+**Why:**
+
+* [there is no `IUserAccessPolicy`](#there-is-no-iuseraccesspolicy)
+
+### 5. `UsersController` and its read routes — `MINOR`
+
+The controller and all three read routes — `GET /api/v1/users`, `GET /api/v1/users/{userId}` and
+`GET /api/v1/users/me` — each a thin call to the service method behind it.
+
+*Acceptance:* E2E tests for each route; `me` returns the authenticated user and `401` without
+authentication; a `404` for an unknown id; the listing pages, filters and sorts. The anonymous
+routes — the listing and the lookup by id — never include an email, asserted against the raw response
+body rather than a deserialised model so that an added property cannot slip past.
+
+*Depends on:* 3, 4.
+
+**Why:**
+
+* [`me` is the only way to reach the write route](#me-is-the-only-way-to-reach-the-write-route)
+* [the listing can be anonymous](#why-the-listing-can-be-anonymous)
+
+### 6. `PATCH /api/v1/users/me` — `MINOR`
 
 Changing the display name, with `WriteUserRequest`, the `PTrampert.SimplePatch` package reference,
-`AddSimplePatchConverters()` on the existing `AddJsonOptions` block, and the service method behind
-it.
+`AddSimplePatchConverters()` on the existing `AddJsonOptions` block, the route on `UsersController`,
+and `UpdateCurrentUserAsync` on `IUserManagementService` behind it.
 
 *Constraints:* the behaviour table and the four bullets under
 [Changing a display name](#changing-a-display-name) are the specification for this issue. The
@@ -264,7 +317,7 @@ body `{}` leaves the display name untouched and is a `200` rather than a `400`; 
 attribute rather than silently clearing the name. A test also asserts the route's Swagger schema
 still shows an optional `displayName`, since the patch type is generated rather than declared.
 
-*Depends on:* 2.
+*Depends on:* 5.
 
 **Why:**
 
@@ -437,6 +490,23 @@ Three properties of the library decide the shape the plan describes:
 Adding the package is consistent with `CONTRIBUTING.md`'s dependency rule — check what is already
 there before adding to it. `PTrampert.QueryObjects` is already a `RepoHost` dependency and every
 listing in this API is built on it, so this is the same ecosystem rather than a new one.
+
+### Why the users API has its own service
+
+`IUserService` already exists and would have been the obvious home. It was not used, because of who
+calls it: `ClaimsTransformer` provisions users through it on first login, and
+[Basic Auth](basic-auth.md#why-verification-is-on-iuserservice) verifies access tokens through it,
+both before any actor or current user exists. Adding methods that depend on `ICurrentUserService` to
+that type would put pre-authentication and post-authentication methods side by side, which is the
+mixed shape [Basic Auth](basic-auth.md#why-token-management-is-not-on-iuserservice) already declined
+for token management.
+
+A separate service also keeps the wire models on one side of a line: `IUserService` deals in the
+`User` entity for authentication's sake, and `IUserManagementService` deals only in `PublicUserInfo`
+and `CurrentUser`, so nothing it returns can carry an email to a route that should not show one.
+
+Building it as its own story, before any method that needs a route, lets the listing and the lookup by
+id each land as a small, independent change on top of it.
 
 ### Why `ApplySort` becomes generic now
 
