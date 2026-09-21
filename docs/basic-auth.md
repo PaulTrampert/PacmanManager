@@ -1,13 +1,21 @@
 # Basic Auth
 
-Status: **design**. This document is the source the implementation issues are cut from. It follows
+Status: **accepted**. This document is the source the implementation issues are cut from. It follows
 the conventions established in [`authorization-plan.md`](authorization-plan.md) and
 [`packages-api.md`](packages-api.md); where it departs from them, it says so.
 
 **How to read it.** The plan states what will be built. The argument for each decision — including
 what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
-**Why** footer linking the entries that bear on it. A decision with an appendix entry is settled:
-implement it as written and raise an issue rather than re-deciding it.
+**Why** footer linking the entries that bear on it. Once this document is on `main` the whole plan
+is settled, whether or not a given detail has a Why entry: implement it as written and raise an
+issue rather than re-deciding it.
+
+Deviating from the plan during implementation is allowed, but never quietly. A deviation **must**
+have sign-off from a project owner, and **must** carry all three of:
+
+* the plan updated to say what is actually being built;
+* an Appendix entry recording why it changed;
+* every dependent issue updated to match.
 
 It is one of three documents that together let a `pacman` client install from a hosted repository:
 
