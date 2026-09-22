@@ -73,7 +73,6 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
                     BaseAddress = new Uri($"{LocalAuthority}/"),
                     DefaultRequestHeaders =
                     {
-                        Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"pacman-manager-swagger:"))),
                         Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
                         Referrer = new Uri("http://localhost:8082/"),
                     }
@@ -97,17 +96,48 @@ public class KeycloakContainer(INetwork network, string solutionRoot, string? ho
         await _container.StartAsync();
     }
 
-    public async Task<string> GetBearerTokenAsync(KeycloakCredentials credentials)
+    /// <summary>
+    /// The public client whose tokens carry <c>pacman-manager:*:*</c> by default, as the interactive
+    /// clients' do.
+    /// </summary>
+    public const string SwaggerClientId = "pacman-manager-swagger";
+
+    /// <summary>
+    /// The public client that receives the <c>pacman-manager</c> audience but not
+    /// <c>pacman-manager:*:*</c>, so a token from it carries only the scope values it asks for.
+    /// </summary>
+    public const string ScopedClientId = "pacman-manager-scoped";
+
+    public Task<string> GetBearerTokenAsync(KeycloakCredentials credentials) =>
+        GetBearerTokenAsync(credentials, SwaggerClientId, "openid pacman-manager profile basic email");
+
+    /// <summary>
+    /// Requests an access token with the password grant.
+    /// </summary>
+    /// <param name="credentials">The realm user to authenticate as.</param>
+    /// <param name="clientId">The public client to request it through.</param>
+    /// <param name="scope">The space-delimited <c>scope</c> parameter of the request.</param>
+    /// <returns>The encoded access token.</returns>
+    public async Task<string> GetBearerTokenAsync(KeycloakCredentials credentials, string clientId, string scope)
     {
         var content = new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("username", credentials.Username),
             new KeyValuePair<string, string>("password", credentials.Password),
             new KeyValuePair<string, string>("grant_type", "password"),
-            new KeyValuePair<string, string>("scope", "openid pacman-manager profile basic email")
+            new KeyValuePair<string, string>("scope", scope)
         });
-        
-        var response = await Client.PostAsync($"protocol/openid-connect/token", content);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "protocol/openid-connect/token")
+        {
+            Content = content,
+            Headers =
+            {
+                Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:"))),
+            },
+        };
+
+        var response = await Client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
