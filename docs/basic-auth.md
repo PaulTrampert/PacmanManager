@@ -140,10 +140,47 @@ The same values, issued by the identity provider rather than by us, let a caller
 can do less than they can. Nothing in this application mints that token and nothing validates the
 scopes beyond parsing them.
 
-In Keycloak each value is a client scope. The broad ones ride on the existing `pacman-manager`
-client scope, which is **default** on the interactive clients so they keep working; a narrow
-credential is a client configured with a narrower set instead. This half needs no application code
-beyond the parser.
+In Keycloak each value is a client scope of the same name, and every value the grammar allows is
+registered in `keycloak/localdev.json`:
+
+* **`pacman-manager:*:*`** is a **default** client scope on the interactive clients,
+  `pacman-manager-web` and `pacman-manager-swagger`, and on the realm's default default scopes, so
+  they keep working once enforcement is on.
+* **Every narrower value** is a realm default *optional* client scope, issued only when a client
+  asks for it.
+* The existing **`pacman-manager`** client scope is unchanged: it carries the audience mapper and
+  nothing else.
+* A narrow credential is a client configured with a narrower set. The realm has one,
+  **`pacman-manager-scoped`**: a public client that receives `pacman-manager` by default but not
+  `pacman-manager:*:*`, and may be issued any narrower value. A token from it carries exactly the
+  values it asks for.
+
+This half needs no application code beyond the parser. `ScopeValues` in RepoHost names the values,
+and `ConfigureSwaggerGenOptions` lists them in its security requirement, but nothing reads them off
+a token until [issue 3](#3-scoped-actors--minor).
+
+**Why:**
+
+* [`pacman-manager:*:*` is its own client scope](#why-pacman-manager-is-its-own-client-scope)
+
+### Configuring another identity provider
+
+Nothing in this application is specific to Keycloak. A different provider works if it puts our values
+into the access token's **`scope`** claim, as one space-delimited string, alongside an `aud` that
+includes `pacman-manager`. Our values are exactly these 30 strings, and nothing else of the form
+`pacman-manager:…` means anything:
+
+| Form | Values |
+| :--- | :--- |
+| Everything | `pacman-manager:*:*` |
+| `<entity>:<action>` | `pacman-manager:<entity>:<action>` for each of the 20 pairs of `repositories`, `packages`, `users`, `tokens` with `read`, `create`, `write`, `delete`, `publish` |
+| `<entity>:*` | `pacman-manager:repositories:*`, `pacman-manager:packages:*`, `pacman-manager:users:*`, `pacman-manager:tokens:*` |
+| `*:<action>` | `pacman-manager:*:read`, `pacman-manager:*:create`, `pacman-manager:*:write`, `pacman-manager:*:delete`, `pacman-manager:*:publish` |
+
+The values are case-sensitive. A client that should have its user's full access needs
+`pacman-manager:*:*`; one that should only read needs `pacman-manager:*:read`. Every rule under
+[the `scope` claim](#the-scope-claim) applies whichever provider issues it: a token carrying none of
+these values can do nothing.
 
 ### How the actor enforces it
 
@@ -826,22 +863,28 @@ unauthenticated; and a Basic-authenticated caller cannot mint a token.
 ### 6. Scopes on a `Bearer` token — `MINOR`
 
 The realm half of [the `scope` claim](#the-scope-claim), and **the prerequisite for issue 3 rather
-than a follow-up to it**: the values as client scopes in `keycloak/localdev.json`, riding on the
-existing `pacman-manager` client scope so that the clients which already receive it keep working
-once enforcement is on, plus the documentation of the grammar for anyone configuring a different
-provider.
+than a follow-up to it**: every value the grammar allows as a client scope in
+`keycloak/localdev.json`, as [described above](#scopes-on-a-bearer-token) —
+`pacman-manager:*:*` a default client scope on `pacman-manager-web`, `pacman-manager-swagger` and the
+realm's default defaults, so the interactive clients keep working once enforcement is on; every
+narrower value a default optional one; and a `pacman-manager-scoped` client that can hold a narrow
+token — plus the [documentation of the grammar](#configuring-another-identity-provider) for anyone
+configuring a different provider.
 
-Confirm before assuming the naming: whether Keycloak accepts `:` in a client scope name. If it does
-not, the values still have to appear verbatim in the token's `scope` claim, which a protocol mapper
-can do regardless of what the scope object is called.
+Keycloak accepts `:` and `*` in a client scope name, so each value is a client scope of the same
+name. This does change the client registrations; see
+[`pacman-manager:*:*` is its own client scope](#why-pacman-manager-is-its-own-client-scope).
 
 `ConfigureSwaggerGenOptions` lists the scopes its security requirement asks for, so the new values
 are added there too.
 
-No application code at all: the parser from issue 3 is the only thing that reads these.
+No application code beyond naming the values: the parser from issue 3 is the only thing that reads
+these.
 
 *Acceptance:* a token from the updated realm carries the expected values, asserted by decoding it in
-a test rather than by inspection. Then, once issue 3 lands, E2E tests with a token carrying
+a test rather than by inspection: `pacman-manager:*:*` from the Swagger client without asking for it,
+none of ours from `pacman-manager-scoped` unless asked, and exactly the values asked for when it
+does. Then, once issue 3 lands, E2E tests with tokens from `pacman-manager-scoped`: one carrying
 `pacman-manager:*:read` (writes are `403`), one carrying `pacman-manager:packages:publish`
 (publishing succeeds, creating a repository is `403`), one carrying `pacman-manager:repositories:*`
 (repository writes succeed, publishing is `403`), and one carrying none of ours (every operation is
@@ -854,6 +897,7 @@ a `403`).
 
 * [every existing token becomes powerless](#every-existing-token-becomes-powerless)
 * [the audience prefix is on every value](#why-the-audience-prefix-is-on-every-value)
+* [`pacman-manager:*:*` is its own client scope](#why-pacman-manager-is-its-own-client-scope)
 
 ### 7. Trusted forwarded-header sources — `MINOR`
 
@@ -989,16 +1033,47 @@ day this lands **every one of them can do nothing** — the web client and the S
 There is no version of additive scopes where that is not true; the only question is whether it is
 planned for.
 
-So the realm change is not the last step of this work, it is a **prerequisite**. The realm already
-has a `pacman-manager` client scope, and it is already a *default* scope on `pacman-manager-web` and
-`pacman-manager-swagger` — so the values go there, the existing clients keep receiving what they
-receive today plus the scopes that make it mean something, and no client registration changes.
+So the realm change is not the last step of this work, it is a **prerequisite**. The existing
+clients keep receiving what they receive today plus `pacman-manager:*:*`, which is a new *default*
+client scope on `pacman-manager-web` and `pacman-manager-swagger` alongside the `pacman-manager` one
+they already had. That is a change to their registrations; the plan originally said there would be
+none, and [`pacman-manager:*:*` is its own client scope](#why-pacman-manager-is-its-own-client-scope)
+records why there has to be.
 [Issue 6](#6-scopes-on-a-bearer-token--minor) therefore lands **before**
 [issue 3](#3-scoped-actors--minor) turns enforcement on, and the two are expected to ship together.
 
 A deployment against a provider that cannot be taught to emit these scopes does not have a
 compatibility story under this rule. That is the cost of the conservative direction, and it is
 recorded here rather than left for somebody to find.
+
+### Why `pacman-manager:*:*` is its own client scope
+
+The plan originally had the broad values "ride on" the existing `pacman-manager` client scope, so
+that no client registration would change, with a protocol mapper as the fallback should Keycloak
+refuse `:` in a scope name. Neither works, and the reason is how Keycloak builds the claim:
+
+* **`scope` is the list of names of the client scopes Keycloak applied** — the ones the client has
+  as defaults plus the optional ones requested — for each scope marked `include.in.token.scope`. A
+  client scope cannot contain or imply another, so the `pacman-manager` scope can only ever
+  contribute the value `pacman-manager`.
+* **Keycloak ignores a protocol mapper that writes `scope`.** Tried against Keycloak 26.6 with an
+  `oidc-hardcoded-claim-mapper` for claim `scope` on the `pacman-manager` client scope: the token's
+  `scope` was unchanged. The standard claim wins over any mapper.
+
+The naming worry, on the other hand, was unfounded: Keycloak accepts `:` and `*` in a client scope
+name, and emits it verbatim. So each value is a client scope of the same name, and a client that
+should hold `pacman-manager:*:*` has to have that client scope — a registration change on
+`pacman-manager-web` and `pacman-manager-swagger`, signed off by the project owner.
+
+Keeping `pacman-manager` audience-only is what makes a narrow token possible at all. Values are
+`OR`'d, so a client that receives `pacman-manager:*:*` by default can never hold less; were the broad
+value on `pacman-manager` itself, a narrow client would also need a second audience mapper. That is
+why the realm carries a separate `pacman-manager-scoped` client for narrow tokens rather than
+narrowing the interactive ones.
+
+Every value the grammar allows is registered, not only the ones in use: scope values have to be
+[registered ahead of time](#why-instances-are-not-in-here), and a grammar whose values exist only
+partly in the realm would be a second vocabulary to keep in step.
 
 ### Why instances are not in here
 
