@@ -8,17 +8,17 @@ namespace PacmanManager.RepoHost.Services;
 /// <summary>
 /// Implementation of <see cref="IUserManagementService"/>.
 /// </summary>
-/// <param name="currentUserService">Resolves the caller for the methods that act on the current user.</param>
+/// <param name="actorAccessor">Supplies the caller for the methods that act on the current user.</param>
 /// <param name="dbContext">The database the users are read from.</param>
 public class UserManagementService(
-    ICurrentUserService currentUserService,
+    IActorAccessor actorAccessor,
     PacmanManagerDbContext dbContext) : IUserManagementService
 {
     /// <inheritdoc />
     public async Task<CurrentUser> GetCurrentUserAsync(CancellationToken ct = default)
     {
-        var user = await currentUserService.GetCurrentUserAsync(ct)
-                   ?? throw new NoCurrentUserException();
+        var actor = await actorAccessor.GetActorAsync(ct);
+        var user = actor.User ?? throw new NoCurrentUserException();
 
         return CurrentUser.FromUser(user);
     }

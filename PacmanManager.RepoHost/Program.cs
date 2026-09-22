@@ -63,7 +63,6 @@ try
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
     builder.Services.AddScoped<IPackageService, PackageService>();
-    builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
     builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
 // Services enforce authorization against whatever actor the host supplies. This is the web host,
