@@ -72,8 +72,10 @@ Recorded here so the issues stay bounded; each has a follow-up in
   in route matching, so the two do not conflict.
 * The write route accepts **`me` and nothing else**. `PATCH /api/v1/users/{userId}` does not exist at
   any id, including the caller's own, and must 404 from routing rather than be handled.
-* There is **no `IUserAccessPolicy`**, and no visibility predicate on the user query. Every user is
-  readable by everyone; only `me` is writable.
+* There is no visibility predicate on the user query. Every user is readable by everyone; only `me`
+  is writable. The `me` methods ask a `UserAccessPolicy` whether the credential's scope permits them,
+  which [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds; the anonymous routes ask
+  nothing.
 * The token routes under `/api/v1/users/me/tokens` share this path prefix but belong to
   [Basic Auth](basic-auth.md#routes), and are served by a controller of their own — they hang off a
   different resource.
@@ -339,8 +341,8 @@ still shows an optional `displayName`, since the patch type is generated rather 
 Worth filing as issues, but explicitly out of scope for the work above.
 
 * **Administrative user management** — an operator's ability to rename, suspend or delete an account,
-  with a real access policy behind it. This is the change that would give
-  [`IUserAccessPolicy`](#there-is-no-iuseraccesspolicy) something to decide.
+  with a real access policy behind it. Its rules go in the `UserAccessPolicy` that
+  [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds for scopes.
 * **Account deletion**, which needs an answer for the repositories and packages a user owns before
   it can be specified at all.
 * **A creation timestamp on `User`**, which is what a `Created` member on
@@ -429,6 +431,13 @@ route already settles.
 
 If an administrative capability ever arrives, it brings a real question with it, and a policy with
 it.
+
+*Amended by [Basic Auth](basic-auth.md#why-users-and-tokens-get-access-policies), with the project
+owner's sign-off.* Scopes gave users a question with more than one answer before an administrative
+capability did: whether this credential may read or change `me`. The check went into a
+`UserAccessPolicy` rather than into the service, so that the administrative rules expected later have
+a place to go. The argument above held for the ownership rules alone, and it is kept as the record of
+why no policy existed until then.
 
 ### Why `CurrentUser` is a separate model
 
