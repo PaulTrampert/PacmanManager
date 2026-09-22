@@ -102,12 +102,13 @@ Claim every issue before starting any implementation, so the board reflects the 
 
 ## 4. Provision the worktrees
 
-Worktrees live beside the primary checkout, under `../PacmanManager-worktrees/`. Resolve the primary
-checkout from the shared git directory so this works whichever worktree you were started in:
+Worktrees live inside the primary checkout, under `.claude/worktrees/`, which is ignored by both
+git and Docker. Never create one beside the checkout. Resolve the primary checkout from the shared
+git directory so this works whichever worktree you were started in:
 
 ```bash
 PRIMARY="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-WORKTREES="$(dirname "$PRIMARY")/PacmanManager-worktrees"
+WORKTREES="$PRIMARY/.claude/worktrees"
 git -C "$PRIMARY" fetch origin main
 ```
 

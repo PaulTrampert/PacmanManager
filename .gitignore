@@ -10,3 +10,6 @@ gen/
 data/
 bin\\Debug/
 *.generated*
+
+# Agent worktrees, nested inside the checkout (see AGENTS.md, "Worktrees")
+.claude/worktrees/
