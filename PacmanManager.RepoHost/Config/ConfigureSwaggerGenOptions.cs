@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using PacmanManager.RepoHost.Authentication;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace PacmanManager.RepoHost.Config;
@@ -15,6 +16,13 @@ public class ConfigureSwaggerGenOptions(
     : IConfigureOptions<SwaggerGenOptions>
 {
     private readonly SwaggerConfig _swaggerConfig = swaggerConfig.Value;
+
+    /// <summary>
+    /// The scopes the OpenId security requirement lists: the standard OIDC ones, the API's audience
+    /// scope, and every value of this API's <c>scope</c> grammar.
+    /// </summary>
+    internal static IReadOnlyList<string> RequestedScopes { get; } =
+        ["openid", "profile", "email", "roles", ScopeValues.Audience, ..ScopeValues.All];
 
     /// <inheritdoc />
     public void Configure(SwaggerGenOptions opts)
@@ -36,7 +44,7 @@ public class ConfigureSwaggerGenOptions(
         {
             {
                 new OpenApiSecuritySchemeReference("OpenId",  doc),
-                new List<string> { "openid", "profile", "email", "roles", "budgy" }
+                RequestedScopes.ToList()
             }
         });
         var fileName = typeof(Program).Assembly.GetName().Name + ".xml";
