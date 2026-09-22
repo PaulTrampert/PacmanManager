@@ -218,6 +218,13 @@ depends on what kind of agent you are.
 before making any edits — `git worktree add`, or the `EnterWorktree` tool if your harness provides
 one — and work there rather than in the primary checkout.
 
+**Worktrees live under `.claude/worktrees/` inside the primary checkout**, never beside it:
+`git worktree add .claude/worktrees/<name> -b <branch> origin/main`. `EnterWorktree` and sub-agent
+isolation already put them there. The directory is ignored by git and by Docker, so a nested
+worktree neither shows as untracked nor bloats the E2E image build context. It is also inside the
+directory a sandboxed agent may write to, where a sibling directory is not. Remove a worktree with
+`git worktree remove` once its branch is merged.
+
 **If you are a sub-agent**, you almost certainly cannot. A sub-agent spawned from a session that is
 itself worktree-isolated inherits the parent's pin: `git worktree add` will appear to succeed, but
 every later git operation targeting the new directory is refused, and `git switch` /
