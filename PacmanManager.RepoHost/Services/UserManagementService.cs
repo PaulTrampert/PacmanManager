@@ -27,7 +27,6 @@ public class UserManagementService(
     public async Task<PublicUserInfo?> GetUserByIdAsync(Guid userId, CancellationToken ct = default)
     {
         return await dbContext.Users
-            .AsNoTracking()
             .Where(u => u.Id == userId)
             .Select(u => new PublicUserInfo
             {
