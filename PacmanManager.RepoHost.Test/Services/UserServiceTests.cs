@@ -3,7 +3,10 @@ using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using PacmanManager.Entities;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Test.Containers;
 
@@ -44,7 +47,11 @@ public class UserServiceTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
-        _service = new UserService(_dbContext);
+        _service = new UserService(
+            _dbContext,
+            Options.Create(new AccessTokenConfig()),
+            TimeProvider.System,
+            NullLogger<UserService>.Instance);
     }
 
     [TearDown]
