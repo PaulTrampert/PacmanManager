@@ -39,6 +39,7 @@ try
     builder.Services.Configure<PackagePublishingConfig>(
         builder.Configuration.GetSection(PackagePublishingConfig.Section));
     builder.Services.ConfigureOptions<ConfigureJwtOptions>();
+    builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
 
 // Register config generator and serializer
     builder.Services.AddSingleton<IPacmanConfigSerializer, PacmanConfigSerializer>();
@@ -132,6 +133,9 @@ try
     #region Request Pipeline
 
     var app = builder.Build();
+    // First, so that request logging, authentication and everything after them see the client's
+    // address rather than the reverse proxy's.
+    app.UseForwardedHeaders();
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();
     
