@@ -20,4 +20,12 @@ public interface IUserManagementService
     /// <returns>The current user, projected to <see cref="CurrentUser"/>.</returns>
     /// <exception cref="NoCurrentUserException">Thrown if there is no current user.</exception>
     Task<CurrentUser> GetCurrentUserAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a user by id. Every user is readable by everyone, so there is no access check.
+    /// </summary>
+    /// <param name="userId">The id of the user to look up.</param>
+    /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
+    /// <returns>The user projected to <see cref="PublicUserInfo"/>, or <c>null</c> if no user has that id.</returns>
+    Task<PublicUserInfo?> GetUserByIdAsync(Guid userId, CancellationToken ct = default);
 }

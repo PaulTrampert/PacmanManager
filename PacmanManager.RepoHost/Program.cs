@@ -38,6 +38,8 @@ try
     builder.Services.Configure<SwaggerConfig>(builder.Configuration.GetSection(SwaggerConfig.Section));
     builder.Services.Configure<PackagePublishingConfig>(
         builder.Configuration.GetSection(PackagePublishingConfig.Section));
+    builder.Services.Configure<AccessTokenConfig>(builder.Configuration.GetSection(AccessTokenConfig.Section));
+    builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.ConfigureOptions<ConfigureJwtOptions>();
     builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
 

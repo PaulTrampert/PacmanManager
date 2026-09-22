@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Exceptions;
@@ -10,13 +11,24 @@ namespace PacmanManager.RepoHost.Test.Services;
 public class UserManagementServiceTests
 {
     private Mock<ICurrentUserService> _currentUserService;
+    private PacmanManagerDbContext _dbContext;
     private UserManagementService _subject;
 
     [SetUp]
     public void SetUp()
     {
         _currentUserService = new Mock<ICurrentUserService>(MockBehavior.Strict);
-        _subject = new UserManagementService(_currentUserService.Object);
+        _dbContext = new PacmanManagerDbContext(new DbContextOptionsBuilder<PacmanManagerDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options);
+        _subject = new UserManagementService(_currentUserService.Object, _dbContext);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _dbContext.Database.EnsureDeleted();
+        _dbContext.Dispose();
     }
 
     [Test]
@@ -59,5 +71,32 @@ public class UserManagementServiceTests
         await _subject.GetCurrentUserAsync(cts.Token);
 
         _currentUserService.Verify(s => s.GetCurrentUserAsync(cts.Token), Times.Once);
+    }
+
+    [Test]
+    public async Task GetUserByIdAsync_WithKnownId_ReturnsThatUserAsPublicUserInfo()
+    {
+        var user = _dbContext.Users.Add(new User { DisplayName = "Alex", Email = "alex@example.com" }).Entity;
+        _dbContext.Users.Add(new User { DisplayName = "Sam", Email = "sam@example.com" });
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _subject.GetUserByIdAsync(user.Id);
+
+        Assert.That(result, Is.EqualTo(new PublicUserInfo
+        {
+            Id = user.Id,
+            DisplayName = "Alex",
+        }));
+    }
+
+    [Test]
+    public async Task GetUserByIdAsync_WithUnknownId_ReturnsNull()
+    {
+        _dbContext.Users.Add(new User { DisplayName = "Alex", Email = "alex@example.com" });
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _subject.GetUserByIdAsync(Guid.CreateVersion7());
+
+        Assert.That(result, Is.Null);
     }
 }

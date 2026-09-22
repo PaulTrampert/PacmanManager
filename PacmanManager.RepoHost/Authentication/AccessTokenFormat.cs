@@ -1,0 +1,188 @@
+using System.Buffers;
+using System.Buffers.Text;
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using PacmanManager.Entities;
+
+namespace PacmanManager.RepoHost.Authentication;
+
+/// <summary>
+/// The wire format of a <see cref="PacmanAccessToken"/>: the two strings a client presents as the
+/// halves of an HTTP Basic credential, and the hash that is stored in place of the secret.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A token is presented as <c>pmt_{tokenId:N}</c> in the Basic username and
+/// <c>pms_{base64url(32 random bytes)}</c> in the Basic password. The identifier is the row's primary
+/// key and is not secret; the secret is 32 bytes from <see cref="RandomNumberGenerator"/>, Base64Url
+/// encoded because it is written into the userinfo of a <c>pacman</c> <c>Server</c> URL, where
+/// <c>+</c> and <c>/</c> are not safe.
+/// </para>
+/// <para>
+/// Each half is parsed by a prefix check and nothing else, so an <c>_</c> inside the secret, which is
+/// in the Base64Url alphabet, cannot be mistaken for a separator.
+/// </para>
+/// </remarks>
+public static class AccessTokenFormat
+{
+    /// <summary>
+    /// Prefix on the Basic username, which carries the token's identifier.
+    /// </summary>
+    public const string UsernamePrefix = "pmt_";
+
+    /// <summary>
+    /// Prefix on the Basic password, which carries the token's secret.
+    /// </summary>
+    public const string SecretPrefix = "pms_";
+
+    /// <summary>
+    /// Number of random bytes in a secret.
+    /// </summary>
+    public const int SecretByteLength = 32;
+
+    /// <summary>
+    /// Length of a username: the prefix plus a GUID as 32 hex digits.
+    /// </summary>
+    public const int UsernameLength = 36;
+
+    /// <summary>
+    /// Length of a secret: the prefix plus <see cref="SecretByteLength"/> bytes Base64Url encoded
+    /// without padding, which is 43 characters.
+    /// </summary>
+    public const int SecretLength = 47;
+
+    /// <summary>
+    /// The Base64Url alphabet, in value order, so that a character's index is the six bits it encodes.
+    /// </summary>
+    private const string Base64UrlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+    private static readonly SearchValues<char> Base64UrlAlphabetValues = SearchValues.Create(Base64UrlAlphabet);
+
+    /// <summary>
+    /// Formats a token's identifier as the Basic username a client presents.
+    /// </summary>
+    /// <param name="tokenId">The token's primary key.</param>
+    /// <returns><c>pmt_</c> followed by <paramref name="tokenId"/> as 32 hex digits.</returns>
+    public static string FormatUsername(Guid tokenId) => $"{UsernamePrefix}{tokenId:N}";
+
+    /// <summary>
+    /// Parses a Basic username as a token identifier.
+    /// </summary>
+    /// <param name="username">The presented username.</param>
+    /// <param name="tokenId">The token's primary key, when the username is well formed.</param>
+    /// <returns>
+    /// <c>true</c> if <paramref name="username"/> is <c>pmt_</c> followed by exactly 32 hex digits;
+    /// otherwise <c>false</c>. Never throws.
+    /// </returns>
+    public static bool TryParseUsername(string? username, out Guid tokenId)
+    {
+        tokenId = Guid.Empty;
+        return username is { Length: UsernameLength }
+               && username.StartsWith(UsernamePrefix, StringComparison.Ordinal)
+               && Guid.TryParseExact(username.AsSpan(UsernamePrefix.Length), "N", out tokenId);
+    }
+
+    /// <summary>
+    /// Generates a new secret, as the Basic password a client presents.
+    /// </summary>
+    /// <remarks>
+    /// The secret is <see cref="SecretByteLength"/> bytes from <see cref="RandomNumberGenerator"/>,
+    /// a CSPRNG. That is what makes the fast, unsalted hash in <see cref="TryHashSecret"/> correct:
+    /// do not replace the source of these bytes with anything a user can choose.
+    /// </remarks>
+    /// <returns><c>pms_</c> followed by the secret, Base64Url encoded without padding.</returns>
+    public static string GenerateSecret()
+    {
+        Span<byte> secret = stackalloc byte[SecretByteLength];
+        RandomNumberGenerator.Fill(secret);
+        return FormatSecret(secret);
+    }
+
+    /// <summary>
+    /// Formats raw secret bytes as the Basic password a client presents.
+    /// </summary>
+    /// <param name="secret">Exactly <see cref="SecretByteLength"/> bytes.</param>
+    /// <returns><c>pms_</c> followed by <paramref name="secret"/>, Base64Url encoded without padding.</returns>
+    /// <exception cref="ArgumentException"><paramref name="secret"/> is not <see cref="SecretByteLength"/> bytes long.</exception>
+    public static string FormatSecret(ReadOnlySpan<byte> secret)
+    {
+        if (secret.Length != SecretByteLength)
+        {
+            throw new ArgumentException($"A secret is exactly {SecretByteLength} bytes.", nameof(secret));
+        }
+
+        return SecretPrefix + Base64Url.EncodeToString(secret);
+    }
+
+    /// <summary>
+    /// Parses a Basic password as a secret and hashes it, giving the value stored in
+    /// <see cref="PacmanAccessToken.TokenHash"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The hash is SHA-256 over the decoded bytes, <b>unsalted</b>, and deliberately fast. That is
+    /// correct only because the secret is 256 bits generated by <see cref="GenerateSecret"/> from a
+    /// CSPRNG: there is nothing to guess and nothing to precompute against. If a user-chosen value
+    /// ever becomes acceptable here, this hash becomes wrong on the same day — it must not be
+    /// generalised into a password hash.
+    /// </para>
+    /// <para>
+    /// The password is accepted only in its canonical encoding, so that exactly one string verifies
+    /// a given token: padding, whitespace, and a final character whose unused bits differ are all
+    /// rejected.
+    /// </para>
+    /// </remarks>
+    /// <param name="password">The presented password.</param>
+    /// <param name="hash">The Base64 SHA-256 of the secret's bytes, when the password is well formed.</param>
+    /// <returns>
+    /// <c>true</c> if <paramref name="password"/> is <c>pms_</c> followed by the canonical Base64Url
+    /// encoding of exactly <see cref="SecretByteLength"/> bytes; otherwise <c>false</c>. Never throws.
+    /// </returns>
+    public static bool TryHashSecret(string? password, [NotNullWhen(true)] out string? hash)
+    {
+        hash = null;
+        if (password is not { Length: SecretLength }
+            || !password.StartsWith(SecretPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Checked before decoding: the decoder throws, rather than returning false, on a character
+        // outside the alphabet, and this method must never throw for a bad credential.
+        var encoded = password.AsSpan(SecretPrefix.Length);
+        if (encoded.ContainsAnyExcept(Base64UrlAlphabetValues))
+        {
+            return false;
+        }
+
+        // 32 bytes are 256 bits and 43 characters carry 258, so the final character's two low bits
+        // are unused. Zeros there are the canonical encoding; the decoder throws on anything else,
+        // and accepting it would let a second string verify the same token.
+        if ((Base64UrlAlphabet.IndexOf(encoded[^1]) & 0b11) != 0)
+        {
+            return false;
+        }
+
+        Span<byte> secret = stackalloc byte[SecretByteLength];
+        if (!Base64Url.TryDecodeFromChars(encoded, secret, out var written) || written != SecretByteLength)
+        {
+            return false;
+        }
+
+        hash = Convert.ToBase64String(SHA256.HashData(secret));
+        return true;
+    }
+
+    /// <summary>
+    /// Hashes a secret that is already known to be well formed, such as one just returned by
+    /// <see cref="GenerateSecret"/>. The hash is the one described on <see cref="TryHashSecret"/>,
+    /// with the same constraint: it is correct only for a CSPRNG-generated secret.
+    /// </summary>
+    /// <param name="password">A well-formed secret, prefix included.</param>
+    /// <returns>The Base64 SHA-256 of the secret's bytes.</returns>
+    /// <exception cref="FormatException"><paramref name="password"/> is not a well-formed secret.</exception>
+    public static string HashSecret(string password) =>
+        TryHashSecret(password, out var hash)
+            ? hash
+            : throw new FormatException("The value is not a well-formed access token secret.");
+}
