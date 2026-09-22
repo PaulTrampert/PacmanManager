@@ -14,6 +14,7 @@ public class RepositoriesControllerTests
 {
     private EndToEndTestFixture _fixture = null!;
     private HttpClient _client = null!;
+    private HttpClient _otherUsersClient = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -24,11 +25,17 @@ public class RepositoriesControllerTests
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",
             await _fixture.AuthContainer!.GetBearerTokenAsync(_fixture.AuthContainer.DefaultCredentials));
+
+        _otherUsersClient = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
+        _otherUsersClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            await _fixture.AuthContainer.GetBearerTokenAsync(_fixture.AuthContainer.SecondaryCredentials));
     }
 
     [OneTimeTearDown]
     public async Task OneTimeTearDown()
     {
+        _otherUsersClient.Dispose();
         await _fixture.DisposeAsync();
     }
 
@@ -296,6 +303,47 @@ public class RepositoriesControllerTests
         await AssertDisclosesNothingAboutAsync(response, existing);
     }
 
+    [Test]
+    public async Task Create_WithANameAnotherUserHolds_ReturnsConflict()
+    {
+        // Repository names are unique across users, and the other user's repository is private, so
+        // the 409 is the only thing that reveals the name is in use.
+        // Arrange
+        var theirs = await CreateAsync(_otherUsersClient, "custom", isPublic: false);
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories",
+            new WriteRepositoryRequest { Name = "custom", Architecture = "x86_64" });
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        await AssertDisclosesNothingAboutAsync(response, theirs);
+    }
+
+    [Test]
+    public async Task Create_WithANameAnotherUserHolds_StillHidesTheirPrivateRepository()
+    {
+        // The collision is the only new signal: the repository holding the name is still a 404 by
+        // id, and still absent from the listing, for anybody but its owner.
+        // Arrange
+        var theirs = await CreateAsync(_otherUsersClient, "collision-still-hidden", isPublic: false);
+        var collision = await _client.PostAsJsonAsync("/api/v1/repositories",
+            new WriteRepositoryRequest { Name = theirs.Name, Architecture = "x86_64" });
+        Assert.That(collision.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+
+        // Act
+        var byId = await _client.GetAsync($"/api/v1/repositories/{theirs.Id}");
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+            $"/api/v1/repositories?nameContains={theirs.Name}&pageSize=500");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(byId.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(listing!.Results.Select(r => r.Id), Does.Not.Contain(theirs.Id));
+        });
+    }
+
     #endregion
 
     #region Update Tests
@@ -357,6 +405,25 @@ public class RepositoriesControllerTests
 
         var unchanged = await _client.GetFromJsonAsync<Repository>($"/api/v1/repositories/{renamedId}");
         Assert.That(unchanged!.Name, Is.EqualTo("conflict-on-update-original"));
+    }
+
+    [Test]
+    public async Task Update_RenamingIntoANameAnotherUserHolds_ReturnsConflict()
+    {
+        // Arrange
+        var theirs = await CreateAsync(_otherUsersClient, "conflict-on-update-theirs", isPublic: false);
+        var mine = await CreateAsync(_client, "conflict-on-update-mine", isPublic: false);
+
+        // Act
+        var response = await _client.PutAsJsonAsync($"/api/v1/repositories/{mine.Id}",
+            new WriteRepositoryRequest { Name = theirs.Name, Architecture = mine.Architecture });
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        await AssertDisclosesNothingAboutAsync(response, theirs);
+
+        var unchanged = await _client.GetFromJsonAsync<Repository>($"/api/v1/repositories/{mine.Id}");
+        Assert.That(unchanged!.Name, Is.EqualTo("conflict-on-update-mine"));
     }
 
     #endregion
@@ -587,6 +654,18 @@ public class RepositoriesControllerTests
             Assert.That(body, Does.Not.Contain(existing.Name), "the colliding repository's name");
             Assert.That(body, Does.Not.Contain("A repository with this name"), "the exception's message");
         });
+    }
+
+    /// <summary>
+    /// Creates a repository as whoever <paramref name="client"/> authenticates as.
+    /// </summary>
+    private static async Task<Repository> CreateAsync(HttpClient client, string name, bool isPublic)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/repositories",
+            new WriteRepositoryRequest { Name = name, Architecture = "x86_64", IsPublic = isPublic });
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created),
+            $"Arranging '{name}' failed: {await response.Content.ReadAsStringAsync()}");
+        return (await response.Content.ReadFromJsonAsync<Repository>())!;
     }
 
     /// <summary>
