@@ -75,7 +75,7 @@ public class KeycloakScopeTests
         var requested = new[]
         {
             "pacman-manager:*:read",
-            "pacman-manager:packages:publish",
+            "pacman-manager:packages:create",
             "pacman-manager:repositories:*",
         };
 
