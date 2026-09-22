@@ -28,32 +28,43 @@ public static class ScopeValues
     public const string Everything = $"{Audience}:{Wildcard}:{Wildcard}";
 
     /// <summary>
-    /// The entities a value may name, as the plural route segment that serves each.
+    /// The entities a value may name, as the plural route segment that serves each, mapped to the
+    /// actions that exist for that entity, in order. Packages are upserted, so they have no
+    /// <c>update</c>; users are neither created nor deleted by a request; and a token is never
+    /// changed once minted.
     /// </summary>
-    public static IReadOnlyList<string> Entities { get; } = ["repositories", "packages", "users", "tokens"];
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> Entities { get; } =
+        new OrderedDictionary<string, IReadOnlyList<string>>
+        {
+            ["repositories"] = ["read", "create", "update", "delete"],
+            ["packages"] = ["read", "create", "delete"],
+            ["users"] = ["read", "update"],
+            ["tokens"] = ["read", "create", "delete"],
+        };
 
     /// <summary>
-    /// The actions a value may name.
+    /// The actions a value may name: the union of the actions in <see cref="Entities"/>.
     /// </summary>
-    public static IReadOnlyList<string> Actions { get; } = ["read", "create", "write", "delete", "publish"];
+    public static IReadOnlyList<string> Actions { get; } =
+        Entities.Values.SelectMany(actions => actions).Distinct().ToList();
 
     /// <summary>
-    /// Every value the grammar allows: <see cref="Everything"/> first, then each entity and action
-    /// pair, then each <c>&lt;entity&gt;:*</c>, then each <c>*:&lt;action&gt;</c>.
+    /// Every value the grammar allows: <see cref="Everything"/> first, then each entity paired with
+    /// each action it has, then each <c>&lt;entity&gt;:*</c>, then each <c>*:&lt;action&gt;</c>.
     /// </summary>
     public static IReadOnlyList<string> All { get; } =
     [
         Everything,
-        ..Entities.SelectMany(entity => Actions.Select(action => For(entity, action))),
-        ..Entities.Select(entity => For(entity, Wildcard)),
+        ..Entities.SelectMany(entity => entity.Value.Select(action => For(entity.Key, action))),
+        ..Entities.Keys.Select(entity => For(entity, Wildcard)),
         ..Actions.Select(action => For(Wildcard, action)),
     ];
 
     /// <summary>
     /// Composes the value naming an action on an entity.
     /// </summary>
-    /// <param name="entity">An entry of <see cref="Entities"/>, or <see cref="Wildcard"/>.</param>
-    /// <param name="action">An entry of <see cref="Actions"/>, or <see cref="Wildcard"/>.</param>
+    /// <param name="entity">A key of <see cref="Entities"/>, or <see cref="Wildcard"/>.</param>
+    /// <param name="action">An action <paramref name="entity"/> has, or <see cref="Wildcard"/>.</param>
     /// <returns>The value, prefixed with <see cref="Audience"/>.</returns>
     public static string For(string entity, string action) => $"{Audience}:{entity}:{action}";
 }
