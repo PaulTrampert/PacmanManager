@@ -55,8 +55,8 @@ public class PackageServiceTests
 
         _dbContext = new PacmanManagerDbContext(options);
 
-        _caller = _dbContext.Add(new User { DisplayName = "tester", Email = "test@test.com" }).Entity;
-        _other = _dbContext.Add(new User { DisplayName = "somebody else", Email = "other@test.com" }).Entity;
+        _caller = _dbContext.Add(new User { DisplayName = "tester", NormalizedDisplayName = "tester", Email = "test@test.com" }).Entity;
+        _other = _dbContext.Add(new User { DisplayName = "somebody else", NormalizedDisplayName = "somebody else", Email = "other@test.com" }).Entity;
         _dbContext.SaveChanges();
 
         _publicRepository = GivenRepository("public-repo", _other, isPublic: true);

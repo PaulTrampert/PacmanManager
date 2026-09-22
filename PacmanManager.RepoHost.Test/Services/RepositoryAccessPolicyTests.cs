@@ -19,8 +19,8 @@ public class RepositoryAccessPolicyTests
     public void SetUp()
     {
         _subject = new RepositoryAccessPolicy();
-        _owner = new User { DisplayName = "owner", Email = "owner@test.com" };
-        _stranger = new User { DisplayName = "stranger", Email = "stranger@test.com" };
+        _owner = new User { DisplayName = "owner", NormalizedDisplayName = "owner", Email = "owner@test.com" };
+        _stranger = new User { DisplayName = "stranger", NormalizedDisplayName = "stranger", Email = "stranger@test.com" };
     }
 
     #region Visibility

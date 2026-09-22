@@ -1,3 +1,4 @@
+using System.Globalization;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
@@ -66,7 +67,7 @@ public class UserServiceTests
     public async Task GetUserByExternalIdAsync_ReturnsUser_WhenMappingExists()
     {
         // Arrange
-        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User", NormalizedDisplayName = "test user" };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.UserMappings.AddAsync(new ExternalProviderUserMapping
         {
@@ -99,7 +100,7 @@ public class UserServiceTests
     {
         // Arrange
         var email = "test@example.com";
-        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Test User" };
+        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Test User", NormalizedDisplayName = "test user" };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.SaveChangesAsync();
 
@@ -125,7 +126,7 @@ public class UserServiceTests
     public async Task CreateUserAsync_ReturnsCreatedUser()
     {
         // Arrange
-        var user = new User { Id = Guid.NewGuid(), Email = "new@example.com", DisplayName = "New User" };
+        var user = new User { Id = Guid.NewGuid(), Email = "new@example.com", DisplayName = "New User", NormalizedDisplayName = "new user" };
 
         // Act
         var result = await _service.CreateUserAsync(user);
@@ -140,7 +141,7 @@ public class UserServiceTests
     public async Task LinkToIdentityAsync_CreatesMappingAndReturnsUser()
     {
         // Arrange
-        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User", NormalizedDisplayName = "test user" };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.SaveChangesAsync();
         var authority = "auth-provider";
@@ -161,7 +162,7 @@ public class UserServiceTests
     {
         // Arrange
         var email = "existing@example.com";
-        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Existing User" };
+        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Existing User", NormalizedDisplayName = "existing user" };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.UserMappings.AddAsync(new ExternalProviderUserMapping
         {
@@ -184,7 +185,7 @@ public class UserServiceTests
     {
         // Arrange
         var email = "existing@example.com";
-        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Existing User" };
+        var user = new User { Id = Guid.NewGuid(), Email = email, DisplayName = "Existing User", NormalizedDisplayName = "existing user" };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.SaveChangesAsync();
 
@@ -213,6 +214,47 @@ public class UserServiceTests
         var mapping = await _dbContext.UserMappings.FirstOrDefaultAsync(m => m.ExternalAuthority == "auth" && m.ExternalId == "sub");
         Assert.That(mapping, Is.Not.Null);
         Assert.That(mapping!.User.Email, Is.EqualTo(email));
+    }
+
+    [Test]
+    public async Task EnsureUserLinkedAsync_NewUser_StoresInvariantLoweredDisplayNameAsNormalizedDisplayName()
+    {
+        // Act
+        var result = await _service.EnsureUserLinkedAsync("new@example.com", "New User", "auth", "sub");
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == result.Id);
+        Assert.That(stored.NormalizedDisplayName, Is.EqualTo("new user"));
+    }
+
+    [Test]
+    public async Task EnsureUserLinkedAsync_NewUser_NormalizesDisplayNameIndependentlyOfCurrentCulture()
+    {
+        // Under tr-TR, "I" lowers to the dotless "ı", so culture-sensitive lowering would store "ırıs".
+        var turkish = CultureInfo.GetCultureInfo("tr-TR");
+        Assume.That("Iris".ToLower(turkish), Is.Not.EqualTo("iris"),
+            "tr-TR lowers the same as the invariant culture here, so this test cannot tell them apart");
+
+        var originalCulture = CultureInfo.CurrentCulture;
+        User result;
+        try
+        {
+            CultureInfo.CurrentCulture = turkish;
+
+            // Act
+            result = await _service.EnsureUserLinkedAsync("iris@example.com", "Iris", "auth", "sub");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == result.Id);
+        Assert.That(stored.DisplayName, Is.EqualTo("Iris"));
+        Assert.That(stored.NormalizedDisplayName, Is.EqualTo("iris"));
     }
 
     [Test]

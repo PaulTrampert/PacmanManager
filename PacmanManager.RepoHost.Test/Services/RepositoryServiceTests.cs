@@ -40,11 +40,13 @@ public class RepositoryServiceTests
         _existingUser = _dbContext.Add(new User
         {
             DisplayName = "tester",
+            NormalizedDisplayName = "tester",
             Email = "test@test.com"
         }).Entity;
         _otherUser = _dbContext.Add(new User
         {
             DisplayName = "somebody else",
+            NormalizedDisplayName = "somebody else",
             Email = "other@test.com"
         }).Entity;
         _dbContext.SaveChanges();

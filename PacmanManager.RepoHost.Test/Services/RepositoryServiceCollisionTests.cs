@@ -63,8 +63,8 @@ public class RepositoryServiceCollisionTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
-        _existingUser = _dbContext.Add(new User { DisplayName = "tester", Email = "test@test.com" }).Entity;
-        _otherUser = _dbContext.Add(new User { DisplayName = "somebody else", Email = "other@test.com" }).Entity;
+        _existingUser = _dbContext.Add(new User { DisplayName = "tester", NormalizedDisplayName = "tester", Email = "test@test.com" }).Entity;
+        _otherUser = _dbContext.Add(new User { DisplayName = "somebody else", NormalizedDisplayName = "somebody else", Email = "other@test.com" }).Entity;
         await _dbContext.SaveChangesAsync();
 
         _mockCliRunner = new Mock<ICliToolRunner>();

@@ -95,6 +95,7 @@ public class UserService(
                 user = await CreateUserAsync(new User
                 {
                     DisplayName = displayName,
+                    NormalizedDisplayName = displayName.ToLowerInvariant(),
                     Email = email
                 }, ct);
             }
