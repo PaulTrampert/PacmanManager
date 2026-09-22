@@ -129,8 +129,8 @@ internal class RepositoryService(
     {
         var visible = await VisibleAsync(cancellationToken);
 
-        // The three parts of the key are exactly the database's unique index over repositories,
-        // so this matches at most one row and needs no tie-break.
+        // The name alone is the database's unique index over repositories, so this matches at most
+        // one row and needs no tie-break.
         var (ownerId, name, architecture) = (key.OwnerId, key.Name, key.Architecture);
         return await visible
             .Where(r => r.OwnerId == ownerId && r.Name == name && r.Architecture == architecture)

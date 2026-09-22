@@ -95,7 +95,7 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_Throws_WhenTheOwnerAlreadyHasTheNameAndArchitecture()
+    public async Task CreateRepositoryAsync_Throws_WhenTheOwnerAlreadyHasTheName()
     {
         // Arrange
         await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
@@ -128,33 +128,33 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyForAnotherArchitecture()
+    public async Task CreateRepositoryAsync_Throws_WhenTheNameIsTakenForAnotherArchitecture()
     {
+        // Architecture is not part of the name: a name belongs to one repository.
         // Arrange
         await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
         var request = new WriteRepositoryRequest { Name = "multi-arch", Architecture = "x86_64" };
 
-        // Act
-        var result = await _service.CreateRepositoryAsync(request);
-
-        // Assert
-        Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
     }
 
-    [Test]
-    public async Task CreateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyByAnotherOwner()
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CreateRepositoryAsync_Throws_WhenAnotherOwnerHoldsTheName(bool theirsIsPublic)
     {
-        // Names are unique per owner until the global name index lands, including when the other
-        // owner's repository is private.
+        // Names are unique across the whole deployment, so the collision is reported even when the
+        // caller cannot see the repository that holds the name.
         // Arrange
-        await GivenRepositoryAsync(name: "shared-name", owner: _otherUser);
-        var request = new WriteRepositoryRequest { Name = "shared-name", Architecture = "x86_64" };
+        await GivenRepositoryAsync(name: "custom", owner: _otherUser, isPublic: theirsIsPublic);
+        var request = new WriteRepositoryRequest { Name = "custom", Architecture = "x86_64" };
 
-        // Act
-        var result = await _service.CreateRepositoryAsync(request);
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
 
-        // Assert
-        Assert.That(result.Owner, Is.EqualTo(PublicUserInfo.FromUser(_existingUser)));
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var holders = await fresh.PacmanRepositories.Where(r => r.Name == "custom").ToListAsync();
+        Assert.That(holders.Select(r => r.OwnerId), Is.EqualTo(new[] { _otherUser.Id }));
     }
 
     [Test]
@@ -173,20 +173,25 @@ public class RepositoryServiceCollisionTests
         Assert.That(stored.Name, Is.EqualTo("original"));
     }
 
-    [Test]
-    public async Task UpdateRepositoryAsync_Throws_WhenTheArchitectureChangeCollides()
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task UpdateRepositoryAsync_Throws_WhenRenamedIntoANameAnotherOwnerHolds(bool theirsIsPublic)
     {
         // Arrange
-        await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
-        var changed = await GivenRepositoryAsync(name: "multi-arch", architecture: "x86_64");
-        var update = new WriteRepositoryRequest { Name = "multi-arch", Architecture = "any" };
+        await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: theirsIsPublic);
+        var mine = await GivenRepositoryAsync(name: "mine");
+        var update = new WriteRepositoryRequest { Name = "theirs", Architecture = "x86_64" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(changed.Id, update));
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(mine.Id, update));
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.PacmanRepositories.SingleAsync(r => r.Id == mine.Id);
+        Assert.That(stored.Name, Is.EqualTo("mine"));
     }
 
     [Test]
-    public async Task UpdateRepositoryAsync_KeepingItsOwnNameAndArchitecture_IsNotACollision()
+    public async Task UpdateRepositoryAsync_KeepingItsOwnName_IsNotACollision()
     {
         // Arrange
         var repository = await GivenRepositoryAsync(name: "unchanged", architecture: "x86_64");
@@ -200,24 +205,23 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task UpdateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyByAnotherOwner()
+    public async Task UpdateRepositoryAsync_ChangingOnlyTheArchitecture_IsNotACollision()
     {
         // Arrange
-        await GivenRepositoryAsync(name: "theirs", owner: _otherUser);
-        var mine = await GivenRepositoryAsync(name: "mine");
-        var update = new WriteRepositoryRequest { Name = "theirs", Architecture = "x86_64" };
+        var repository = await GivenRepositoryAsync(name: "unchanged", architecture: "x86_64");
+        var update = new WriteRepositoryRequest { Name = "unchanged", Architecture = "any" };
 
         // Act
-        var result = await _service.UpdateRepositoryAsync(mine.Id, update);
+        var result = await _service.UpdateRepositoryAsync(repository.Id, update);
 
         // Assert
-        Assert.That(result!.Name, Is.EqualTo("theirs"));
+        Assert.That(result!.Architecture, Is.EqualTo("any"));
     }
 
     [Test]
     public async Task UpdateRepositoryAsync_Throws_WhenASystemActorRenamesIntoTheOwnersOtherRepository()
     {
-        // A system actor writes on the owner's behalf, so the owner's names are what collide.
+        // A system actor bypasses the visibility rules, but not the index.
         // Arrange
         _actors.Actor = Actor.System;
         await GivenRepositoryAsync(name: "taken");
@@ -231,7 +235,8 @@ public class RepositoryServiceCollisionTests
     private async Task<PacmanRepository> GivenRepositoryAsync(
         string name = "a-repo",
         User? owner = null,
-        string architecture = "x86_64")
+        string architecture = "x86_64",
+        bool isPublic = false)
     {
         var now = DateTimeOffset.UtcNow;
         var repository = new PacmanRepository
@@ -239,7 +244,7 @@ public class RepositoryServiceCollisionTests
             Id = Guid.CreateVersion7(),
             Name = name,
             Architecture = architecture,
-            IsPublic = false,
+            IsPublic = isPublic,
             Owner = owner ?? _existingUser,
             CreatedAt = now,
             UpdatedAt = now

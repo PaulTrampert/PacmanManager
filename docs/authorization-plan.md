@@ -46,11 +46,6 @@ So the property to state to a user is that a private repository's *name* is not 
 existence-as-yours, its owner, its contents and its packages are. A name that has to be unguessable
 must be chosen to be unguessable.
 
-*This describes the namespace after the global name index in*
-[`pacman-controller.md`](pacman-controller.md#1c-the-global-name-index-and-its-migration--major) *lands.
-Until then uniqueness is per owner, as* [Looking a repository up by name](#looking-a-repository-up-by-name)
-*describes, and no name is disclosed.*
-
 ## Architecture Strategy: Enforcement in the Service Layer
 
 An earlier draft of this plan proposed an `IAsyncAuthorizationFilter` attribute applied to
