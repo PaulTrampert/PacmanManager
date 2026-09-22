@@ -46,8 +46,8 @@ So the property to state to a user is that a private repository's *name* is not 
 existence-as-yours, its owner, its contents and its packages are. A name that has to be unguessable
 must be chosen to be unguessable.
 
-*This describes the namespace after the global-uniqueness change in*
-[`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major) *lands.
+*This describes the namespace after the global name index in*
+[`pacman-controller.md`](pacman-controller.md#1c-the-global-name-index-and-its-migration--major) *lands.
 Until then uniqueness is per owner, as* [Looking a repository up by name](#looking-a-repository-up-by-name)
 *describes, and no name is disclosed.*
 
@@ -142,9 +142,9 @@ already-visible set, so naming someone else's private repository still returns n
 Note that the owner is identified by user id.
 
 *Both paragraphs above are superseded by*
-[`pacman-controller.md`](pacman-controller.md#1b-globally-unique-repository-names--major)*, which
+[`pacman-controller.md`](pacman-controller.md#1b-look-a-repository-up-by-name-alone--major)*, which
 reduces* `RepositoryKey` *to the name, and*
-[*issue 1c*](pacman-controller.md#1c-the-global-name-index-and-its-migration--patch)*, which makes the
+[*issue 1c*](pacman-controller.md#1c-the-global-name-index-and-its-migration--major)*, which makes the
 index* `Name` *alone — architecture moves onto the repository as* `SupportedArchitectures`*, so it is
 no longer part of any key. Issue 1b owns rewriting this section. The friendlier URL form this section used to call for —*
 `{owner}/{name}/{arch}` *— was abandoned along with the user-facing name on* `User` *it would have
@@ -156,14 +156,6 @@ trade.*
 
 *   Deleting a repository removes the database row and then the backing `.db.tar.gz`. A failure to
     remove the file is logged and ignored, leaving an orphaned file that nothing references.
-*   Renaming a repository into a collision with the `(OwnerId, Name, Architecture)` index surfaces
-    as a `DbUpdateException`, and so a `500`, rather than a `409`. `ItemExistsException` exists for
-    this but is not yet raised anywhere. This is fixed in two steps:
-    [the `409` arm](#itemexistsexception--409--patch) below, and
-    [`pacman-controller.md`](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch),
-    which raises the exception on the collision that exists today; a global namespace then turns that
-    collision from a rare edge case into something a user hits routinely, which is what finally made
-    it worth fixing.
 
 ## Implementation plan
 

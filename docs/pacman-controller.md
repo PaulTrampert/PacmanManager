@@ -494,8 +494,16 @@ and from update, replacing the `DbUpdateException` → `500` that
 `409` is [a story of its own](authorization-plan.md#itemexistsexception--409--patch), shared with
 [Basic Auth](basic-auth.md#5-accesstokenscontroller--minor).
 
-*Acceptance:* service unit tests that a colliding create and a colliding update each raise
-`ItemExistsException`; an E2E test that each produces a `409`. **A test asserts the body names neither
+The unique index decides the collision. `RepositoryService` does not check for one before writing:
+it translates the index's unique violation into `ItemExistsException`. It identifies the index by
+the name the EF model gives it, not by a literal. When
+[1c](#1c-the-global-name-index-and-its-migration--major) changes the index's columns, the
+translation follows without a change of its own.
+
+*Acceptance:* service tests, run against Postgres because the in-memory provider does not enforce
+unique indexes. A colliding create and a colliding update each raise `ItemExistsException`. A
+colliding create removes the database file it wrote and no other. An E2E test shows that each
+collision produces a `409`. **A test asserts the body names neither
 the owner nor anything else about the colliding repository.** The `packages-api.md` deferred bullet
 recording the exception as unused is deleted.
 
@@ -504,29 +512,57 @@ recording the exception as unused is deleted.
 **Why:**
 
 * [issue 1a goes first](#why-issue-1a-goes-first)
+* [a collision is the index's to report](#why-a-collision-is-the-indexs-to-report)
 * [a public name is an acceptable trade](#why-a-public-name-is-an-acceptable-trade)
 
-### 1b. Globally unique repository names — `MAJOR`
+### 1b. Look a repository up by name alone — `MAJOR`
 
-The service change: the collision check becomes `Name` alone, `RepositoryKey` collapses to a name and
-`GetRepositoryByNameAsync` takes a `string`, and the correction to
-[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name). The database index
-is not touched; that is [issue 1c](#1c-the-global-name-index-and-its-migration--patch).
+The service change that follows the index: `RepositoryKey` collapses to a name,
+`GetRepositoryByNameAsync` takes a `string`, and this issue makes the correction to
+[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name). Uniqueness itself
+belongs to [issue 1c](#1c-the-global-name-index-and-its-migration--major). The index decides it, and
+1a's translation reports it, so there is no collision check here to change.
 
-Breaking for any existing client and for `IRepositoryService`'s callers, hence `MAJOR`.
+It breaks `IRepositoryService`'s callers, and any client that looks a repository up by owner and
+architecture, hence `MAJOR`.
 
-*Constraints:* uniqueness is enforced by the service alone until 1c lands. The collision check must
-therefore compare against every repository, not only the visible ones: a name held by a private
-repository the caller cannot see is still a `409`.
+*Acceptance:* service unit tests show that `GetRepositoryByNameAsync` finds a repository by name
+alone, and still returns nothing for a private repository the caller may not see. Callers of the old
+key are updated.
 
-*Acceptance:* service unit tests: two users cannot both create `custom`, including when the first
-one's `custom` is private; a rename into a taken name is a `409`; a rename to the repository's own
-current name is a no-op rather than a self-collision; `GetRepositoryByNameAsync` finds a repository
-by name alone and still returns nothing for a private repository the caller may not see. A test
-asserts a private repository is still a `404` by id and absent from the listing for a non-owner, so
-the collision response is the only new signal — the bound on
-[the disclosure this change accepts](#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not).
-Existing tests that create same-named repositories under different owners are updated.
+*Depends on:* 1c. Until the global index exists, two owners may share a name, and a lookup by name
+alone could match both.
+
+**Why:**
+
+* [the key is `Name` alone](#why-the-key-is-name-alone)
+* [the index lands before the key collapses](#why-the-index-lands-before-the-key-collapses)
+
+### 1c. The global name index and its migration — `MAJOR`
+
+The schema change, which brings the rule with it. The unique index on `PacmanRepository` becomes
+`Name` alone. A new non-unique index on `OwnerId` replaces the prefix scan that the composite index
+gave `RepositoryFilter.ownerId`. The migration is named `AddIndex_IX_PacmanRepositories_Name`. No
+data migration is needed, because the application is not live. 1a translates a violation of
+whichever unique index the model declares, so as soon as this lands, a name another owner holds is a
+`409` with no service change.
+
+It breaks any existing client, since a name another owner holds could be created before and is now
+refused, hence `MAJOR`. Although it is numbered after 1b, it lands first.
+
+*Acceptance:*
+
+* `dotnet ef migrations list` shows the migration. Applying it against the compose Postgres
+  succeeds, the old composite index is gone, and both new indexes exist.
+* Service tests against Postgres: two users cannot both create `custom`, including when the first
+  user's `custom` is private. A rename into a name another owner holds raises
+  `ItemExistsException`. A rename to the repository's own current name is not a self-collision.
+* An E2E test shows that two users creating `custom` produces a `409` rather than a `500`, and that
+  its body discloses nothing about the other repository.
+* A test asserts that a private repository is still a `404` by id, and absent from the listing, for
+  a non-owner. The collision response is then the only new signal, which is the bound on
+  [the disclosure this change accepts](#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not).
+* Existing tests that create same-named repositories under different owners are updated.
 
 *Depends on:* 1a.
 
@@ -535,26 +571,7 @@ Existing tests that create same-named repositories under different owners are up
 * [repository names became globally unique](#why-repository-names-became-globally-unique)
 * [the key is `Name` alone](#why-the-key-is-name-alone)
 * [a public name is an acceptable trade](#why-a-public-name-is-an-acceptable-trade)
-* [the service change lands before the index](#why-the-service-change-lands-before-the-index)
-
-### 1c. The global name index and its migration — `PATCH`
-
-The schema change: the unique index on `PacmanRepository` becomes `Name` alone, a new non-unique
-index on `OwnerId` replaces the prefix scan the composite index gave `RepositoryFilter.ownerId`, and
-a migration named `AddIndex_IX_PacmanRepositories_Name`. No data migration is needed — the
-application is not live.
-
-*Acceptance:* `dotnet ef migrations list` shows the migration; applying it against the compose
-Postgres succeeds, the old composite index is gone, and both new indexes exist. An E2E test that two
-users creating `custom` still produces a `409` rather than a `500`, which is what proves 1b's check
-runs before the database's.
-
-*Depends on:* 1b. It must not land first.
-
-**Why:**
-
-* [the key is `Name` alone](#why-the-key-is-name-alone)
-* [the service change lands before the index](#why-the-service-change-lands-before-the-index)
+* [the index lands before the key collapses](#why-the-index-lands-before-the-key-collapses)
 
 ### 1d. `SupportedArchitectures` — `MAJOR`
 
@@ -1088,13 +1105,40 @@ an edge case and become something users hit routinely. Landing the index first w
 period where the routine outcome is a `500`. It also closes a standing gap on its own merits — which
 is what finally makes the `DbUpdateException` → `500` worth fixing.
 
-### Why the service change lands before the index
+### Why a collision is the index's to report
 
-Uniqueness moves in two steps, service first. Once 1b lands, a name collision across owners is a
-`409` raised by `RepositoryService`, while the database still accepts the row; 1c then makes the
-database agree. The other order would add the global index while the service still checks
-`(OwnerId, Name, Architecture)`, so a second owner choosing a taken name would get a
-`DbUpdateException` and a `500` — the same known gap 1a closed, reopened for the case users hit most.
+1a first shipped with a check before the write: a query through `VisibleAsync` for a repository that
+already held the key. During 1a's review, with project-owner sign-off, that check was replaced by
+translating the index's own unique violation. There were three reasons:
 
-Splitting them also keeps each review to one kind of change: 1b is a signature change and its tests,
-reviewed as code; 1c is an index and a migration, reviewed against the database.
+* **The check raced.** Two concurrent writes of one name could both pass it. The loser then got the
+  `DbUpdateException` and `500` that 1a exists to remove. The index cannot race.
+* **It would not have survived global names.** Once a name is global, a check has to see
+  repositories the caller cannot see. That needs a second path to `PacmanRepositories`, one that
+  bypasses `VisibleAsync`, which `RepositoryServiceEnforcementTests` forbids. The translation reads
+  nothing.
+* **One source of truth.** The rule lives in the index, not in a predicate that has to be kept in
+  step with it.
+
+The change has two costs. The in-memory provider does not enforce unique indexes, so collision tests
+run against Postgres. And a colliding create now runs `repo-add` before the database refuses the
+row. Database files are named for the new repository's id, never its name, so the create's existing
+cleanup removes that file and nothing else.
+
+### Why the index lands before the key collapses
+
+Uniqueness moves in one step, in the database. 1a reports a violation of whichever unique index the
+model declares. Once 1c makes that index `Name` alone, a name another owner holds is a `409` with no
+service change. 1b cannot go first: without the global index, two owners may still share a name, and
+a lookup by name alone could match both.
+
+Keeping the two issues apart still keeps each review to one kind of change. 1c is an index, a
+migration and the collision tests, reviewed against the database. 1b is a signature change and its
+callers, reviewed as code.
+
+The plan originally landed 1b first. Under that order, `RepositoryService` would have checked `Name`
+against every repository, visible or not, before the database agreed. The point was that the global
+index would never arrive while the service still checked the old key, which would have turned a
+cross-owner collision into a `500`. Replacing that check with the index's own verdict (see
+[a collision is the index's to report](#why-a-collision-is-the-indexs-to-report)) removed the
+reason for that order.

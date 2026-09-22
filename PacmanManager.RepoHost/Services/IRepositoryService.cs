@@ -66,6 +66,7 @@ public interface IRepositoryService
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The newly created repository.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user to own the repository.</exception>
+    /// <exception cref="ItemExistsException">Thrown when the user already owns a repository with the same name and architecture.</exception>
     Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -77,6 +78,7 @@ public interface IRepositoryService
     /// <returns>The updated repository, or null if it does not exist or is not visible to the current actor.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when the operation requires an identity and there is none.</exception>
     /// <exception cref="RepositoryForbiddenException">Thrown when the actor may see the repository but does not own it.</exception>
+    /// <exception cref="ItemExistsException">Thrown when the owner already has another repository with the new name and architecture.</exception>
     Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default);
 
     /// <summary>

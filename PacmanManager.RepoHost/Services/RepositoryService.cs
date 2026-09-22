@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
@@ -83,6 +84,38 @@ internal class RepositoryService(
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="exception"/> is the database refusing a row because another
+    /// repository already holds its name, as opposed to any other failure to save.
+    /// </summary>
+    /// <param name="exception">The exception <see cref="DbContext.SaveChangesAsync(CancellationToken)"/> threw.</param>
+    /// <remarks>
+    /// The unique index is the only thing that decides a collision; nothing checks for one before
+    /// writing, so two concurrent writes of the same name cannot both succeed. The index is matched by
+    /// the name the model gives it rather than a literal, so the check follows the index when its
+    /// columns change.
+    /// </remarks>
+    private bool IsNameCollision(DbUpdateException exception)
+    {
+        var nameIndex = dbContext.Model
+            .FindEntityType(typeof(PacmanRepository))!
+            .GetIndexes()
+            .Single(i => i.IsUnique)
+            .GetDatabaseName();
+
+        return exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgres
+               && postgres.ConstraintName == nameIndex;
+    }
+
+    /// <summary>
+    /// The exception a name collision is reported as, which the handler maps to <c>409</c>.
+    /// </summary>
+    /// <param name="collision">The database's refusal, kept as the inner exception.</param>
+    private static ItemExistsException NameTaken(DbUpdateException collision) =>
+        // The handler never copies the message into the response, but it is still worded to say
+        // nothing about the repository that holds the name.
+        new("A repository with this name already exists.", collision);
+
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var visible = await VisibleAsync(cancellationToken);
@@ -164,12 +197,20 @@ internal class RepositoryService(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Failed to create repository: {@Request}", request);
+            // The file is named for the new repository's id, never its name, so this removes only
+            // what this call wrote, even when the failure is a collision with an existing repository.
             var expectedRepoPath = GetRepositoryFileName(repository.Id);
             if (fileSystem.Exists(expectedRepoPath))
             {
                 fileSystem.Delete(expectedRepoPath);
             }
+
+            if (e is DbUpdateException dbUpdate && IsNameCollision(dbUpdate))
+            {
+                throw NameTaken(dbUpdate);
+            }
+
+            logger.LogError(e, "Failed to create repository: {@Request}", request);
             throw;
         }
 
@@ -189,7 +230,14 @@ internal class RepositoryService(
         repository.Architecture = update.Architecture;
         repository.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException e) when (IsNameCollision(e))
+        {
+            throw NameTaken(e);
+        }
 
         return Repository.FromPacmanRepository(repository);
     }

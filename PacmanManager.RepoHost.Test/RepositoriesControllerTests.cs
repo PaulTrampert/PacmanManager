@@ -279,6 +279,23 @@ public class RepositoriesControllerTests
         Assert.That(repository!.Architecture, Is.EqualTo("x86_64"));
     }
 
+    [Test]
+    public async Task Create_WithATakenNameAndArchitecture_ReturnsConflict()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "conflict-on-create", Architecture = "x86_64" };
+        var first = await _client.PostAsJsonAsync("/api/v1/repositories", request);
+        Assert.That(first.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var existing = (await first.Content.ReadFromJsonAsync<Repository>())!;
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        await AssertDisclosesNothingAboutAsync(response, existing);
+    }
+
     #endregion
 
     #region Update Tests
@@ -317,6 +334,29 @@ public class RepositoriesControllerTests
 
         // Assert
         Assert.That(updateResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
+    public async Task Update_RenamingIntoATakenNameAndArchitecture_ReturnsConflict()
+    {
+        // Arrange
+        var taken = await _client.PostAsJsonAsync("/api/v1/repositories",
+            new WriteRepositoryRequest { Name = "conflict-on-update-taken", Architecture = "x86_64" });
+        var existing = (await taken.Content.ReadFromJsonAsync<Repository>())!;
+        var renamed = await _client.PostAsJsonAsync("/api/v1/repositories",
+            new WriteRepositoryRequest { Name = "conflict-on-update-original", Architecture = "x86_64" });
+        var renamedId = (await renamed.Content.ReadFromJsonAsync<Repository>())!.Id;
+
+        // Act
+        var response = await _client.PutAsJsonAsync($"/api/v1/repositories/{renamedId}",
+            new WriteRepositoryRequest { Name = existing.Name, Architecture = existing.Architecture });
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        await AssertDisclosesNothingAboutAsync(response, existing);
+
+        var unchanged = await _client.GetFromJsonAsync<Repository>($"/api/v1/repositories/{renamedId}");
+        Assert.That(unchanged!.Name, Is.EqualTo("conflict-on-update-original"));
     }
 
     #endregion
@@ -529,6 +569,24 @@ public class RepositoriesControllerTests
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    /// <summary>
+    /// A <c>409</c> may say only that the name is taken. The body must not name the owner, or
+    /// anything else about the repository that holds the name.
+    /// </summary>
+    private static async Task AssertDisclosesNothingAboutAsync(HttpResponseMessage response, Repository existing)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(body, Does.Not.Contain(existing.Owner.Id.ToString()), "the owner's id");
+            Assert.That(body, Does.Not.Contain(existing.Owner.DisplayName), "the owner's display name");
+            Assert.That(body, Does.Not.Contain(existing.Id.ToString()), "the colliding repository's id");
+            Assert.That(body, Does.Not.Contain(existing.Name), "the colliding repository's name");
+            Assert.That(body, Does.Not.Contain("A repository with this name"), "the exception's message");
+        });
     }
 
     /// <summary>
