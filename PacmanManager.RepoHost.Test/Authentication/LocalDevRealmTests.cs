@@ -42,6 +42,46 @@ public class LocalDevRealmTests
     }
 
     [Test]
+    public void NoClientScopeOfOurs_IsOutsideTheVocabulary()
+    {
+        var ours = _realm["clientScopes"]!.AsArray()
+            .Select(s => s!["name"]!.GetValue<string>())
+            .Where(name => name.StartsWith($"{ScopeValues.Audience}:"));
+
+        Assert.That(ours, Is.SubsetOf(ScopeValues.All));
+    }
+
+    [Test]
+    public void NoScopeListOfOurs_NamesAValueOutsideTheVocabulary()
+    {
+        var lists = new Dictionary<string, JsonNode>
+        {
+            ["defaultDefaultClientScopes"] = _realm["defaultDefaultClientScopes"]!,
+            ["defaultOptionalClientScopes"] = _realm["defaultOptionalClientScopes"]!,
+        };
+        foreach (var client in _realm["clients"]!.AsArray())
+        {
+            var clientId = client!["clientId"]!.GetValue<string>();
+            foreach (var key in new[] { "defaultClientScopes", "optionalClientScopes" })
+            {
+                if (client[key] is { } list)
+                {
+                    lists[$"{clientId}.{key}"] = list;
+                }
+            }
+        }
+
+        Assert.Multiple(() =>
+        {
+            foreach (var (where, list) in lists)
+            {
+                Assert.That(Strings(list).Where(name => name.StartsWith($"{ScopeValues.Audience}:")),
+                    Is.SubsetOf(ScopeValues.All), where);
+            }
+        });
+    }
+
+    [Test]
     public void Everything_IsADefaultScope_OnTheInteractiveClientsAndTheRealm()
     {
         Assert.Multiple(() =>

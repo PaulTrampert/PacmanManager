@@ -761,33 +761,24 @@
         "microprofile-jwt",
         "pacman-manager:repositories:read",
         "pacman-manager:repositories:create",
-        "pacman-manager:repositories:write",
+        "pacman-manager:repositories:update",
         "pacman-manager:repositories:delete",
-        "pacman-manager:repositories:publish",
         "pacman-manager:packages:read",
         "pacman-manager:packages:create",
-        "pacman-manager:packages:write",
         "pacman-manager:packages:delete",
-        "pacman-manager:packages:publish",
         "pacman-manager:users:read",
-        "pacman-manager:users:create",
-        "pacman-manager:users:write",
-        "pacman-manager:users:delete",
-        "pacman-manager:users:publish",
+        "pacman-manager:users:update",
         "pacman-manager:tokens:read",
         "pacman-manager:tokens:create",
-        "pacman-manager:tokens:write",
         "pacman-manager:tokens:delete",
-        "pacman-manager:tokens:publish",
         "pacman-manager:repositories:*",
         "pacman-manager:packages:*",
         "pacman-manager:users:*",
         "pacman-manager:tokens:*",
         "pacman-manager:*:read",
         "pacman-manager:*:create",
-        "pacman-manager:*:write",
-        "pacman-manager:*:delete",
-        "pacman-manager:*:publish"
+        "pacman-manager:*:update",
+        "pacman-manager:*:delete"
       ]
     },
     {
@@ -1012,9 +1003,9 @@
       }
     },
     {
-      "id": "ba5e6b98-594e-5f02-a892-a27188bbf75c",
-      "name": "pacman-manager:repositories:write",
-      "description": "Pacman Manager API: write on repositories",
+      "id": "d3152675-73a5-4a29-9bb3-b3d0534e6eba",
+      "name": "pacman-manager:repositories:update",
+      "description": "Pacman Manager API: update on repositories",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1025,16 +1016,6 @@
       "id": "d27719d7-14df-5fe2-9e87-d8be68605320",
       "name": "pacman-manager:repositories:delete",
       "description": "Pacman Manager API: delete on repositories",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "0f96ecd9-c2f8-57ed-8516-c1a1e644cf10",
-      "name": "pacman-manager:repositories:publish",
-      "description": "Pacman Manager API: publish on repositories",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1062,29 +1043,9 @@
       }
     },
     {
-      "id": "fa4961e8-fd37-5d65-b6b9-a2c066648c46",
-      "name": "pacman-manager:packages:write",
-      "description": "Pacman Manager API: write on packages",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
       "id": "3612b4dc-23f5-5fa9-946f-c206cb1f805a",
       "name": "pacman-manager:packages:delete",
       "description": "Pacman Manager API: delete on packages",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "56f57c95-434f-5cfc-abbc-024113d4e5f4",
-      "name": "pacman-manager:packages:publish",
-      "description": "Pacman Manager API: publish on packages",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1102,39 +1063,9 @@
       }
     },
     {
-      "id": "e028e0d0-9ba9-5c32-ae1a-f2464bc9fe05",
-      "name": "pacman-manager:users:create",
-      "description": "Pacman Manager API: create on users",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "7078d071-65e3-56a7-8be8-baa7ea395f47",
-      "name": "pacman-manager:users:write",
-      "description": "Pacman Manager API: write on users",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "245e60c3-ea97-58c5-905e-926652e97291",
-      "name": "pacman-manager:users:delete",
-      "description": "Pacman Manager API: delete on users",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "361a468f-6a73-5162-8303-fcecedab4b63",
-      "name": "pacman-manager:users:publish",
-      "description": "Pacman Manager API: publish on users",
+      "id": "728a46c4-793f-4093-bca4-92e1dc6edf83",
+      "name": "pacman-manager:users:update",
+      "description": "Pacman Manager API: update on users",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1162,29 +1093,9 @@
       }
     },
     {
-      "id": "a76bed1d-de89-5ae6-a9ba-4329c6889f1a",
-      "name": "pacman-manager:tokens:write",
-      "description": "Pacman Manager API: write on tokens",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
       "id": "b5b814d2-2797-5755-92f5-fe272b242f42",
       "name": "pacman-manager:tokens:delete",
       "description": "Pacman Manager API: delete on tokens",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "4b453717-4241-54a0-9e50-041c4ecbc1e4",
-      "name": "pacman-manager:tokens:publish",
-      "description": "Pacman Manager API: publish on tokens",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1234,7 +1145,7 @@
     {
       "id": "f5b25c50-e567-5043-85a8-6fa636e64822",
       "name": "pacman-manager:*:read",
-      "description": "Pacman Manager API: read on every entity",
+      "description": "Pacman Manager API: read on every entity that has it",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1244,7 +1155,7 @@
     {
       "id": "85ed8d96-9b45-5cf6-b500-33f42c8ce695",
       "name": "pacman-manager:*:create",
-      "description": "Pacman Manager API: create on every entity",
+      "description": "Pacman Manager API: create on every entity that has it",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1252,9 +1163,9 @@
       }
     },
     {
-      "id": "3acffc16-990a-5c7d-bb02-2ce18ea15da1",
-      "name": "pacman-manager:*:write",
-      "description": "Pacman Manager API: write on every entity",
+      "id": "8dfe640e-10be-44e0-927d-ad9f4825422b",
+      "name": "pacman-manager:*:update",
+      "description": "Pacman Manager API: update on every entity that has it",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1264,17 +1175,7 @@
     {
       "id": "8e6f6bf3-b42e-5df4-b53c-fbaa94177212",
       "name": "pacman-manager:*:delete",
-      "description": "Pacman Manager API: delete on every entity",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "id": "3e5a2786-580d-54d8-816d-5ebc2e011803",
-      "name": "pacman-manager:*:publish",
-      "description": "Pacman Manager API: publish on every entity",
+      "description": "Pacman Manager API: delete on every entity that has it",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "true",
@@ -1807,33 +1708,24 @@
     "microprofile-jwt",
     "pacman-manager:repositories:read",
     "pacman-manager:repositories:create",
-    "pacman-manager:repositories:write",
+    "pacman-manager:repositories:update",
     "pacman-manager:repositories:delete",
-    "pacman-manager:repositories:publish",
     "pacman-manager:packages:read",
     "pacman-manager:packages:create",
-    "pacman-manager:packages:write",
     "pacman-manager:packages:delete",
-    "pacman-manager:packages:publish",
     "pacman-manager:users:read",
-    "pacman-manager:users:create",
-    "pacman-manager:users:write",
-    "pacman-manager:users:delete",
-    "pacman-manager:users:publish",
+    "pacman-manager:users:update",
     "pacman-manager:tokens:read",
     "pacman-manager:tokens:create",
-    "pacman-manager:tokens:write",
     "pacman-manager:tokens:delete",
-    "pacman-manager:tokens:publish",
     "pacman-manager:repositories:*",
     "pacman-manager:packages:*",
     "pacman-manager:users:*",
     "pacman-manager:tokens:*",
     "pacman-manager:*:read",
     "pacman-manager:*:create",
-    "pacman-manager:*:write",
-    "pacman-manager:*:delete",
-    "pacman-manager:*:publish"
+    "pacman-manager:*:update",
+    "pacman-manager:*:delete"
   ],
   "browserSecurityHeaders": {
     "contentSecurityPolicyReportOnly": "",
