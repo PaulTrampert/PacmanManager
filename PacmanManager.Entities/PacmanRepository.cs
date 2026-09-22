@@ -3,7 +3,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PacmanManager.Entities;
 
-[Index(nameof(OwnerId), nameof(Name), nameof(Architecture), IsUnique = true)]
+// A repository name belongs to exactly one repository across the whole deployment.
+[Index(nameof(Name), IsUnique = true)]
+// Serves the owner filter on the repository listing, which the unique index no longer starts with.
+[Index(nameof(OwnerId))]
 public record PacmanRepository
 {
     [Key]
