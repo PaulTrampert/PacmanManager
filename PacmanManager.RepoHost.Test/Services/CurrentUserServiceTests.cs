@@ -40,7 +40,8 @@ public class CurrentUserServiceTests
         var existingUser = new User
         {
             Email = "test@example.com",
-            DisplayName = "Test User"
+            DisplayName = "Test User",
+            NormalizedDisplayName = "test user"
         };
         
         var optionsBuilder = new DbContextOptionsBuilder<PacmanManagerDbContext>();

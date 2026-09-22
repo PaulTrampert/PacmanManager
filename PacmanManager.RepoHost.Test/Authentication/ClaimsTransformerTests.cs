@@ -69,7 +69,7 @@ public class ClaimsTransformerTests
         identity.AddClaim(new Claim(AuthnConstants.DisplayNameClaimType, name));
         var principal = new ClaimsPrincipal(identity);
 
-        var user = new User { Id = userId, Email = "user@example.com", DisplayName = "John Doe" };
+        var user = new User { Id = userId, Email = "user@example.com", DisplayName = "John Doe", NormalizedDisplayName = "john doe" };
 
         _mockUserService.Setup(s => s.GetUserByExternalIdAsync(authority, subject, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -102,7 +102,7 @@ public class ClaimsTransformerTests
             .ReturnsAsync((User?)null);
 
         _mockUserService.Setup(s => s.EnsureUserLinkedAsync(email, name, authority, subject, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new User { Id = userId, Email = email, DisplayName = name });
+            .ReturnsAsync(new User { Id = userId, Email = email, DisplayName = name, NormalizedDisplayName = name.ToLowerInvariant() });
 
         // Act
         var result = await _transformer.TransformAsync(principal);
@@ -132,7 +132,7 @@ public class ClaimsTransformerTests
             .ReturnsAsync((User?)null);
 
         _mockUserService.Setup(s => s.EnsureUserLinkedAsync(email, string.Empty, authority, subject, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new User { Id = userId, Email = email, DisplayName = string.Empty });
+            .ReturnsAsync(new User { Id = userId, Email = email, DisplayName = string.Empty, NormalizedDisplayName = string.Empty });
 
         // Act
         var result = await _transformer.TransformAsync(principal);

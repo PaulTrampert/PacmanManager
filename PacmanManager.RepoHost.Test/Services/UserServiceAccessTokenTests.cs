@@ -53,8 +53,8 @@ public class UserServiceAccessTokenTests
         // Seeded through a context of their own, so that the service's context starts empty and
         // every save it records is one the service made.
         using var seed = NewContext();
-        _owner = seed.Add(new User { DisplayName = "owner", Email = "owner@test.com" }).Entity;
-        _other = seed.Add(new User { DisplayName = "other", Email = "other@test.com" }).Entity;
+        _owner = seed.Add(new User { DisplayName = "owner", NormalizedDisplayName = "owner", Email = "owner@test.com" }).Entity;
+        _other = seed.Add(new User { DisplayName = "other", NormalizedDisplayName = "other", Email = "other@test.com" }).Entity;
         seed.SaveChanges();
     }
 
