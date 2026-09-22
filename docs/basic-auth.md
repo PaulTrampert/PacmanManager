@@ -95,30 +95,51 @@ space-delimited, case-sensitive list of opaque strings. Every value of ours has 
 | :--- | :--- |
 | `pacman-manager:` | The API's audience, as a literal prefix on every value. |
 | `entity` | `repositories`, `packages`, `users`, `tokens`, or `*` — the plural, matching the route segment that serves it |
-| `action` | `read`, `create`, `write`, `delete`, `publish`, or `*` |
+| `action` | one the entity has, from the table below, or `*` |
+
+Each entity has only the actions that exist for it:
+
+| Entity | Actions | Notes |
+| :--- | :--- | :--- |
+| `repositories` | `read`, `create`, `update`, `delete` | |
+| `packages` | `read`, `create`, `delete` | Packages are upserted, so `create` covers publishing a new version over an old one. There is no `update`. |
+| `users` | `read`, `update` | Users are created on first sign-in, not by a request, and are never deleted. |
+| `tokens` | `read`, `create`, `delete` | A token is never changed after it is minted. |
 
 `pacman-manager:repositories:read` reads repositories. `pacman-manager:*:read` is "read anything
-this user can read". `pacman-manager:packages:publish` is "publish packages and nothing else".
-`pacman-manager:repositories:*` is every operation on repositories. A credential carries as many
-values as it needs and they are `OR`'d: permitted if any one of them matches.
+this user can read". `pacman-manager:packages:create` is "publish packages", and on its own is
+useless: see the rule about reads below. `pacman-manager:repositories:*` is every operation on
+repositories. `pacman-manager:*:update` names `update` on every entity that has it. A credential
+carries as many values as it needs and they are `OR`'d: permitted if any one of them matches.
 
-Three rules govern the claim, and all three are requirements rather than observations:
+Four rules govern the claim, and all four are requirements rather than observations:
 
 * **Scopes are purely additive: absent means denied.** A credential may do what its scopes name and
-  nothing else, so a token carrying none of our values can do nothing at all. A bug in the parser
-  therefore fails closed. This has a consequence that must be planned for rather than discovered;
-  see [Every existing token becomes powerless](#every-existing-token-becomes-powerless).
+  nothing else, so a token carrying none of our values can change nothing, and reads exactly as an
+  anonymous caller would. A bug in the parser therefore fails closed. This has a consequence that
+  must be planned for rather than discovered; see
+  [Every existing token becomes powerless](#every-existing-token-becomes-powerless).
+* **Every action on an entity needs `read` on it as well, and a package needs `read` on its
+  repository too.** A credential that cannot read an entity [reads it as an anonymous caller
+  would](#a-credential-that-cannot-read-reads-as-anonymous), so the entity it wants to change is not
+  there to be found, and every change verdict demands the read scope alongside the action. So
+  `pacman-manager:repositories:delete` on its own deletes nothing, and publishing needs
+  `pacman-manager:packages:create`, `pacman-manager:packages:read` and
+  `pacman-manager:repositories:read`.
 * **A scope never grants, it only narrows.** What it names is a *ceiling*, not a permission: every
   rule in [`authorization-plan.md`](authorization-plan.md#authorization-rules) still runs afterwards,
-  unchanged, so `pacman-manager:repositories:write` on a repository somebody else owns is still a
+  unchanged, so `pacman-manager:repositories:update` on a repository somebody else owns is still a
   refusal. An identity provider can hand out any scope it likes; it cannot hand out access.
 * **A value that is not ours is ignored**, never fatal and never permissive. `scope` legitimately
   carries `openid`, `profile`, `email`, `roles` and the bare `pacman-manager` audience value, and
   none of those grant anything here. A malformed value of ours is dropped the same way and logged,
-  so a provider that mangles one cannot escalate through it — it can only take a permission away.
+  and a well-formed value naming an action its entity does not have (`pacman-manager:users:delete`)
+  counts as malformed. A provider that mangles a value cannot escalate through it; it can only take
+  a permission away.
 
 **Why:**
 
+* [each entity has its own actions](#why-each-entity-has-its-own-actions)
 * [the audience prefix is on every value](#why-the-audience-prefix-is-on-every-value)
 * [scopes are additive, and what that costs](#why-scopes-are-additive-and-what-that-costs)
 * [every existing token becomes powerless](#every-existing-token-becomes-powerless)
@@ -159,28 +180,33 @@ This half needs no application code beyond the parser. `ScopeValues` in RepoHost
 and `ConfigureSwaggerGenOptions` lists them in its security requirement, but nothing reads them off
 a token until [issue 3](#3-scoped-actors--minor).
 
+[Issue 6](#6-scopes-on-a-bearer-token--minor) registered the grammar as it first stood: five actions
+crossed with every entity. [Issue 8](#8-each-entity-has-its-own-actions--minor) replaces those values
+with the ones tabulated above. The clients, and which values they receive by default, do not change.
+
 **Why:**
 
 * [`pacman-manager:*:*` is its own client scope](#why-pacman-manager-is-its-own-client-scope)
+* [each entity has its own actions](#why-each-entity-has-its-own-actions)
 
 ### Configuring another identity provider
 
 Nothing in this application is specific to Keycloak. A different provider works if it puts our values
 into the access token's **`scope`** claim, as one space-delimited string, alongside an `aud` that
-includes `pacman-manager`. Our values are exactly these 30 strings, and nothing else of the form
-`pacman-manager:…` means anything:
+includes `pacman-manager`. A token without that audience is rejected before its scope is read. Our
+values are exactly these 21 strings, and nothing else of the form `pacman-manager:…` means anything:
 
 | Form | Values |
 | :--- | :--- |
 | Everything | `pacman-manager:*:*` |
-| `<entity>:<action>` | `pacman-manager:<entity>:<action>` for each of the 20 pairs of `repositories`, `packages`, `users`, `tokens` with `read`, `create`, `write`, `delete`, `publish` |
+| `<entity>:<action>` | the 12 pairs [tabulated above](#the-scope-claim): `repositories` with `read`, `create`, `update`, `delete`; `packages` with `read`, `create`, `delete`; `users` with `read`, `update`; `tokens` with `read`, `create`, `delete` |
 | `<entity>:*` | `pacman-manager:repositories:*`, `pacman-manager:packages:*`, `pacman-manager:users:*`, `pacman-manager:tokens:*` |
-| `*:<action>` | `pacman-manager:*:read`, `pacman-manager:*:create`, `pacman-manager:*:write`, `pacman-manager:*:delete`, `pacman-manager:*:publish` |
+| `*:<action>` | `pacman-manager:*:read`, `pacman-manager:*:create`, `pacman-manager:*:update`, `pacman-manager:*:delete` |
 
 The values are case-sensitive. A client that should have its user's full access needs
 `pacman-manager:*:*`; one that should only read needs `pacman-manager:*:read`. Every rule under
 [the `scope` claim](#the-scope-claim) applies whichever provider issues it: a token carrying none of
-these values can do nothing.
+these values can change nothing, and reads as an anonymous caller would.
 
 ### How the actor enforces it
 
@@ -190,45 +216,88 @@ separate flag:
 ```csharp
 public ActorScope Scope { get; }
 
-public bool IsReadOnly => !Scope.PermitsAnyWrite;
+public bool IsReadOnly => !Scope.PermitsAnyActionButRead;
 
 public static Actor For(User user, ActorScope scope) => new(user, isSystem: false, scope);
 ```
 
-* **Every verdict method asks the scope first**, before the ownership tests, and returns
-  `RepositoryAccess.Forbidden` when it does not permit that operation on that entity — `CheckRead`
-  as much as `CheckWrite`, `CheckCreate` and `PackageAccessPolicy.CheckPublish`. Reads are included
-  because absence now denies.
+* **`HttpContextActorAccessor` builds the actor from the principal**: the user from the
+  `AppUserIdClaimType` claim, as [issue 9](#9-the-actor-accessor-reads-the-principal-itself--patch)
+  arranges, and the scope from the `scope` claim. It is the one place the claim is parsed.
+* **A credential carrying none of our values is anonymous.** When the parsed scope is empty, the
+  accessor returns `Actor.Anonymous` rather than an actor for the user, so such a caller is treated
+  exactly as one with no `Authorization` header: it reads what a stranger reads, and a write is a
+  `401`. A token without the `pacman-manager` audience never gets this far; the `Bearer` handler
+  rejects it. `Actor.Anonymous` carries `ActorScope.Empty`, which no verdict consults, because the
+  no-user arm of every verdict answers before the scope arm does.
+* **Every change verdict asks the scope**, after the no-user arm and before the ownership tests, and
+  returns `RepositoryAccess.Forbidden` when the scope does not permit that action on that entity,
+  together with `read` on it:
+
+  | Verdict | Needs |
+  | :--- | :--- |
+  | `RepositoryAccessPolicy.CheckCreate` | `repositories:create`, `repositories:read` |
+  | `RepositoryAccessPolicy.CheckUpdate` | `repositories:update`, `repositories:read` |
+  | `RepositoryAccessPolicy.CheckDelete` | `repositories:delete`, `repositories:read` |
+  | `PackageAccessPolicy.CheckPublish` | `packages:create`, `packages:read`, `repositories:read` |
+  | `PackageAccessPolicy.CheckDelete` | `packages:delete`, `packages:read`, `repositories:read` |
+
+  [Issue 10](#10-a-verdict-per-action--patch) splits the verdicts so that each action has its own.
+* **There is no read verdict. A credential that cannot read reads as anonymous**; see
+  [below](#a-credential-that-cannot-read-reads-as-anonymous).
 * **An actor with no credential behind it is unrestricted.** `Actor.System` and `FixedActorAccessor`
   take `ActorScope.Unrestricted` explicitly, so background jobs and command-line tools are
   unaffected.
 * **A credential never gets less than an anonymous caller would.** An `[AllowAnonymous]` route that
-  consults no actor — the public repository listing, the pacman routes for a public repository —
-  serves a narrowly scoped credential exactly as it serves a stranger. Anything else would mean a
+  consults no actor, such as the pacman routes for a public repository, serves a narrowly scoped
+  credential exactly as it serves a stranger. So does a route that consults one, because a missing
+  read scope falls back to the anonymous view rather than to a refusal. Anything else would mean a
   user could see more by deleting their `Authorization` header, which is absurd on its face and
   would teach people to do it.
+* **Users and tokens have no access policy**, so their scope checks go in `UserManagementService`
+  and `AccessTokenService` directly, through the same `Actor.Scope`. See
+  [issues 11](#11-scopes-on-the-users-api--minor) and [12](#12-scopes-on-the-tokens-api--minor).
 * `scope` arrives as **one space-delimited string**, not as repeated claims, so it is split before it
   is parsed.
 * `Program.cs` already calls `JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear()`, so the claim
   reaches the principal as `scope` rather than remapped to a WS-Federation-era URI. It must stay
   cleared.
-* The verdict is `Forbidden` (`403`) rather than `Unauthenticated` (`401`), including on a private
-  repository the actor owns: the caller is authenticated, re-authenticating will not help, and they
-  already know the repository exists.
+* A refused change is `Forbidden` (`403`) rather than `Unauthenticated` (`401`), including on a
+  private repository the actor owns: the caller is authenticated, re-authenticating with the same
+  credential will not help, and they already know the repository exists. The exception is a
+  credential with none of our values, which is anonymous and so gets a `401`.
 
 **Why:**
 
 * [authority is a property of the actor, not of the route](#authority-is-a-property-of-the-actor-not-of-the-route)
 * [not a claim read by each service, or a scheme check, or a filter](#why-not-a-claim-read-by-each-service-or-a-scheme-check-or-a-filter)
+* [a credential with none of our values is anonymous](#why-a-credential-with-none-of-our-values-is-anonymous)
+* [delete is its own action](#why-delete-is-its-own-action)
+* [users and tokens are checked in their services](#why-users-and-tokens-are-checked-in-their-services)
 
-### `VisibleTo` does not change at all
+### A credential that cannot read reads as anonymous
 
-`VisibleTo` and `RepositoryService.VisibleAsync` are **untouched**. A scope can refuse an operation;
-it can never narrow the set of rows a caller is shown. A credential that may read repositories at
-all sees exactly what its user sees, their own private repositories included.
+Reads have no verdict method. A read is refused by showing the caller less, never by a `403`:
+
+* **`RepositoryAccessPolicy.VisibleTo`** gains one arm, after `IsSystem`: when the actor's scope does
+  not permit `repositories:read`, it returns the predicate it returns for `Actor.Anonymous`, which
+  is the public repositories. Otherwise it is unchanged, and a credential that may read repositories
+  sees exactly what its user sees, their own private repositories included.
+* **Package visibility needs both `packages:read` and `repositories:read`.** `PackageAccessPolicy`
+  gains a `VisibleTo` of its own that returns `RepositoryAccessPolicy.VisibleTo` for the actor when
+  its scope permits `packages:read`, and the anonymous predicate when it does not.
+  `PackageService.VisibleRepositoriesAsync` calls it instead of `RepositoryAccessPolicy.VisibleTo`,
+  and is still the only definition of package visibility `PackageService` has.
+* **Every change starts from the visible set**, since `RepositoryService.VisibleAsync` and
+  `PackageService.VisibleRepositoriesAsync` are where every write finds its row. Without the read
+  scope, the actor's own private repository is not in that set, and the change is the same `404` a
+  stranger would get. Their public repository is found, and the change verdict refuses it with a
+  `403`, because the verdict's scope arm demands the read scope too.
+* A listing with no read scope is the public page, not a `403`.
 
 **Why:**
 
+* [a credential that cannot read reads as anonymous](#why-a-credential-that-cannot-read-reads-as-anonymous)
 * [a scope restricts what may be done, not what may be known](#why-a-scope-restricts-what-may-be-done-not-what-may-be-known)
 
 ---
@@ -430,8 +499,8 @@ Task<User?> GetUserByAccessTokenAsync(string username, string password, Cancella
   [handler](#the-handler) opens around the call, not through a parameter or `HttpContext`.
 * **It returns a `User`, not a `ClaimsPrincipal`.** Building the principal and its claims is
   [the handler's](#the-handler) job.
-* **It cannot take `IActorAccessor`**: the accessor depends on `ICurrentUserService`, which depends on
-  the authenticated principal, which is what this method's result is used to build. `UserService`
+* **It cannot take `IActorAccessor`**: the accessor depends on the authenticated principal, which is
+  what this method's result is used to build. `UserService`
   takes no actor today and must not start.
 * The token format — parsing `pmt_`/`pms_`, generating a secret, hashing it — is a static
   `AccessTokenFormat` with no dependencies, shared by this method and by minting.
@@ -662,7 +731,9 @@ One issue per heading. Dependencies are noted; anything without a dependency can
 **The numbering is not the order.** Issue 6 is the realm change, and
 [it has to land before issue 3](#every-existing-token-becomes-powerless) turns enforcement on. It is
 last in this list because it is the smallest and the least interesting, not because it is the last
-thing to do. Issue 7 is the same: it is small and independent, and it lands before issue 4.
+thing to do. Issue 7 is the same: it is small and independent, and it lands before issue 4. Issues 8,
+9 and 10 are groundwork that issue 3 was found to need once implementation started, and all three
+land before it. Issues 11 and 12 follow it.
 
 ### 1. `PacmanAccessToken` entity and migration — `MINOR`
 
@@ -752,56 +823,88 @@ test asserts that `AccessTokenService` and `UserService` are the only things nam
 
 ### 3. Scoped actors — `MINOR`
 
-`ActorScope` and its parser (split the space-delimited `scope` claim, keep the values matching
-`<audience>:<entity>:<action>`, `*` accepted for entity and action, everything else ignored, and an
-**empty** scope when none of the values are ours); `Actor.Scope` with `IsReadOnly` derived from it;
-`ActorScope.Unrestricted` passed explicitly by `Actor.System` and `FixedActorAccessor`; and the
-scope arm in every verdict method — `CheckRead` as well as `CheckWrite`, `CheckCreate` and
-`PackageAccessPolicy.CheckPublish` — checked before the ownership tests.
+`ActorScope` and its parser. The parser splits the space-delimited `scope` claim and keeps the values
+matching `<audience>:<entity>:<action>` where the action is
+[one the entity has](#the-scope-claim), with `*` accepted for entity and action. Everything else is
+ignored, and the scope is **empty** when none of the values are ours. The entities and actions come
+from `ScopeValues`, not from a second list.
 
-`VisibleTo` is deliberately **not** touched.
+Also in this issue:
+
+* `Actor.Scope`, and `IsReadOnly` derived from it. `Actor.Anonymous` carries `ActorScope.Empty`.
+  `Actor.System` and `FixedActorAccessor` pass `ActorScope.Unrestricted` explicitly.
+* `HttpContextActorAccessor` parses the principal's `scope` claim and passes it to `Actor.For`, or
+  returns `Actor.Anonymous` when the parsed scope is empty.
+* The scope arm in every change verdict, after the no-user arm and before the ownership tests, as
+  [tabulated above](#how-the-actor-enforces-it).
+* The read arm in `RepositoryAccessPolicy.VisibleTo`, and `PackageAccessPolicy.VisibleTo`, which
+  `PackageService.VisibleRepositoriesAsync` switches to, as described under
+  [A credential that cannot read reads as anonymous](#a-credential-that-cannot-read-reads-as-anonymous).
+* `InsufficientScopeException`, naming the entity and action refused, and an arm in
+  `AuthorizationExceptionHandler` mapping it to `403`. Nothing in this issue throws it. It is the
+  groundwork [issues 11](#11-scopes-on-the-users-api--minor) and
+  [12](#12-scopes-on-the-tokens-api--minor) both need, and it lands here so that neither of them adds
+  it.
 
 **This issue cannot land before [issue 6](#6-scopes-on-a-bearer-token--minor)**, which is what makes
-the realm emit the scopes. Turning enforcement on against a realm that emits none makes every token
-powerless.
+the realm emit the scopes, **nor before [issue 8](#8-each-entity-has-its-own-actions--minor)**, which
+makes it emit the values this parser accepts. Turning enforcement on against a realm that emits none
+of them makes every token anonymous. The accessor change and the verdicts land together for the
+same reason: verdicts that enforce a scope the accessor never supplies would make every `Bearer`
+caller anonymous.
 
-Separate from issue 4 because it is a pure policy change with no HTTP in it, testable entirely by
-`RepositoryAccessPolicyTests` and `PackageAccessPolicyTests`, and reviewable on its own — which is
-the property that makes it worth reviewing carefully, since it is the guarantee the whole document
-rests on.
+Separate from issue 4 because it has no scheme in it, and reviewable on its own, which is what makes
+it worth reviewing carefully: it is the guarantee the whole document rests on.
 
 *Acceptance:* parser unit tests for a wildcard entity, a wildcard action, both, an unknown entity, an
-unknown action, a missing prefix, a wrong prefix, and a value with the right prefix but too few
-segments. Then the four that matter most, because they are where a mistake is silent:
+unknown action, an action the entity does not have (`pacman-manager:users:delete`,
+`pacman-manager:packages:update`), a missing prefix, a wrong prefix, and a value with the right
+prefix but too few segments. Then the four that matter most, because they are where a mistake is
+silent:
 
-* A claim of `openid profile email roles pacman-manager` — none of it ours — parses to an **empty**
-  scope, and an actor carrying it is refused every operation. This is the test that pins the
-  direction of the default.
+* A claim of `openid profile email roles pacman-manager`, none of it ours, parses to an **empty**
+  scope, and `HttpContextActorAccessor` turns a principal carrying it into `Actor.Anonymous`. This is
+  the test that pins the direction of the default.
 * A claim mixing ours with somebody else's (`openid pacman-manager:repositories:read`) keeps the one
   and ignores the rest.
 * An actor built by `FixedActorAccessor` or `Actor.System` is unrestricted.
-* `VisibleTo` is unchanged for every scope, asserted directly.
+* `RepositoryAccessPolicy.VisibleTo` for a scope without `repositories:read` is the public predicate,
+  and `PackageAccessPolicy.VisibleTo` for a scope with `repositories:read` but not `packages:read` is
+  too. Both are asserted directly.
 
-Both policy test fixtures gain rows for a `pacman-manager:*:read` scope on every verdict — including
-a read-only owner of a private repository getting `Forbidden` rather than `NotFound` on a write, and
-that same owner still *reading* it — plus a scope that permits an operation still losing to the
-ownership rules underneath.
+Both policy test fixtures gain rows for a `pacman-manager:*:read` scope on every verdict, including
+a read-only owner of a private repository getting `Forbidden` rather than `NotFound` on a change,
+and that same owner still *reading* it. They also gain rows for a change scope without its read
+scope being `Forbidden` on the owner's own repository, and for a scope that permits an operation
+still losing to the ownership rules underneath. A handler test asserts that `InsufficientScopeException`
+produces a `403`.
 
-*Depends on:* 6.
+E2E tests with tokens from `pacman-manager-scoped`:
+
+* one carrying `pacman-manager:*:read`: changes are `403`, and the caller's own private repository
+  is listed;
+* one carrying `pacman-manager:packages:*` and `pacman-manager:repositories:read`: publishing
+  succeeds, and creating a repository is `403`;
+* one carrying `pacman-manager:repositories:*`: repository changes succeed, and publishing is `403`;
+* one carrying `pacman-manager:repositories:delete` alone: deleting the caller's own private
+  repository is `404`, and the listing shows only public repositories;
+* one carrying none of ours: every change is a `401`, and the listing is exactly the anonymous one.
+
+*Depends on:* 6, 8, 9, 10.
 
 **Why:**
 
 * [scopes are additive, and what that costs](#why-scopes-are-additive-and-what-that-costs)
 * [every existing token becomes powerless](#every-existing-token-becomes-powerless)
-* [a scope restricts what may be done, not what may be known](#why-a-scope-restricts-what-may-be-done-not-what-may-be-known)
+* [a credential that cannot read reads as anonymous](#why-a-credential-that-cannot-read-reads-as-anonymous)
+* [a credential with none of our values is anonymous](#why-a-credential-with-none-of-our-values-is-anonymous)
 * [not a claim read by each service, or a scheme check, or a filter](#why-not-a-claim-read-by-each-service-or-a-scheme-check-or-a-filter)
 
 ### 4. The `Basic` scheme and its handler — `MINOR`
 
 The [selector policy scheme](#the-authorization-prefix-picks-the-handler) and the constants naming
 it, the `Basic` scheme and its options, the handler over `IUserService.GetUserByAccessTokenAsync`, the scope
-claim it issues, `HttpContextActorAccessor` building an `Actor` from whatever scope claim the
-principal carries, and the
+claim it issues, and the
 [present-but-invalid-is-a-`401` middleware](#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
 
 **Swagger is untouched:** `Basic` gets no security definition and the OAuth flow stays exactly as it
@@ -884,11 +987,9 @@ these.
 *Acceptance:* a token from the updated realm carries the expected values, asserted by decoding it in
 a test rather than by inspection: `pacman-manager:*:*` from the Swagger client without asking for it,
 none of ours from `pacman-manager-scoped` unless asked, and exactly the values asked for when it
-does. Then, once issue 3 lands, E2E tests with tokens from `pacman-manager-scoped`: one carrying
-`pacman-manager:*:read` (writes are `403`), one carrying `pacman-manager:packages:publish`
-(publishing succeeds, creating a repository is `403`), one carrying `pacman-manager:repositories:*`
-(repository writes succeed, publishing is `403`), and one carrying none of ours (every operation is
-a `403`).
+does. The E2E tests of what a narrow token may do were listed here originally. They belong to
+[issue 3](#3-scoped-actors--minor), which is where enforcement turns on, and are listed there in
+the vocabulary [issue 8](#8-each-entity-has-its-own-actions--minor) introduces.
 
 *Depends on:* nothing in this document, but it touches `keycloak/localdev.json` and therefore the
 `auth` service in `compose.yaml` rather than only C#.
@@ -923,6 +1024,129 @@ the proxy's address.
 
 * [trusted proxies are configuration](#why-trusted-proxies-are-configuration)
 
+### 8. Each entity has its own actions — `MINOR`
+
+The vocabulary [tabulated under the `scope` claim](#the-scope-claim), replacing the one issue 6
+registered:
+
+* `ScopeValues.Entities` maps each entity to its actions, and `ScopeValues.Actions` is their union:
+  `read`, `create`, `update`, `delete`. `ScopeValues.All` becomes the 21 values listed under
+  [Configuring another identity provider](#configuring-another-identity-provider), in the same order
+  as before: `Everything`, then each entity and action pair, then each `<entity>:*`, then each
+  `*:<action>`.
+* In `keycloak/localdev.json`, a client scope for each new value, and the client scopes for every
+  value that no longer exists removed, together with their entries in the realm's default optional
+  scopes and on `pacman-manager-scoped`. `pacman-manager:*:*` and the clients that receive it by
+  default are unchanged.
+* `ConfigureSwaggerGenOptions` already lists `ScopeValues.All`, so it follows without a change of its
+  own.
+
+Nothing enforces a scope yet, so this changes no behaviour of the API.
+
+*Acceptance:* `ScopeValuesTests` asserts the 21 values, including that no pair names an action its
+entity lacks. `LocalDevRealmTests` asserts the realm registers every value in `ScopeValues.All`, and
+that no client scope whose name starts `pacman-manager:` is outside it, so a stale value from the old
+grammar fails the test. The existing `KeycloakScopeTests` pass against the new values.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [each entity has its own actions](#why-each-entity-has-its-own-actions)
+* [delete is its own action](#why-delete-is-its-own-action)
+
+### 9. The actor accessor reads the principal itself — `PATCH`
+
+`HttpContextActorAccessor` replaces `ICurrentUserService`:
+
+* The accessor takes `IHttpContextAccessor` and `PacmanManagerDbContext`, and finds the user from the
+  `AppUserIdClaimType` claim itself. The claim lookup, the parse and the warnings when either fails
+  move from `CurrentUserService` unchanged. It still caches the actor for the request.
+* `UserManagementService` takes `IActorAccessor` in place of `ICurrentUserService`. The `me` methods
+  take the user from `Actor.User`, and throw `NoCurrentUserException` when there is none, as they do
+  today.
+* `ICurrentUserService`, `CurrentUserService` and their registration in `Program.cs` are deleted.
+* [`user-management.md`](user-management.md), which says the `me` methods use
+  `ICurrentUserService`, is updated to say `IActorAccessor`.
+
+This changes no behaviour. It gives the accessor the principal, which it needs in order to read the
+`scope` claim in issue 3.
+
+*Acceptance:* accessor unit tests: a principal carrying a valid user id claim produces an actor for
+that user; a missing claim, an unparseable one and an id with no user each produce
+`Actor.Anonymous`; and a second call in the same request does not query again. The existing
+`UserManagementServiceTests` pass against an `IActorAccessor` in place of the mocked
+`ICurrentUserService`, and the existing E2E tests pass unchanged.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [the actor accessor reads the principal itself](#why-the-actor-accessor-reads-the-principal-itself)
+
+### 10. A verdict per action — `PATCH`
+
+`RepositoryAccessPolicy.CheckWrite` becomes `CheckUpdate` and `CheckDelete`, and
+`PackageAccessPolicy` gains a `CheckDelete` beside `CheckPublish`, which from now on answers for
+publish and replace only. Each new method has exactly the rules of the method it came from, so this
+changes no behaviour. `RepositoryService` and `PackageService` call the verdict that matches the
+operation. Where a private helper loads a row for either change, it takes the verdict to apply
+rather than choosing one.
+
+[`authorization-plan.md`](authorization-plan.md) and [`packages-api.md`](packages-api.md) name
+`CheckWrite`, and say that `CheckPublish` answers for delete. Both are updated to match.
+
+*Acceptance:* `RepositoryAccessPolicyTests` and `PackageAccessPolicyTests` carry every row the
+old verdict had, for each of the verdicts that replace it. The existing service and E2E tests pass
+unchanged.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [delete is its own action](#why-delete-is-its-own-action)
+
+### 11. Scopes on the users API — `MINOR`
+
+`UserManagementService` checks the actor's scope before doing anything else. Its reads need
+`users:read`, and `UpdateCurrentUserAsync` needs `users:update` and `users:read`. A missing scope
+throws the `InsufficientScopeException` issue 3 adds, which is a `403`.
+
+There is no anonymous view of users to fall back to, since every users route requires
+authentication. So a read without `users:read` is refused rather than shown less.
+
+*Acceptance:* service unit tests that each method is refused without its scope, succeeds with it,
+and is unaffected for an unrestricted actor. E2E tests with a `pacman-manager-scoped` token carrying
+`pacman-manager:repositories:*`, for which every users route is a `403`, and one carrying
+`pacman-manager:users:read`, for which reads succeed and `PATCH /api/v1/users/me` is a `403`.
+
+*Depends on:* 3, and User Management's
+[`ListUsersAsync`](user-management.md#3-listusersasync-userfilter-and-usersortfield--minor) and
+[`PATCH /api/v1/users/me`](user-management.md#6-patch-apiv1usersme--minor) issues, whose methods it
+guards.
+
+**Why:**
+
+* [users and tokens are checked in their services](#why-users-and-tokens-are-checked-in-their-services)
+
+### 12. Scopes on the tokens API — `MINOR`
+
+`AccessTokenService` checks the actor's scope before doing anything else. The listing needs
+`tokens:read`, minting needs `tokens:create` and `tokens:read`, and deleting needs `tokens:delete`
+and `tokens:read`. A missing scope throws `InsufficientScopeException`, a `403`, and there is no
+anonymous view to fall back to, for the same reason as [issue 11](#11-scopes-on-the-users-api--minor).
+
+*Acceptance:* service unit tests that each method is refused without its scope, succeeds with it,
+and is unaffected for an unrestricted actor. E2E tests with a `pacman-manager-scoped` token carrying
+`pacman-manager:tokens:read`, which lists tokens and is a `403` minting or deleting one, and one
+carrying `pacman-manager:repositories:*`, for which every token route is a `403`.
+
+*Depends on:* 3, 5.
+
+**Why:**
+
+* [users and tokens are checked in their services](#why-users-and-tokens-are-checked-in-their-services)
+
 ---
 
 ## Deferred work
@@ -951,6 +1175,10 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **A credential that can publish.** Today a build pipeline still needs an OAuth client to push a
   package. That is the right default, but a purpose-built publishing credential — scoped to one
   repository, and distinct from these — is the obvious next thing to want.
+* **Publishing to a repository somebody else owns.** `pacman-manager:packages:create` is a ceiling,
+  and underneath it only a repository's owner may publish to it. Letting other users publish is a
+  change to the ownership rules in [`authorization-plan.md`](authorization-plan.md), not to the
+  scope grammar, and it is left for later.
 * **Token expiry notifications.** An `ExpiresAt` that nothing warns about produces a build that
   breaks on a date nobody remembers.
 * **Rate limiting per token**, which is where a compromised token stops being unbounded.
@@ -1005,7 +1233,7 @@ then the permission within it. That is the same shape Azure uses (`api://<id>/Fi
 spirit, Google's scope URIs.
 
 It matters because `scope` is a namespace shared by every client in a realm: unprefixed values like
-`users:read` or `tokens:write` are exactly the names another application would also want, and `aud`
+`users:read` or `tokens:delete` are exactly the names another application would also want, and `aud`
 and `scope` should not be able to disagree about which API is under discussion.
 
 The entity is the **plural** resource name, so a scope value reads as the route it governs:
@@ -1029,7 +1257,9 @@ The cost is [Every existing token becomes powerless](#every-existing-token-becom
 
 Deny-by-default is the safer rule and it is not free. Every `Bearer` token the realm issues today
 carries `openid profile email roles pacman-manager` and nothing that matches the grammar, so on the
-day this lands **every one of them can do nothing** — the web client and the Swagger UI included.
+day this lands **every one of them can do nothing a stranger could not**, the web client and the
+Swagger UI included, because [a credential with none of our values is
+anonymous](#why-a-credential-with-none-of-our-values-is-anonymous).
 There is no version of additive scopes where that is not true; the only question is whether it is
 planned for.
 
@@ -1097,14 +1327,120 @@ grammar alone.
 ### Why a scope restricts what may be done, not what may be known
 
 This falls out of [the grammar naming no instances](#why-instances-are-not-in-here), and it is the
-best argument for that grammar. A scope can say "may not read repositories", which `CheckRead`
-answers with a `403`, but it cannot say "may read only *these* repositories" — so there is no
-predicate to intersect, and `VisibleTo` and `RepositoryService.VisibleAsync` are untouched.
+best argument for that grammar. A scope can say "may not read repositories", but it cannot say "may
+read only *these* repositories", so there is no predicate to intersect with what the user may see.
 
 The distinction is between a credential being **refused** an operation and a credential being shown
-a **smaller world**. This design only ever does the first. Getting it wrong would silently hide a
-user's own private repositories from their own `pacman` client, and the surest way to avoid it is to
-have no code that could cause it.
+a **smaller world** of its own. Getting that wrong would silently hide a user's own private
+repositories from their own `pacman` client. So a credential that may read an entity at all sees
+exactly what its user sees.
+
+*Amended.* This entry originally went on to say that "may not read repositories" would be answered
+by a `CheckRead` with a `403`, and that `VisibleTo` would not change at all. There is no `CheckRead`:
+[a credential that cannot read reads as anonymous](#why-a-credential-that-cannot-read-reads-as-anonymous),
+which is a smaller world, but the one every stranger is shown rather than one built for the
+credential. `VisibleTo` gains that one arm and nothing else.
+
+### Why each entity has its own actions
+
+*Added during implementation of issue 3, with the project owner's sign-off.* The grammar first
+crossed five actions (`read`, `create`, `write`, `delete`, `publish`) with every entity. That
+admitted twenty pairs, many of them meaningless: nothing creates or deletes a user, nothing updates
+a token, and `publish` and `write` overlapped on packages. A value that names an operation nothing
+performs is a value a provider can hand out, a reader has to wonder about, and a test has to cover.
+
+So each entity lists the actions that exist for it, and nothing else parses:
+
+* **Repositories** are read, created, updated and deleted.
+* **Packages** are read, created and deleted. Publishing a new version replaces the old one in the
+  same operation, because [pacman rolls forward](packages-api.md), so there is no separate update.
+* **Users** are read and updated. They are created on first sign-in by `ClaimsTransformer`, which
+  runs before any actor exists, and they are never deleted.
+* **Tokens** are read, created and deleted. A token is never changed after it is minted.
+
+`write` is gone in favour of `update`, which says what it covers; `publish` is gone in favour of
+`packages:create`, which is what a publish is.
+
+Every action on an entity needs `read` on it too, and a package needs `read` on its repository,
+because none of the other actions makes sense on something the credential cannot see. The rule is
+not a separate check: the change verdicts demand the read scope alongside the action, and the lookup
+every change starts from shows an unreadable entity's private rows to nobody.
+
+### Why delete is its own action
+
+*Added during implementation of issue 3, with the project owner's sign-off.* `CheckWrite` answered
+for both updating and deleting a repository, and `CheckPublish` for publishing, replacing and
+deleting a package, because under the ownership rules they are the same question. Under scopes they
+are not. A credential that may rename a repository should not have to be able to delete it, and a
+build pipeline that publishes should not have to be able to delete packages. So deleting a
+repository needs `repositories:delete`, not `repositories:update`, and deleting a package needs
+`packages:delete`.
+
+That needs a verdict per action. Adding an action parameter to one verdict was the alternative. It
+was not taken, because a verdict per action keeps each one a plain method whose rows the test
+fixtures list, and because the split can land first on its own, as
+[issue 10](#10-a-verdict-per-action--patch), with no change in behaviour.
+
+### Why a credential that cannot read reads as anonymous
+
+*Added during implementation of issue 3, with the project owner's sign-off.* The plan originally
+refused a read without the read scope with a `403`, through a `CheckRead` verdict alongside the
+others. No such verdict existed. Every read goes through `VisibleTo`, so adding one would have meant
+a call at every read site, and it would have left open whether a listing is a `403` or an empty page.
+It would also have broken [a credential never gets less than an anonymous caller
+would](#how-the-actor-enforces-it): a caller refused `GET /api/v1/repositories/{id}` on a public
+repository could get it by deleting their `Authorization` header.
+
+Reading as anonymous settles all three. There is no read verdict to call, so no read site can forget
+one. A listing is the public page. A credential can never see less than a stranger, and it sees more
+only when it holds the read scope.
+
+It is also what makes "every action needs `read`" enforce itself: the lookup every change starts from
+cannot find the actor's own private repository, so the change is a `404`.
+
+Users and tokens have no anonymous view, so a read of them without the scope is refused instead; see
+[users and tokens are checked in their services](#why-users-and-tokens-are-checked-in-their-services).
+
+### Why a credential with none of our values is anonymous
+
+*Added during implementation of issue 3, with the project owner's sign-off.* The plan originally said
+an actor carrying an empty scope "is refused every operation". That conflicted with the rule that a
+credential never gets less than an anonymous caller would: a token carrying only `openid profile
+email` could not read a public repository that a caller with no header could.
+
+A token like that is an edge case: a client configured for this API has no reason not to ask for at least
+`pacman-manager:repositories:read`, and a token without the `pacman-manager` audience is rejected
+before its scope is read. The simplest rule for an edge case is the one with nothing to learn:
+`HttpContextActorAccessor` returns `Actor.Anonymous`, and the caller is treated in every respect as
+one with no `Authorization` header, including a `401` on a change. `Actor.Anonymous` carries
+`ActorScope.Empty`, and no verdict consults it, because the no-user arm answers first.
+
+### Why users and tokens are checked in their services
+
+*Added during implementation of issue 3, with the project owner's sign-off.* Repositories and packages
+each have an access policy, and their scope arms go there. Users and tokens do not, and
+[`user-management.md`](user-management.md) declined one deliberately. Their rules are "yourself
+only", which leaves nothing to put in a policy. So the scope check goes at the top of each method of
+`UserManagementService` and `AccessTokenService`. It asks the same `Actor.Scope`, so the rule is still
+parsed once and stated once; only the call site differs.
+
+They are separate issues from issue 3, [11](#11-scopes-on-the-users-api--minor) and
+[12](#12-scopes-on-the-tokens-api--minor), because the services they change are still being built,
+and folding them in would hold enforcement on repositories behind work on users.
+
+A users or tokens read without its scope is a `403`, not the anonymous view, because there is no
+anonymous view: every one of those routes requires authentication, and an anonymous caller is
+refused outright.
+
+### Why the actor accessor reads the principal itself
+
+*Added during implementation of issue 3, with the project owner's sign-off.* `HttpContextActorAccessor`
+built the actor from `ICurrentUserService`, which returns a `User` and nothing else. The accessor
+needs the `scope` claim too, and nothing else needs `ICurrentUserService`: the one other consumer,
+`UserManagementService`, wants the caller, which is what an actor is. Passing the claim through
+`ICurrentUserService` would have left two services describing the current caller, one of them
+knowing only half. So the accessor reads the principal itself, and `ICurrentUserService` is removed,
+as [issue 9](#9-the-actor-accessor-reads-the-principal-itself--patch).
 
 ### Why not a claim read by each service, or a scheme check, or a filter
 
