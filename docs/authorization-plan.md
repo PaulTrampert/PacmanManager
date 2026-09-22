@@ -156,14 +156,6 @@ trade.*
 
 *   Deleting a repository removes the database row and then the backing `.db.tar.gz`. A failure to
     remove the file is logged and ignored, leaving an orphaned file that nothing references.
-*   Renaming a repository into a collision with the `(OwnerId, Name, Architecture)` index surfaces
-    as a `DbUpdateException`, and so a `500`, rather than a `409`. `ItemExistsException` exists for
-    this but is not yet raised anywhere. This is fixed in two steps:
-    [the `409` arm](#itemexistsexception--409--patch) below, and
-    [`pacman-controller.md`](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch),
-    which raises the exception on the collision that exists today; a global namespace then turns that
-    collision from a rare edge case into something a user hits routinely, which is what finally made
-    it worth fixing.
 
 ## Implementation plan
 

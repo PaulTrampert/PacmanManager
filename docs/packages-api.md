@@ -12,9 +12,9 @@ description of `main` does not mislead. The per-field sort direction of issue 14
 member, rather than the per-listing `switch` sketched under [Listing](#listing); and
 `PackageService` takes `Lazy<ILibAlpm>`, so the anonymous read routes do not pay for
 `alpm_initialize`. The [Deferred work](#deferred-work) at the end of this document is still
-outstanding, though two of its items are now designed rather than merely noted: serving a
-pacman-consumable repository, and the unused `ItemExistsException`, both of which
-[`pacman-controller.md`](pacman-controller.md) picks up.
+outstanding, though one of its items is now designed rather than merely noted: serving a
+pacman-consumable repository, which [`pacman-controller.md`](pacman-controller.md) picks up. A
+second, the unused `ItemExistsException`, has since landed: a repository name collision is a `409`.
 
 ## Goals
 
@@ -769,9 +769,3 @@ Worth filing as issues, but explicitly out of scope for the work above.
   them with one `repo-add` per package; a maintenance command that does so — and a check that
   reports the drift — closes the last gap in the failure handling above.
 * **Quotas.** Nothing bounds how much a user can upload.
-* **`ItemExistsException` is still unused**, as noted in `authorization-plan.md`; a name collision
-  in either API surfaces as a `500` rather than a `409`. **Designed in
-  [`authorization-plan.md`](authorization-plan.md#itemexistsexception--409--patch)**, which maps it
-  to `409`, and
-  [`pacman-controller.md`](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch),
-  which raises it on a repository name collision and deletes this bullet.
