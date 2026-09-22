@@ -22,7 +22,7 @@ public class UserManagementServiceTests
     [Test]
     public async Task GetCurrentUserAsync_WithCurrentUser_ReturnsItProjectedToCurrentUser()
     {
-        var user = new User { DisplayName = "Paul", Email = "paul@example.com" };
+        var user = new User { DisplayName = "Alex", Email = "alex@example.com" };
         _currentUserService
             .Setup(s => s.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -32,8 +32,8 @@ public class UserManagementServiceTests
         Assert.That(result, Is.EqualTo(new CurrentUser
         {
             Id = user.Id,
-            DisplayName = "Paul",
-            Email = "paul@example.com",
+            DisplayName = "Alex",
+            Email = "alex@example.com",
         }));
     }
 
@@ -51,7 +51,7 @@ public class UserManagementServiceTests
     public async Task GetCurrentUserAsync_PassesCancellationTokenThrough()
     {
         using var cts = new CancellationTokenSource();
-        var user = new User { DisplayName = "Paul", Email = "paul@example.com" };
+        var user = new User { DisplayName = "Alex", Email = "alex@example.com" };
         _currentUserService
             .Setup(s => s.GetCurrentUserAsync(cts.Token))
             .ReturnsAsync(user);
