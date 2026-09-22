@@ -12,12 +12,6 @@ internal static class RepositorySortExtensions
     /// <summary>
     /// The property each sort field names.
     /// </summary>
-    /// <remarks>
-    /// Typed as <see cref="object"/> so that one table can hold selectors for properties of
-    /// different types. That puts a <see cref="ExpressionType.Convert"/> node over each key, which
-    /// EF Core strips when the conversion target is <see cref="object"/>, so the ordering still
-    /// translates to SQL rather than being evaluated client side.
-    /// </remarks>
     private static readonly Dictionary<RepositorySortField, Expression<Func<PacmanRepository, object>>> KeySelectors = new()
     {
         [RepositorySortField.Name] = r => r.Name,
@@ -36,19 +30,6 @@ internal static class RepositorySortExtensions
     /// <returns>The ordered query.</returns>
     public static IOrderedQueryable<PacmanRepository> ApplySort(
         this IQueryable<PacmanRepository> query,
-        SortOptions<RepositorySortField> sort)
-    {
-        // A sortBy bound from a query string can be a value the enum does not declare, which names
-        // no property. Falling back to the default member means such a request is ordered the way an
-        // unsorted one is, rather than throwing.
-        var keySelector = KeySelectors.TryGetValue(sort.SortBy, out var selector)
-            ? selector
-            : KeySelectors[default];
-
-        var ordered = sort.ResolveDirection() == SortDirection.Ascending
-            ? query.OrderBy(keySelector)
-            : query.OrderByDescending(keySelector);
-
-        return ordered.ThenBy(r => r.Id);
-    }
+        SortOptions<RepositorySortField> sort) =>
+        query.ApplySort(sort, KeySelectors, r => r.Id);
 }

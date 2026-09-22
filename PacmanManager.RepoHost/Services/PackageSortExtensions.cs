@@ -12,12 +12,6 @@ internal static class PackageSortExtensions
     /// <summary>
     /// The property each sort field names.
     /// </summary>
-    /// <remarks>
-    /// Typed as <see cref="object"/> so that one table can hold selectors for properties of
-    /// different types. That puts a <see cref="ExpressionType.Convert"/> node over each key, which
-    /// EF Core strips when the conversion target is <see cref="object"/>, so the ordering still
-    /// translates to SQL rather than being evaluated client side.
-    /// </remarks>
     private static readonly Dictionary<PackageSortField, Expression<Func<PacmanPackage, object>>> KeySelectors = new()
     {
         [PackageSortField.Name] = p => p.Name,
@@ -37,19 +31,6 @@ internal static class PackageSortExtensions
     /// <returns>The ordered query.</returns>
     public static IOrderedQueryable<PacmanPackage> ApplySort(
         this IQueryable<PacmanPackage> query,
-        SortOptions<PackageSortField> sort)
-    {
-        // A sortBy bound from a query string can be a value the enum does not declare, which names
-        // no property. Falling back to the default member means such a request is ordered the way an
-        // unsorted one is, rather than throwing.
-        var keySelector = KeySelectors.TryGetValue(sort.SortBy, out var selector)
-            ? selector
-            : KeySelectors[default];
-
-        var ordered = sort.ResolveDirection() == SortDirection.Ascending
-            ? query.OrderBy(keySelector)
-            : query.OrderByDescending(keySelector);
-
-        return ordered.ThenBy(p => p.Id);
-    }
+        SortOptions<PackageSortField> sort) =>
+        query.ApplySort(sort, KeySelectors, p => p.Id);
 }
