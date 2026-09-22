@@ -567,6 +567,127 @@ public class RepositoryServiceTests
     }
 
     [Test]
+    public async Task CreateRepositoryAsync_Throws_WhenTheOwnerAlreadyHasTheNameAndArchitecture()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
+        var request = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
+        Assert.That(await _dbContext.PacmanRepositories.CountAsync(r => r.Name == "taken"), Is.EqualTo(1));
+        _mockCliRunner.Verify(
+            c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "a collision must be refused before repo-add writes a database file");
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyForAnotherArchitecture()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        var request = new WriteRepositoryRequest { Name = "multi-arch", Architecture = "x86_64" };
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(request);
+
+        // Assert
+        Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyByAnotherOwner()
+    {
+        // Names are unique per owner until the global namespace lands, including when the other
+        // owner's repository is private.
+        // Arrange
+        await GivenRepositoryAsync(name: "shared-name", owner: _otherUser);
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+        var request = new WriteRepositoryRequest { Name = "shared-name", Architecture = "x86_64" };
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(request);
+
+        // Assert
+        Assert.That(result.Owner, Is.EqualTo(PublicUserInfo.FromUser(_existingUser)));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Throws_WhenRenamedIntoAnotherOfTheOwnersRepositories()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
+        var renamed = await GivenRepositoryAsync(name: "original", architecture: "x86_64");
+        var update = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.PacmanRepositories.SingleAsync(r => r.Id == renamed.Id);
+        Assert.That(stored.Name, Is.EqualTo("original"));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Throws_WhenTheArchitectureChangeCollides()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
+        var changed = await GivenRepositoryAsync(name: "multi-arch", architecture: "x86_64");
+        var update = new WriteRepositoryRequest { Name = "multi-arch", Architecture = "any" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(changed.Id, update));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_KeepingItsOwnNameAndArchitecture_IsNotACollision()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(name: "unchanged", architecture: "x86_64");
+        var update = new WriteRepositoryRequest { Name = "unchanged", Architecture = "x86_64", IsPublic = true };
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(repository.Id, update);
+
+        // Assert
+        Assert.That(result!.IsPublic, Is.True);
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Succeeds_WhenTheNameIsTakenOnlyByAnotherOwner()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "theirs", owner: _otherUser);
+        var mine = await GivenRepositoryAsync(name: "mine");
+        var update = new WriteRepositoryRequest { Name = "theirs", Architecture = "x86_64" };
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(mine.Id, update);
+
+        // Assert
+        Assert.That(result!.Name, Is.EqualTo("theirs"));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_Throws_WhenASystemActorRenamesIntoTheOwnersOtherRepository()
+    {
+        // A system actor writes on the owner's behalf, so the owner's names are what collide.
+        // Arrange
+        _actors.Actor = Actor.System;
+        await GivenRepositoryAsync(name: "taken");
+        var renamed = await GivenRepositoryAsync(name: "original");
+        var update = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
+    }
+
+    [Test]
     public async Task DeleteRepositoryAsync_RemovesRepositoryAndFile_WhenOwner()
     {
         // Arrange

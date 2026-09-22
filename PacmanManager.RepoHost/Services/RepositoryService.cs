@@ -83,6 +83,45 @@ internal class RepositoryService(
         }
     }
 
+    /// <summary>
+    /// Refuses a name that would collide with the database's unique
+    /// <c>(OwnerId, Name, Architecture)</c> index, so the caller is told <c>409</c> rather than the
+    /// index surfacing as a <see cref="DbUpdateException"/> and a <c>500</c>.
+    /// </summary>
+    /// <param name="ownerId">The owner of the repository being written.</param>
+    /// <param name="name">The name being written.</param>
+    /// <param name="architecture">The architecture being written.</param>
+    /// <param name="excludingId">The repository being updated, which cannot collide with itself.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <exception cref="ItemExistsException">Thrown when another repository holds the key.</exception>
+    /// <remarks>
+    /// This goes through <see cref="VisibleAsync"/> like every other query. It still sees every
+    /// possible collision, because the index includes the owner and a writer is either that owner,
+    /// who can see all of their own repositories, or a system actor, who can see everything.
+    /// </remarks>
+    private async Task ThrowIfNameTakenAsync(
+        Guid ownerId,
+        string name,
+        string architecture,
+        Guid? excludingId,
+        CancellationToken cancellationToken)
+    {
+        var visible = await VisibleAsync(cancellationToken);
+        var taken = await visible.AnyAsync(
+            r => r.OwnerId == ownerId
+                 && r.Name == name
+                 && r.Architecture == architecture
+                 && r.Id != excludingId,
+            cancellationToken);
+
+        if (taken)
+        {
+            // The handler never copies the message into the response, but it is still worded to
+            // say nothing about the repository that holds the name.
+            throw new ItemExistsException("A repository with this name and architecture already exists.");
+        }
+    }
+
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var visible = await VisibleAsync(cancellationToken);
@@ -136,6 +175,10 @@ internal class RepositoryService(
         }
 
         var owner = actor.User!;
+
+        // Checked before anything is written, so a collision has no database file to clean up.
+        await ThrowIfNameTakenAsync(owner.Id, request.Name, request.Architecture, null, cancellationToken);
+
         var repository = new PacmanRepository
         {
             Id = Guid.CreateVersion7(),
@@ -183,6 +226,8 @@ internal class RepositoryService(
         {
             return null;
         }
+
+        await ThrowIfNameTakenAsync(repository.OwnerId, update.Name, update.Architecture, repository.Id, cancellationToken);
 
         repository.Name = update.Name;
         repository.IsPublic = update.IsPublic;
