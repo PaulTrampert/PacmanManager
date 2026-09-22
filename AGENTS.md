@@ -273,6 +273,10 @@ ones.
   tooling, libalpm, a JRE for ANTLR, and the Docker daemon. It is a no-op locally.
   `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
   environment needs before the E2E tests can run.
+* `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command: it assigns
+  every open, unassigned issue with no open blocker to `@claude`, moves it to *In Progress*, and
+  fans the batch out to sub-agents, one worktree and one PR per issue, following
+  [Worktrees](#worktrees).
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). They install the same toolchain as
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
