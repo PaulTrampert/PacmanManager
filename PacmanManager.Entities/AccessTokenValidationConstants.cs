@@ -23,7 +23,8 @@ public static class AccessTokenValidationConstants
     public const int NormalizedNameMaxLength = NameMaxLength;
 
     /// <summary>
-    /// Length of a Base64 encoded SHA-256 hash: 32 bytes encode to 44 characters, padding included.
+    /// Maximum length of a token hash. Today's Base64 SHA-256 needs only 44 characters; the headroom lets
+    /// the hash scheme move to a longer value without a schema migration.
     /// </summary>
-    public const int TokenHashLength = 44;
+    public const int TokenHashMaxLength = 255;
 }

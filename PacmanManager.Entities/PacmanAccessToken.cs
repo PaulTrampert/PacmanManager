@@ -62,7 +62,7 @@ public record PacmanAccessToken
     /// Base64 SHA-256 of the token's secret. The secret itself is never stored.
     /// </summary>
     [Required]
-    [MaxLength(AccessTokenValidationConstants.TokenHashLength)]
+    [MaxLength(AccessTokenValidationConstants.TokenHashMaxLength)]
     public required string TokenHash { get; set; }
 
     /// <summary>

@@ -79,7 +79,11 @@ public class PacmanAccessTokenModelTests
         var tokenHash = _entityType.FindProperty(nameof(PacmanAccessToken.TokenHash))!;
         var base64Sha256 = Convert.ToBase64String(new byte[32]);
 
-        Assert.That(tokenHash.GetMaxLength(), Is.EqualTo(base64Sha256.Length));
+        Assert.Multiple(() =>
+        {
+            Assert.That(tokenHash.GetMaxLength(), Is.EqualTo(AccessTokenValidationConstants.TokenHashMaxLength));
+            Assert.That(tokenHash.GetMaxLength(), Is.GreaterThanOrEqualTo(base64Sha256.Length));
+        });
     }
 
     [Test]
