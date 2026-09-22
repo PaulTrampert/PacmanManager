@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Test.Containers;
-using PacmanManager.TestUtils;
 
 namespace PacmanManager.RepoHost.Test.Services;
 
@@ -27,14 +26,7 @@ public class UserServiceTests
             .WithCleanUp(true)
             .Build();
         _database = new DatabaseContainer(_network);
-        var migrationsImage = new ImageFromDockerfileBuilder()
-            .WithContextDirectory(DirUtils.FindSolutionDirectory())
-            .WithDockerfileDirectory(DirUtils.FindSolutionDirectory())
-            .WithDockerfile("PacmanManager.Migrations/Dockerfile")
-            .WithName("pacmanmanager-migrations-test:latest")
-            .Build();
-        await migrationsImage.CreateAsync();
-        await _database.StartAsync(migrationsImage);
+        await _database.StartAsync(await TestImages.Migrations.GetAsync());
     }
 
     [OneTimeTearDown]
