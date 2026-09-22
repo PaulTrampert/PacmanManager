@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
@@ -49,6 +50,13 @@ public static class AccessTokenFormat
     /// without padding, which is 43 characters.
     /// </summary>
     public const int SecretLength = 47;
+
+    /// <summary>
+    /// The Base64Url alphabet, in value order, so that a character's index is the six bits it encodes.
+    /// </summary>
+    private const string Base64UrlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+    private static readonly SearchValues<char> Base64UrlAlphabetValues = SearchValues.Create(Base64UrlAlphabet);
 
     /// <summary>
     /// Formats a token's identifier as the Basic username a client presents.
@@ -139,17 +147,24 @@ public static class AccessTokenFormat
             return false;
         }
 
+        // Checked before decoding: the decoder throws, rather than returning false, on a character
+        // outside the alphabet, and this method must never throw for a bad credential.
         var encoded = password.AsSpan(SecretPrefix.Length);
-        Span<byte> secret = stackalloc byte[SecretByteLength];
-        if (!Base64Url.TryDecodeFromChars(encoded, secret, out var written)
-            || written != SecretByteLength)
+        if (encoded.ContainsAnyExcept(Base64UrlAlphabetValues))
         {
             return false;
         }
 
-        Span<char> canonical = stackalloc char[SecretLength - SecretPrefix.Length];
-        if (!Base64Url.TryEncodeToChars(secret, canonical, out var charsWritten)
-            || !canonical[..charsWritten].SequenceEqual(encoded))
+        // 32 bytes are 256 bits and 43 characters carry 258, so the final character's two low bits
+        // are unused. Zeros there are the canonical encoding; the decoder throws on anything else,
+        // and accepting it would let a second string verify the same token.
+        if ((Base64UrlAlphabet.IndexOf(encoded[^1]) & 0b11) != 0)
+        {
+            return false;
+        }
+
+        Span<byte> secret = stackalloc byte[SecretByteLength];
+        if (!Base64Url.TryDecodeFromChars(encoded, secret, out var written) || written != SecretByteLength)
         {
             return false;
         }
