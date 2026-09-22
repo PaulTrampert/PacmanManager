@@ -1,5 +1,5 @@
 ---
-description: Assign every unblocked, unassigned issue to @claude, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
+description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
 allowed-tools: Bash(gh:*), Bash(git:*), Agent
 ---
@@ -19,14 +19,11 @@ The repository is `PaulTrampert/PacmanManager`.
 
 ## 1. Preflight
 
-Stop and tell the user how to fix it if any of these fail. Do not work around a failure.
+Stop and tell the user how to fix it if this fails. Do not work around a failure.
 
-1. `gh auth status` must list the `project` scope, which moving an issue on a project board needs.
-   If it is missing, the fix is `gh auth refresh -s project` — ask the user to run it as
-   `! gh auth refresh -s project`.
-2. `@claude` must be assignable: `gh api repos/PaulTrampert/PacmanManager/assignees/claude` returns
-   HTTP 204. A 404 means the `claude` account is not a collaborator on the repository and GitHub will
-   refuse the assignment; the user has to invite it.
+* `gh auth status` must list the `project` scope, which moving an issue on a project board needs.
+  If it is missing, the fix is `gh auth refresh -s project` — ask the user to run it as
+  `! gh auth refresh -s project`.
 
 ## 2. Find the issues
 
@@ -64,7 +61,8 @@ here.
 
 For each issue:
 
-1. Assign it: `gh issue edit <n> --repo PaulTrampert/PacmanManager --add-assignee claude`.
+1. Assign it to the user driving this session — the account `gh` is logged in as:
+   `gh issue edit <n> --repo PaulTrampert/PacmanManager --add-assignee @me`.
 2. Move it to **In Progress** on every project board it belongs to. Look up its project items and
    each project's `Status` field:
 
