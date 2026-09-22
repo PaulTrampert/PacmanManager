@@ -231,7 +231,7 @@ public class UserServiceTests
     [Test]
     public async Task EnsureUserLinkedAsync_NewUser_NormalizesDisplayNameIndependentlyOfCurrentCulture()
     {
-        // Under tr-TR, "I" lowers to the dotless "ı", so culture-sensitive lowering would store "ırıs".
+        // Under tr-TR, "I" lowers to the dotless "ı", so culture-sensitive lowering would store "ıris".
         var turkish = CultureInfo.GetCultureInfo("tr-TR");
         Assume.That("Iris".ToLower(turkish), Is.Not.EqualTo("iris"),
             "tr-TR lowers the same as the invariant culture here, so this test cannot tell them apart");
