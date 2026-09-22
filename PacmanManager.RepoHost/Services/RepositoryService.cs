@@ -52,11 +52,20 @@ internal class RepositoryService(
     }
 
     /// <summary>
-    /// Loads a repository for modification, translating the policy outcome into the result or
-    /// exception the caller expects.
+    /// Loads a repository for a change, translating the outcome of <paramref name="verdict"/> into
+    /// the result or exception the caller expects.
     /// </summary>
+    /// <param name="id">The repository to load.</param>
+    /// <param name="verdict">
+    /// The <see cref="RepositoryAccessPolicy"/> verdict for the change being made, so that the
+    /// operation, not this helper, decides which question is asked.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The tracked entity, or null when the actor must be told it does not exist.</returns>
-    private async Task<PacmanRepository?> LoadForWriteAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<PacmanRepository?> LoadForChangeAsync(
+        Guid id,
+        Func<PacmanRepository, Actor, RepositoryAccess> verdict,
+        CancellationToken cancellationToken)
     {
         var visible = await VisibleAsync(cancellationToken);
         var repository = await visible
@@ -71,7 +80,7 @@ internal class RepositoryService(
         }
 
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
-        switch (accessPolicy.CheckWrite(repository, actor))
+        switch (verdict(repository, actor))
         {
             case RepositoryAccess.Allowed:
                 return repository;
@@ -219,7 +228,7 @@ internal class RepositoryService(
 
     public async Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default)
     {
-        var repository = await LoadForWriteAsync(id, cancellationToken);
+        var repository = await LoadForChangeAsync(id, accessPolicy.CheckUpdate, cancellationToken);
         if (repository is null)
         {
             return null;
@@ -244,7 +253,7 @@ internal class RepositoryService(
 
     public async Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var repository = await LoadForWriteAsync(id, cancellationToken);
+        var repository = await LoadForChangeAsync(id, accessPolicy.CheckDelete, cancellationToken);
         if (repository is null)
         {
             return false;

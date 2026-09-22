@@ -65,45 +65,93 @@ public class RepositoryAccessPolicyTests
 
     #endregion
 
-    #region Writes
+    #region Updates
 
     [Test]
-    public void CheckWrite_Owner_IsAllowed()
+    public void CheckUpdate_Owner_IsAllowed()
     {
-        var result = _subject.CheckWrite(RepositoryOf(_owner, isPublic: false), Actor.For(_owner));
+        var result = _subject.CheckUpdate(RepositoryOf(_owner, isPublic: false), Actor.For(_owner));
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
     }
 
     [Test]
-    public void CheckWrite_NonOwnerOfPublicRepository_IsForbidden()
+    public void CheckUpdate_NonOwnerOfPublicRepository_IsForbidden()
     {
-        var result = _subject.CheckWrite(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
+        var result = _subject.CheckUpdate(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.Forbidden));
     }
 
     [Test]
-    public void CheckWrite_NonOwnerOfPrivateRepository_IsNotFound()
+    public void CheckUpdate_NonOwnerOfPrivateRepository_IsNotFound()
     {
         // Reporting this as forbidden would confirm that the repository exists.
-        var result = _subject.CheckWrite(RepositoryOf(_owner, isPublic: false), Actor.For(_stranger));
+        var result = _subject.CheckUpdate(RepositoryOf(_owner, isPublic: false), Actor.For(_stranger));
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.NotFound));
     }
 
     [Test]
-    public void CheckWrite_Anonymous_IsUnauthenticated()
+    public void CheckUpdate_Anonymous_IsUnauthenticated()
     {
-        var result = _subject.CheckWrite(RepositoryOf(_owner, isPublic: true), Actor.Anonymous);
+        var result = _subject.CheckUpdate(RepositoryOf(_owner, isPublic: true), Actor.Anonymous);
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.Unauthenticated));
     }
 
     [Test]
-    public void CheckWrite_System_IsAllowed()
+    public void CheckUpdate_System_IsAllowed()
     {
-        var result = _subject.CheckWrite(RepositoryOf(_owner, isPublic: false), Actor.System);
+        var result = _subject.CheckUpdate(RepositoryOf(_owner, isPublic: false), Actor.System);
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
+    }
+
+    #endregion
+
+    #region Deletes
+
+    // CheckDelete has every row CheckUpdate has. The two are separate verdicts because a caller that
+    // may rename a repository need not be able to delete it, not because the rules differ today.
+
+    [Test]
+    public void CheckDelete_Owner_IsAllowed()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.For(_owner));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
+    }
+
+    [Test]
+    public void CheckDelete_NonOwnerOfPublicRepository_IsForbidden()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Forbidden));
+    }
+
+    [Test]
+    public void CheckDelete_NonOwnerOfPrivateRepository_IsNotFound()
+    {
+        // Reporting this as forbidden would confirm that the repository exists.
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.For(_stranger));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.NotFound));
+    }
+
+    [Test]
+    public void CheckDelete_Anonymous_IsUnauthenticated()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.Anonymous);
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Unauthenticated));
+    }
+
+    [Test]
+    public void CheckDelete_System_IsAllowed()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.System);
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
     }

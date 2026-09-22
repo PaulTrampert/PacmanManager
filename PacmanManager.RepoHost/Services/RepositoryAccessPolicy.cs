@@ -46,10 +46,11 @@ internal sealed class RepositoryAccessPolicy
     }
 
     /// <summary>
-    /// Decides whether <paramref name="actor"/> may modify or delete <paramref name="repository"/>.
+    /// Decides whether <paramref name="actor"/> may update <paramref name="repository"/>: rename it,
+    /// change its visibility or change its architecture.
     /// </summary>
-    /// <param name="repository">The repository being modified.</param>
-    /// <param name="actor">The actor attempting the modification.</param>
+    /// <param name="repository">The repository being updated.</param>
+    /// <param name="actor">The actor attempting the update.</param>
     /// <returns>The outcome of the check.</returns>
     /// <remarks>
     /// Callers are expected to have already restricted the repository to the actor's visible set,
@@ -57,7 +58,35 @@ internal sealed class RepositoryAccessPolicy
     /// <see cref="RepositoryAccess.NotFound"/> result is a second line of defence for callers
     /// that did not.
     /// </remarks>
-    public RepositoryAccess CheckWrite(PacmanRepository repository, Actor actor)
+    public RepositoryAccess CheckUpdate(PacmanRepository repository, Actor actor) =>
+        CheckOwnership(repository, actor);
+
+    /// <summary>
+    /// Decides whether <paramref name="actor"/> may delete <paramref name="repository"/>.
+    /// </summary>
+    /// <param name="repository">The repository being deleted.</param>
+    /// <param name="actor">The actor attempting the deletion.</param>
+    /// <returns>The outcome of the check.</returns>
+    /// <remarks>
+    /// <para>
+    /// This is a verdict of its own rather than a second use of <see cref="CheckUpdate"/>, although
+    /// the two agree today: a caller that may rename a repository need not be able to delete it.
+    /// </para>
+    /// <para>
+    /// Callers are expected to have already restricted the repository to the actor's visible set,
+    /// so a private repository reaching this method belongs to the actor. The
+    /// <see cref="RepositoryAccess.NotFound"/> result is a second line of defence for callers
+    /// that did not.
+    /// </para>
+    /// </remarks>
+    public RepositoryAccess CheckDelete(PacmanRepository repository, Actor actor) =>
+        CheckOwnership(repository, actor);
+
+    /// <summary>
+    /// The ownership rule every change to an existing repository is held to: the system and the
+    /// owner may, anyone else may not.
+    /// </summary>
+    private static RepositoryAccess CheckOwnership(PacmanRepository repository, Actor actor)
     {
         if (actor.IsSystem)
         {
@@ -74,7 +103,7 @@ internal sealed class RepositoryAccessPolicy
             return RepositoryAccess.Allowed;
         }
 
-        // A public repository is already known to exist, so admitting that and refusing the write
+        // A public repository is already known to exist, so admitting that and refusing the change
         // leaks nothing. A private one must keep pretending it is not there.
         return repository.IsPublic ? RepositoryAccess.Forbidden : RepositoryAccess.NotFound;
     }
