@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -79,6 +80,28 @@ public class AuthorizationExceptionHandlerTests
         {
             Assert.That(handled, Is.True);
             Assert.That(httpContext.Response.StatusCode, Is.EqualTo(StatusCodes.Status401Unauthorized));
+        });
+    }
+
+    [Test]
+    public async Task TryHandleAsync_ItemExistsException_Writes409WithoutTheMessage()
+    {
+        const string message = "Repository 'custom' is owned by alice.";
+        var httpContext = new DefaultHttpContext();
+
+        var handled = await _subject.TryHandleAsync(
+            httpContext,
+            new ItemExistsException(message),
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(handled, Is.True);
+            Assert.That(httpContext.Response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
+            Assert.That(_written?.ProblemDetails.Status, Is.EqualTo(StatusCodes.Status409Conflict));
+            Assert.That(_written?.ProblemDetails.Title, Is.EqualTo("The item already exists."));
+            Assert.That(_written?.ProblemDetails.Detail, Is.Null);
+            Assert.That(JsonSerializer.Serialize(_written?.ProblemDetails), Does.Not.Contain(message));
         });
     }
 
