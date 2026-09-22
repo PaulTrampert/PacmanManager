@@ -73,14 +73,15 @@ public class RepositorySortExtensionsTests
         var second = Guid.Parse("00000000-0000-0000-0000-000000000002");
         var tied = new PacmanRepository[]
         {
-            new() { Id = second, Name = "tied", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
-            new() { Id = first, Name = "tied", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
+            new() { Id = second, Name = "tied-b", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
+            new() { Id = first, Name = "tied-a", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
         };
 
         // Act
+        // Names are unique, so the tie is on a timestamp.
         var ordered = tied
             .AsQueryable()
-            .ApplySort(new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Name });
+            .ApplySort(new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Created });
 
         // Assert
         Assert.That(ordered.Select(r => r.Id), Is.EqualTo(new[] { first, second }));

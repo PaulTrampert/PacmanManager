@@ -54,8 +54,8 @@ public class AccessTokenServiceCollisionTests
             .Options;
 
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
-        _owner = _dbContext.Add(new User { DisplayName = "owner", Email = "owner@test.com" }).Entity;
-        _other = _dbContext.Add(new User { DisplayName = "other", Email = "other@test.com" }).Entity;
+        _owner = _dbContext.Add(new User { DisplayName = "owner", NormalizedDisplayName = "owner", Email = "owner@test.com" }).Entity;
+        _other = _dbContext.Add(new User { DisplayName = "other", NormalizedDisplayName = "other", Email = "other@test.com" }).Entity;
         await _dbContext.SaveChangesAsync();
 
         _actors = new TestActorAccessor { Actor = Actor.For(_owner) };
