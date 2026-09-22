@@ -65,6 +65,7 @@ try
     builder.Services.AddScoped<IPackageService, PackageService>();
     builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
     builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+    builder.Services.AddScoped<IAccessTokenService, AccessTokenService>();
 
 // Services enforce authorization against whatever actor the host supplies. This is the web host,
 // so the actor comes from the authenticated principal; a CLI tool or background job would register
