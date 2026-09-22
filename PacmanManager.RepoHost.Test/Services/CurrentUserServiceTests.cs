@@ -35,15 +35,7 @@ public class CurrentUserServiceTests
             .WithName(nameof(CurrentUserServiceTests))
             .Build();
         _database = new DatabaseContainer(_network);
-        var solutionDirectory = DirUtils.FindSolutionDirectory();
-        var migrationsImage = new ImageFromDockerfileBuilder()
-                .WithContextDirectory(solutionDirectory)
-                .WithDockerfileDirectory(solutionDirectory)
-                .WithDockerfile("PacmanManager.Migrations/Dockerfile")
-                .WithName("pacmanmanager-migrations-test:latest")
-                .Build();
-        await migrationsImage.CreateAsync();
-        await _database.StartAsync(migrationsImage);
+        await _database.StartAsync(await TestImages.Migrations.GetAsync());
 
         var existingUser = new User
         {
