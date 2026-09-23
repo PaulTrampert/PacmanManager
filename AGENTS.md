@@ -283,7 +283,9 @@ ones.
 * `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command: it assigns
   every open, unassigned issue with no open blocker to the `gh` user, moves it to *In Progress*, and
   fans the batch out to sub-agents, one worktree and one PR per issue, following
-  [Worktrees](#worktrees).
+  [Worktrees](#worktrees). Each sub-agent then stays on its PR, addressing the `gh` user's
+  `@claude` comments, until that user merges it; `.claude/scripts/await-pr-activity.sh` is what it
+  polls with.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). They install the same toolchain as
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.

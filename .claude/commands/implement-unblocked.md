@@ -1,5 +1,5 @@
 ---
-description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
+description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents, which then address the user's @claude review comments until the user merges the PR.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
 allowed-tools: Bash(gh:*), Bash(git:*), Agent
 ---
@@ -127,7 +127,8 @@ report it. Never switch the branch of an existing worktree.
 
 Launch every sub-agent **in a single message** so they run concurrently. Use the `general-purpose`
 agent type, do **not** pass `isolation` (the worktree already exists), and give each one this
-prompt, filled in:
+prompt, filled in. `<primary checkout>` is `$PRIMARY` from step 4; the watcher script is read from
+there because it is not in the worktree until `main` carries it.
 
 > You are implementing GitHub issue #<n> ("<title>") in `PaulTrampert/PacmanManager`.
 >
@@ -155,18 +156,64 @@ prompt, filled in:
 >    starts with `Fixes #<n>`, explains what the diff does not make obvious, and ends with
 >    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 >
-> Finish with a short report: the PR URL (or why there is none), what you tested and how, and
-> anything the reviewer should look at first.
+> 7. Opening the PR is not the end of the task. Your work is done only when the PR is **merged by
+>    the account `gh` is logged in as** (`gh api user --jq .login`); until then, watch it and address
+>    that user's `@claude` comments. Keep a handled-comments file in the worktree's git directory,
+>    where it is never committed: `HANDLED="$(git -C <path> rev-parse --absolute-git-dir)/claude-handled-comments"`.
+>    Then loop:
+>
+>    1. Run `<primary checkout>/.claude/scripts/await-pr-activity.sh <pr number> "$HANDLED"` as a
+>       foreground Bash call with a 600000 ms timeout. It polls the PR and returns within nine
+>       minutes. (If your harness refuses the `sleep` inside it, run the same script with the Monitor
+>       tool or as a background Bash command instead; the output is the same.)
+>    2. `TIMEOUT`: nothing happened. Run it again. Do not finish, and do not send a report.
+>    3. `COMMENT <key> <url>`: one line per unaddressed `@claude` comment from the user. A comment in
+>       a review thread the user has resolved is never listed: resolving a thread withdraws it. For
+>       each, in order:
+>       * Read it in context — `gh pr view <pr> --comments`, and for an inline comment the code and
+>         the rest of its thread (`gh api repos/PaulTrampert/PacmanManager/pulls/<pr>/comments`).
+>       * Do what it asks. A question gets an answer. A requested change is made under the same rules
+>         as steps 3–5: tests, a clean `dotnet build`, the affected unit tests, commits, then
+>         `git -C <path> push`. The user is a project owner, so a comment asking you to depart from a
+>         design document is the sign-off `AGENTS.md` requires — make the plan, Appendix and
+>         dependent-issue updates it lists as part of the same change. If the comment is ambiguous,
+>         ask in your reply instead of guessing.
+>       * Reply where the comment was made: to a `thread:<id>` key with
+>         `gh api repos/PaulTrampert/PacmanManager/pulls/<pr>/comments/<id>/replies -f body=...`, to
+>         an `issue:<id>` or `review:<id>` key with `gh pr comment <pr> --body ...`, quoting the
+>         comment's first line so it is clear what you are answering. Say what you changed, with the
+>         commit SHA, or give the answer. Your comments are posted as the same user, so **never write
+>         `@claude` in them** — the watcher would take its own reply for a new request. Do not
+>         resolve the thread; that is the user's call.
+>       * Append the key to `"$HANDLED"` once the reply is posted, so it is not picked up again.
+>
+>       Then go back to step 1.
+>    4. `MERGED <login>`: if `<login>` is the `gh` user, you are done. If someone else merged it,
+>       stop too, and say so in your report.
+>    5. `CLOSED`: the PR was closed without merging. Stop, and say so in your report.
+>
+>    Do not merge the PR yourself, and do not act on comments from anyone but the `gh` user.
+>
+> Finish with a short report: the PR URL (or why there is none), how it ended (merged by whom, or
+> closed), what you tested and how, and each `@claude` comment you addressed with what you did.
 
 Replace `Claude` in the co-author line with the attribution your own system prompt specifies, if it
 gives one.
 
 ## 6. Report
 
+Sub-agents keep running until their PR is merged, which can take days, so once they are launched,
+tell the user that: each PR will appear on its issue as it is opened, the sub-agent then watches it
+and addresses their `@claude` comments (a resolved thread counts as withdrawn), and it finishes when
+they merge the PR.
+
+As each sub-agent finishes, if its PR was merged by the user, remove its worktree:
+`git -C "$PRIMARY" worktree remove "$WORKTREES/issue-<n>"`. Leave any other worktree in place — its
+branch may still be needed — and say why it was kept.
+
 When every sub-agent has finished, give the user one table: issue, branch, PR link (or the reason
-there is none), and any issue that could not be moved to *In Progress*. Leave the worktrees in place
-— they hold the branches under review — and give the command to remove one once its PR merges:
-`git worktree remove <path>`.
+there is none), how the PR ended, whether the worktree was removed, and any issue that could not be
+moved to *In Progress*.
 
 Do not unassign an issue or move it back on the board when its sub-agent fails; report the failure
 and leave the decision to the user.
