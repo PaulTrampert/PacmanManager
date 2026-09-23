@@ -4,8 +4,12 @@ name: Claude resolves conflicts
 # a Claude run that merges main into the branch and resolves the conflicts. Labelling a PR checks
 # that one PR straight away. See AGENTS.md, "Continuous integration".
 on:
-  push:
+  # When CI finishes on a push to main, rather than on the push itself: claude-code-action rejects
+  # `push` as an unsupported event, and CI runs on every push to main anyway.
+  workflow_run:
+    workflows: [CI]
     branches: [main]
+    types: [completed]
   # pull_request_target, not pull_request: GitHub does not run pull_request workflows on a PR that
   # conflicts with its base, since there is no merge commit to run them on -- which is exactly the
   # PR this is for. The find job reads PR metadata only, and fork PRs are skipped before any of
@@ -22,7 +26,10 @@ env:
 jobs:
   find:
     name: Find conflicting PRs
-    if: github.event_name != 'pull_request_target' || github.event.label.name == 'claude-autofix'
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push')
+      || (github.event_name == 'pull_request_target' && github.event.label.name == 'claude-autofix')
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

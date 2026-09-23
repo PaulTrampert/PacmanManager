@@ -226,8 +226,8 @@ Claude may run `dotnet`, `git` and read-only `gh` commands; `gh pr merge` is den
 
 ### Claude resolves merge conflicts (`claude-resolve-conflicts.yml`)
 
-`.github/workflows/claude-resolve-conflicts.yml` runs on every push to `main`, and when a pull
-request is labelled `claude-autofix`. It finds the open PRs carrying that label that conflict with
+`.github/workflows/claude-resolve-conflicts.yml` runs when `CI` finishes on a push to `main` (the
+action does not accept `push` events itself), and when a pull request is labelled `claude-autofix`. It finds the open PRs carrying that label that conflict with
 `main`, and runs Claude on each: it merges `main` into the branch (never rebasing, which would need a
 force-push and would orphan review comments), resolves the conflicts so both sides' intent survives,
 builds, runs the affected unit tests, pushes, and comments with a summary. A conflict that needs a
