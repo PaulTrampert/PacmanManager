@@ -4,14 +4,19 @@
 #
 # Usage: await-pr-activity.sh <pr number> <handled file> [max seconds] [poll seconds]
 #
-# <handled file> lists comment keys already addressed, one per line; it is created if missing.
-# The script only reads it -- the agent appends a key once it has replied to that comment.
+# <handled file> lists keys already dealt with, one per line; it is created if missing. The script
+# only reads it -- the agent appends a key once it has acted on it.
 #
-# Output, one of:
+# Output is MERGED, CLOSED or TIMEOUT alone, or else one or more of CONFLICTS and COMMENT:
 #   MERGED <login>            the PR was merged, by <login>
 #   CLOSED                    the PR was closed without being merged
+#   CONFLICTS <key>           the PR conflicts with its base branch
 #   COMMENT <key> <url>       one line per unaddressed @claude comment by the gh user
 #   TIMEOUT                   nothing happened within [max seconds] (default 540); call again
+#
+# The CONFLICTS key is "conflicts:<head sha>:<base sha>", so a conflict the agent could not resolve
+# and recorded as handled is not reported again until either branch moves. GitHub reports
+# mergeability as UNKNOWN while it recomputes after a push; only a definite CONFLICTING counts.
 #
 # A comment qualifies when its author is the account gh is logged in as, its body mentions
 # @claude, and, for an inline review comment, its thread is not resolved (resolving a thread
@@ -34,6 +39,9 @@ query($n: Int!) {
     pullRequest(number: $n) {
       state
       mergedBy { login }
+      mergeable
+      headRefOid
+      baseRef { target { oid } }
       comments(last: 100) { nodes { databaseId author { login } body url } }
       reviews(last: 100) { nodes { databaseId author { login } body url } }
       reviewThreads(last: 100) {
@@ -51,14 +59,18 @@ filter='
 | if $pr.state == "MERGED" then "MERGED \($pr.mergedBy.login // "unknown")"
   elif $pr.state == "CLOSED" then "CLOSED"
   else
-    ( ($pr.comments.nodes[] | {key: "issue:\(.databaseId)", c: .}),
-      ($pr.reviews.nodes[] | {key: "review:\(.databaseId)", c: .}),
-      ($pr.reviewThreads.nodes[] | select(.isResolved | not)
-        | .comments.nodes[] | {key: "thread:\(.databaseId)", c: .}) )
-    | select(.key | IN($handled[]) | not)
-    | select(.c.author.login == $me)
-    | select(.c.body | test("@claude\\b"; "i"))
-    | "COMMENT \(.key) \(.c.url)"
+    ( select($pr.mergeable == "CONFLICTING")
+      | "conflicts:\($pr.headRefOid):\($pr.baseRef.target.oid)"
+      | select(IN($handled[]) | not)
+      | "CONFLICTS \(.)" ),
+    ( ( ($pr.comments.nodes[] | {key: "issue:\(.databaseId)", c: .}),
+        ($pr.reviews.nodes[] | {key: "review:\(.databaseId)", c: .}),
+        ($pr.reviewThreads.nodes[] | select(.isResolved | not)
+          | .comments.nodes[] | {key: "thread:\(.databaseId)", c: .}) )
+      | select(.key | IN($handled[]) | not)
+      | select(.c.author.login == $me)
+      | select(.c.body | test("@claude\\b"; "i"))
+      | "COMMENT \(.key) \(.c.url)" )
   end'
 
 while :; do

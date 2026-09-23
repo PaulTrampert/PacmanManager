@@ -157,10 +157,10 @@ there because it is not in the worktree until `main` carries it.
 >    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 >
 > 7. Opening the PR is not the end of the task. Your work is done only when someone **merges** the
->    PR. Until then, watch it and address `@claude` comments from the account `gh` is logged in as
->    (`gh api user --jq .login`). **Never merge the PR yourself**, and never merge any other PR,
+>    PR. Until then, watch it, resolve merge conflicts with `main`, and address `@claude` comments
+>    from the account `gh` is logged in as (`gh api user --jq .login`). **Never merge the PR yourself**, and never merge any other PR,
 >    unless the user directly asks you to; waiting for the merge is the job, not a step to hurry
->    along. Keep a handled-comments file in the worktree's git directory,
+>    along. Keep a file of what you have handled in the worktree's git directory,
 >    where it is never committed: `HANDLED="$(git -C <path> rev-parse --absolute-git-dir)/claude-handled-comments"`.
 >    Then loop:
 >
@@ -169,7 +169,22 @@ there because it is not in the worktree until `main` carries it.
 >       minutes. (If your harness refuses the `sleep` inside it, run the same script with the Monitor
 >       tool or as a background Bash command instead; the output is the same.)
 >    2. `TIMEOUT`: nothing happened. Run it again. Do not finish, and do not send a report.
->    3. `COMMENT <key> <url>`: one line per unaddressed `@claude` comment from the user. A comment in
+>    3. `CONFLICTS <key>`: the PR conflicts with `main`. Handle this before any comments, so that
+>       changes made for them are built on the merged code:
+>       * `git -C <path> fetch origin main`, then `git -C <path> merge origin/main`. Merge, do not
+>         rebase: a rebase needs a force-push and orphans the review comments on the old commits.
+>       * Resolve each conflict so that both sides' intent survives. Read what `main` changed
+>         (`git -C <path> log -p HEAD..origin/main -- <file>`) rather than taking one side
+>         wholesale.
+>       * `dotnet build` must pass, and so must the unit tests for the projects the merge touched.
+>         Commit the merge, and push.
+>       * Post a short PR comment with `gh pr comment` saying which files conflicted and how you
+>         resolved any that took judgement.
+>       * If a conflict needs a decision you cannot make from the issue and its design document,
+>         `git -C <path> merge --abort`, and explain the conflict in a PR comment instead.
+>       * Either way, append the key to `"$HANDLED"`. If you could not resolve it, the watcher
+>         reports it again once `main` or the branch moves.
+>    4. `COMMENT <key> <url>`: one line per unaddressed `@claude` comment from the user. A comment in
 >       a review thread the user has resolved is never listed: resolving a thread withdraws it. For
 >       each, in order:
 >       * Read it in context — `gh pr view <pr> --comments`, and for an inline comment the code and
@@ -190,13 +205,14 @@ there because it is not in the worktree until `main` carries it.
 >       * Append the key to `"$HANDLED"` once the reply is posted, so it is not picked up again.
 >
 >       Then go back to step 1.
->    4. `MERGED <login>`: you are done. Name `<login>` in your report.
->    5. `CLOSED`: the PR was closed without merging. Stop, and say so in your report.
+>    5. `MERGED <login>`: you are done. Name `<login>` in your report.
+>    6. `CLOSED`: the PR was closed without merging. Stop, and say so in your report.
 >
 >    Do not act on comments from anyone but the `gh` user.
 >
 > Finish with a short report: the PR URL (or why there is none), how it ended (merged by whom, or
-> closed), what you tested and how, and each `@claude` comment you addressed with what you did.
+> closed), what you tested and how, each merge conflict you resolved or could not, and each
+> `@claude` comment you addressed with what you did.
 
 Replace `Claude` in the co-author line with the attribution your own system prompt specifies, if it
 gives one.
@@ -204,8 +220,9 @@ gives one.
 ## 6. Report
 
 Sub-agents keep running until their PR is merged, which can take days, so once they are launched,
-tell the user that: each PR will appear on its issue as it is opened, the sub-agent then watches it
-and addresses their `@claude` comments (a resolved thread counts as withdrawn), and it finishes when
+tell the user that: each PR will appear on its issue as it is opened, the sub-agent then watches it,
+resolves merge conflicts with `main`, and addresses their `@claude` comments (a resolved thread
+counts as withdrawn), and it finishes when
 someone merges the PR. Neither you nor the sub-agents merge anything unless the user directly asks.
 
 As each sub-agent finishes, if its PR was merged, remove its worktree:
