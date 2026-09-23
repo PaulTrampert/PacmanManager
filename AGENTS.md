@@ -233,9 +233,11 @@ branch and pushes, reruns a failure unrelated to the change once, or explains in
 it could not fix. It may not skip or loosen tests, suppress warnings or edit workflows.
 
 It attempts each failure at most once. A fix commit carries a `Claude-Autofix: ci` trailer and is
-never fixed again. Before Claude starts, the workflow posts a comment with a hidden marker naming
-the failed workflow and commit, and a later run that finds that marker stops; that stops reruns and
-title edits from retrying the same commit. It needs the same one-time setup as `claude.yml`.
+never fixed again. Once Claude's step completes, the workflow's progress comment gains a hidden
+marker naming the failed workflow and commit, and a later run that finds that marker stops; that
+stops reruns and title edits from retrying the same commit. An attempt that dies before Claude
+finishes is reported in a new PR comment and not counted, so rerunning the failed workflow tries
+again. It needs the same one-time setup as `claude.yml`.
 
 ## Version control
 
