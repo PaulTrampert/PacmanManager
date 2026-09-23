@@ -1,0 +1,148 @@
+name: Claude resolves conflicts
+
+# When main moves, every open pull request labelled `claude-autofix` that now conflicts with it gets
+# a Claude run that merges main into the branch and resolves the conflicts. Labelling a PR checks
+# that one PR straight away. See AGENTS.md, "Continuous integration".
+on:
+  push:
+    branches: [main]
+  # pull_request_target, not pull_request: GitHub does not run pull_request workflows on a PR that
+  # conflicts with its base, since there is no merge commit to run them on -- which is exactly the
+  # PR this is for. The find job reads PR metadata only, and fork PRs are skipped before any of
+  # their code is checked out.
+  pull_request_target:
+    branches: [main]
+    types: [labeled]
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  find:
+    name: Find conflicting PRs
+    if: github.event_name != 'pull_request_target' || github.event.label.name == 'claude-autofix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      prs: ${{ steps.find.outputs.prs }}
+    steps:
+      - name: Find conflicting PRs
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ONLY: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$ONLY" ]; then
+            numbers="$ONLY"
+          else
+            numbers="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main \
+              --label claude-autofix --json number --jq '.[].number')"
+          fi
+          base="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+
+          prs='[]'
+          for n in $numbers; do
+            # GitHub computes mergeability lazily, and reports UNKNOWN until it has. Asking is what
+            # starts the computation, so ask until it settles.
+            for _ in 1 2 3 4 5 6; do
+              pr="$(gh pr view "$n" --repo "$GITHUB_REPOSITORY" \
+                --json number,mergeable,headRefName,headRefOid,isCrossRepository)"
+              [ "$(jq -r .mergeable <<<"$pr")" != UNKNOWN ] && break
+              sleep 10
+            done
+            echo "#$n: $(jq -r .mergeable <<<"$pr")"
+            [ "$(jq -r .mergeable <<<"$pr")" = CONFLICTING ] || continue
+            if [ "$(jq -r .isCrossRepository <<<"$pr")" = true ]; then
+              echo "#$n: from a fork, which cannot be pushed to; skipped"
+              continue
+            fi
+
+            # One attempt per pair of commits, however many events ask for it. A later push to main
+            # is a new pair, so a conflict Claude could not resolve is tried again once main moves.
+            head="$(jq -r .headRefOid <<<"$pr")"
+            marker="<!-- claude-autofix:conflicts:$head:$base -->"
+            comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$n/comments" --jq '.[].body')"
+            if grep -qF "$marker" <<<"$comments"; then
+              echo "#$n: already attempted for ${head:0:7} against main ${base:0:7}; skipped"
+              continue
+            fi
+            gh pr comment "$n" --repo "$GITHUB_REPOSITORY" --body "$marker
+          Claude is merging main (${base:0:7}) into this branch to resolve its conflicts."
+
+            prs="$(jq -c --argjson n "$n" --arg branch "$(jq -r .headRefName <<<"$pr")" \
+              '. + [{number: $n, branch: $branch}]' <<<"$prs")"
+          done
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"
+
+  resolve:
+    name: 'Resolve #${{ matrix.number }}'
+    needs: find
+    if: needs.find.outputs.prs != '' && needs.find.outputs.prs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.find.outputs.prs) }}
+    # Shared with claude-fix-ci.yml, so a conflict resolution and a CI fix never push to the same
+    # branch at once.
+    concurrency:
+      group: claude-autofix-${{ matrix.branch }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+      # Exchanged for the Claude GitHub App's token, whose pushes trigger CI.
+      id-token: write
+    steps:
+      # The toolchain comes from main's copy of the setup action: a PR branch cut before the action
+      # existed would not have it. The second checkout then replaces the workspace with the branch.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up the build toolchain
+        uses: ./.github/actions/setup-toolchain
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+
+      # No `github_token`, so the action uses the Claude GitHub App's token, and its push triggers
+      # CI on the merge.
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+            --disallowedTools "Bash(gh pr merge:*)"
+          prompt: |
+            Pull request #${{ matrix.number }} in ${{ github.repository }} conflicts with `main`.
+            Its branch, `${{ matrix.branch }}`, is checked out with full history, and the .NET
+            toolchain is installed.
+
+            Resolve the conflicts, following AGENTS.md:
+
+            1. `git fetch origin main`, then `git merge origin/main`. Merge; do not rebase. A rebase
+               would need a force-push and would orphan the review comments on the old commits.
+            2. Read the PR and its issue (`gh pr view ${{ matrix.number }}`, `gh issue view`) for what
+               the branch is meant to do, and `git log -p HEAD..origin/main -- <file>` for what main
+               changed in each conflicting file. Resolve each conflict so that both sides' intent
+               survives, rather than taking one side wholesale.
+            3. `dotnet build` must pass with no new warnings, and so must the unit tests of the
+               projects the merge touched.
+            4. Commit the merge and `git push origin HEAD:${{ matrix.branch }}`. Never push to any
+               other branch, and never merge a pull request.
+            5. If a conflict needs a decision you cannot make from the PR, its issue and any design
+               document it points to, run `git merge --abort` and push nothing.
+            6. Finish with a comment on the PR (`gh pr comment ${{ matrix.number }}`) listing the
+               files that conflicted and how you resolved any that took judgement, or explaining the
+               conflict you could not resolve. Do not write "@claude" in it.
