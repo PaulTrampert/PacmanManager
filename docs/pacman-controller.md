@@ -194,13 +194,30 @@ architecture, against the same stored file; publishing an `x86_64` package runs 
 architecture and is not any more. The key becomes **`(RepositoryId, Name, Architecture)`**.
 
 An `any` package is one row whose `Architecture` is `any`, one file on disk, and an entry in every
-architecture's database. **It cannot coexist with an architecture-specific build of the same name**,
-which is the same rule Arch applies and the same rule `repo-add` would enforce for you.
+architecture's database. **It and an architecture-specific build of the same name replace each
+other**, since both would otherwise be listed in the same database:
+
+* Publishing an `any` build replaces every architecture-specific build of that name. Their rows,
+  files and database entries are removed.
+* Publishing an architecture-specific build over an `any` build removes the `any` build, including
+  from the other architectures' databases, leaving only the new specific build.
+* The forward-only version rule applies to each replacement: the new build must be newer than every
+  build it replaces.
+* A failed publish restores everything the replacement removed.
+
+Builds for two different specific architectures never share a database, so neither replaces the
+other. A package that needs to be meaningfully different on one architecture is packaged explicitly
+for each supported architecture.
+
+**Why:**
+
+* [an `any` build and a specific build replace each other](#why-an-any-build-and-a-specific-build-replace-each-other)
 
 ### What changes in the code: architectures
 
-* `PacmanRepository.SupportedArchitectures`, a `string[]` — `text[]` under Npgsql, and a member the
-  in-memory provider handles for the service tests. `Architecture` is dropped in the same migration;
+* `PacmanRepository.SupportedArchitectures`, an `IEnumerable<string>` — `text[]` under Npgsql, and a
+  member the in-memory provider handles for the service tests. The wire model's property is an
+  `IEnumerable<string>` too. `Architecture` is dropped in the same migration;
   there is no data to preserve.
 * The allowed set is a shared constant in `PacmanManager.Entities`
   (`PacmanRepositoryValidationConstants.SupportedArchitectures`), like every other validation limit,
@@ -216,6 +233,10 @@ which is the same rule Arch applies and the same rule `repo-add` would enforce f
 * `PacmanPackage`'s unique index becomes `(RepositoryId, Name, Architecture)`.
 * Publishing resolves which databases a package belongs in, and `RepositoryDatabase` gains the
   architecture — see [Storage layout](#storage-layout).
+
+**Why:**
+
+* [`SupportedArchitectures` is an `IEnumerable<string>`](#why-supportedarchitectures-is-an-ienumerablestring)
 
 ---
 
@@ -576,8 +597,8 @@ refused, hence `MAJOR`. Although it is numbered after 1b, it lands first.
 ### 1d. `SupportedArchitectures` — `MAJOR`
 
 [Architecture moves off the key and onto the repository](#a-repository-supports-architectures-a-package-has-one):
-`SupportedArchitectures` as a `string[]` with `any` disallowed and the allowed set a shared constant,
-`Architecture` dropped, the wire model and `RepositoryFilter` following, `PacmanPackage`'s unique
+`SupportedArchitectures` as an `IEnumerable<string>` (`text[]` in the database) with `any`
+disallowed and the allowed set a shared constant, `Architecture` dropped, the wire model and `RepositoryFilter` following, `PacmanPackage`'s unique
 index becoming `(RepositoryId, Name, Architecture)`, and publishing running `repo-add` once per
 architecture a package belongs in — its own for a specific build, all of them for an `any` build.
 
@@ -588,8 +609,10 @@ same step, and `AddIndex_IX_PacmanPackages_RepositoryId_Name_Architecture`.
 succeeds. Validation tests: a repository cannot be created supporting `any`, supporting nothing, or
 supporting an unknown string. Service unit tests: an `x86_64` package lands in the `x86_64` database
 only; an `any` package lands in every supported architecture's database and is stored once; a
-repository may hold `foo`/`x86_64` and `foo`/`aarch64` as two packages, and may not hold `foo`/`any`
-alongside either. A filter test for `architecture=` against the collection column, which no longer
+repository may hold `foo`/`x86_64` and `foo`/`aarch64` as two packages; publishing `foo`/`any`
+replaces both, and publishing `foo`/`x86_64` over `foo`/`any` removes the `any` build from every
+other architecture's database; each replacement must move the version forward; and a failed
+publish restores everything it replaced. A filter test for `architecture=` against the collection column, which no longer
 translates as an equality.
 
 *Depends on:* 1c.
@@ -597,6 +620,8 @@ translates as an equality.
 **Why:**
 
 * [`any` is a package property, not a repository one](#why-any-is-a-package-property-not-a-repository-one)
+* [an `any` build and a specific build replace each other](#why-an-any-build-and-a-specific-build-replace-each-other)
+* [`SupportedArchitectures` is an `IEnumerable<string>`](#why-supportedarchitectures-is-an-ienumerablestring)
 
 ### 2. One directory per repository, and the whole `repo-add` file set — `PATCH`
 
@@ -933,6 +958,32 @@ anyway: `$arch` expands to the machine's architecture and never to `any`.
 So the awkward case the earlier draft had to document — a repository whose architecture is `any`,
 unreachable through the `$repo/$arch` form the documentation tells everyone to use, needing a
 hardcoded URL — stops existing. Every repository is addressable by substitution, for every client.
+
+### Why an `any` build and a specific build replace each other
+
+An `any` build is listed in every supported architecture's database, so it cannot sit beside an
+architecture-specific build of the same name: one database would then list two entries for one
+name. Something has to give, and there were two ways to decide what.
+
+**Rejected: refusing the publish.** 1d first shipped refusing either publish with a `409`, until the
+other build was deleted. It was changed during 1d's review, with project-owner sign-off, to
+replacement. Refusal made moving a package between `any` and a specific build a two-step operation —
+delete, then publish — with a window in which the package is absent from every database, and it
+treated a routine change of packaging as a conflict.
+
+**Chosen: the newer publish replaces the older, across architectures.** This is the same forward-only
+rule a repository already applies to one architecture, with the version check applied to each build
+replaced, so nothing moves backwards. A package that needs to be meaningfully different on one
+architecture should be packaged explicitly for each supported architecture; an `any` build is a
+statement that it is not.
+
+### Why `SupportedArchitectures` is an `IEnumerable<string>`
+
+The plan first said `string[]`. It was changed during 1d's review, with project-owner sign-off, to
+`IEnumerable<string>`, which is what the other primitive-collection columns on `PacmanPackage`
+(`Licenses`, `Depends` and the rest) already use. The column is `text[]` either way, and
+`[ContainsQuery]` and Npgsql's array containment work the same, so nothing about storage or querying
+depends on the choice; keeping one collection type across the entities does.
 
 ### Why resolution owns no database access
 

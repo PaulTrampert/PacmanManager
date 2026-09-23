@@ -356,26 +356,29 @@ internal class PackageService(
         using var _ = await databaseLock.AcquireAsync(repository.Id, cancellationToken);
 
         // Step 5: stage the row. The upsert key is (repositoryId, name, architecture), which is the
-        // unique index, so at most one row matches — and a row already there has to be older than
-        // what is being pushed, since a published version's bytes are ones a client may already
-        // hold. Every build of the name is loaded, not just that one, because an any build and an
-        // architecture specific build would both be listed in the same database.
+        // unique index, so at most one row shares the new build's architecture. Every build of the
+        // name is loaded, not just that one, because an any build and an architecture specific
+        // build would be listed in the same database: whichever is published replaces the other.
         var visible = await VisibleAsync(cancellationToken);
         var sameName = await visible
             .Where(p => p.RepositoryId == repository.Id && p.Name == name)
             .ToListAsync(cancellationToken);
 
-        RequireNoArchitectureConflict(sameName, name, architecture);
+        var replaced = sameName.Where(p => Replaces(architecture, p.Architecture)).ToList();
 
-        var existing = sameName.SingleOrDefault(p => string.Equals(p.Architecture, architecture, StringComparison.Ordinal));
-        if (existing is not null)
+        // Each replaced build has to be older than what is being pushed, since a published
+        // version's bytes are ones a client may already hold.
+        foreach (var previous in replaced)
         {
-            RequireForwardProgress(existing, version);
+            RequireForwardProgress(previous, version);
         }
 
+        var existing = replaced.SingleOrDefault(p => string.Equals(p.Architecture, architecture, StringComparison.Ordinal));
         var now = DateTimeOffset.UtcNow;
         var created = existing is null;
-        var previousFileName = existing?.FileName;
+
+        // Captured before ApplyMetadata rewrites the upserted row in place.
+        var superseded = replaced.Select(p => new SupersededBuild(p.Architecture, p.FileName)).ToList();
 
         var package = existing ?? new PacmanPackage
         {
@@ -399,6 +402,12 @@ internal class PackageService(
             await dbContext.AddAsync(package, cancellationToken);
         }
 
+        // Builds for another architecture that this one replaces are gone once it is committed.
+        foreach (var other in replaced.Where(p => !ReferenceEquals(p, existing)))
+        {
+            dbContext.Remove(other);
+        }
+
         // The repository's contents changed, so its own timestamp moves with them.
         repository.UpdatedAt = now;
 
@@ -406,17 +415,17 @@ internal class PackageService(
             repository,
             package,
             uploadPath,
-            previousFileName,
-            created,
+            superseded,
             cancellationToken);
 
-        // Only now is the replaced file certain to be unreferenced. Until the commit succeeded it
-        // was what a rollback restored the database to. The name comparison is belt and braces —
-        // a publish moves the version forward, so the two names cannot be equal — but this is the
-        // one place that deletes a file a live row could still name, so it checks anyway.
-        if (!created && previousFileName is not null && previousFileName != package.FileName)
+        // Only now are the replaced files certain to be unreferenced. Until the commit succeeded
+        // they were what a rollback restored the databases from. The name comparison is belt and
+        // braces — a publish moves the version forward, and a build for another architecture
+        // carries that architecture in its name, so the names cannot be equal — but this is the one
+        // place that deletes a file a live row could still name, so it checks anyway.
+        foreach (var previous in superseded.Where(b => b.FileName != package.FileName))
         {
-            DeleteQuietly(pathResolver.GetPackageFilePath(repository.Id, previousFileName),
+            DeleteQuietly(pathResolver.GetPackageFilePath(repository.Id, previous.FileName),
                 "superseded package file");
         }
 
@@ -424,58 +433,94 @@ internal class PackageService(
     }
 
     /// <summary>
-    /// Step 6: move the file into place, run <c>repo-add</c> once for each database the package
-    /// belongs in, then commit — side effects first, commit last, so that a failed tool costs
-    /// nothing more than a discarded change tracker.
+    /// A build a publish replaces, as it was before the publish touched anything.
+    /// </summary>
+    /// <param name="Architecture">The architecture it was built for.</param>
+    /// <param name="FileName">The basename of its stored file.</param>
+    private sealed record SupersededBuild(string Architecture, string FileName);
+
+    /// <summary>
+    /// Whether a build for <paramref name="offered"/> replaces an existing build of the same name
+    /// for <paramref name="published"/>.
     /// </summary>
     /// <remarks>
+    /// A build replaces the one for its own architecture. Beyond that, an <c>any</c> build is listed
+    /// in every supported architecture's database, so it and an architecture specific build of the
+    /// same name cannot both be published: an <c>any</c> build replaces every architecture specific
+    /// one, and an architecture specific build replaces the <c>any</c> one. A package that needs to
+    /// differ on one architecture is packaged explicitly for each supported architecture. Builds
+    /// for two different specific architectures never share a database, so neither replaces the
+    /// other.
+    /// </remarks>
+    private static bool Replaces(string offered, string published) =>
+        string.Equals(offered, published, StringComparison.Ordinal) || IsAny(offered) || IsAny(published);
+
+    /// <summary>
+    /// Step 6: move the file into place, run <c>repo-add</c> once for each database the package
+    /// belongs in, take whatever it replaces out of the databases the new build is not listed in,
+    /// then commit — side effects first, commit last, so that a failed tool costs nothing more than
+    /// a discarded change tracker.
+    /// </summary>
+    /// <remarks>
+    /// <para>
     /// The file is stored once however many databases list it: an <c>any</c> package is added to
-    /// every supported architecture's database, against the same stored file.
-    /// There are two distinct failures to unwind, and they are not the same shape:
-    /// <list type="bullet">
-    ///   <item><description>
-    ///     <c>repo-add</c> failed. The commit was never reached, so the change tracker is discarded
-    ///     and no row moved. If no database took the package, the file just written is deleted,
-    ///     which cannot take away a file the unchanged row still names: a publish has to move the
-    ///     version forward, so the name it derives is never the name the previous version is stored
-    ///     under. If some databases took it before one failed, those are unwound exactly as a failed
-    ///     commit is, below.
-    ///   </description></item>
-    ///   <item><description>
-    ///     The commit failed after <c>repo-add</c> succeeded. The database file now advertises a
-    ///     package the rows do not know about, and nothing else would ever notice, so it is undone
-    ///     explicitly: <c>repo-remove</c>, then either delete the new file (a new package) or
-    ///     <c>repo-add</c> the previous one (a replacement), which is exactly why the previous file
-    ///     is not deleted until after the commit.
-    ///   </description></item>
-    /// </list>
+    /// every supported architecture's database, against the same stored file. <c>repo-add</c>
+    /// replaces an entry of the same name in each database it writes, so a replaced build only
+    /// needs an explicit <c>repo-remove</c> from databases the new build does not go into — which
+    /// happens when an architecture specific build replaces an <c>any</c> one.
+    /// </para>
+    /// <para>
+    /// Any failure, of a tool or of the commit, discards the change tracker, so no row moved. The
+    /// databases are then put back as they were: the new entry is removed from every database it
+    /// reached, the file just written is deleted, and every replaced build is added back to each
+    /// touched database it was listed in. That is why the replaced files are not deleted until
+    /// after the commit. The file just written is never a replaced build's file: a publish moves the
+    /// version forward, and a build for another architecture carries that architecture in its name.
+    /// </para>
+    /// <para>
     /// A compensating step that fails itself is logged at error and the original exception is
     /// allowed to surface; the repository database is then genuinely out of step with the rows, and
     /// the cure is reconciliation rather than anything this request can do.
+    /// </para>
     /// </remarks>
     private async Task CommitWithSideEffectsAsync(
         PacmanRepository repository,
         PacmanPackage package,
         string uploadPath,
-        string? previousFileName,
-        bool created,
+        IReadOnlyList<SupersededBuild> superseded,
         CancellationToken cancellationToken)
     {
         var destination = pathResolver.GetPackageFilePath(repository.Id, package.FileName);
+        var targets = DatabaseArchitectures(repository, package.Architecture);
+        var vacated = superseded
+            .SelectMany(b => DatabaseArchitectures(repository, b.Architecture))
+            .Distinct(StringComparer.Ordinal)
+            .Where(a => !targets.Contains(a, StringComparer.Ordinal))
+            .ToList();
+
         var added = new List<string>();
+        var removed = new List<string>();
 
         try
         {
             fileSystem.CreateDirectory(pathResolver.GetRepositoryDirectory(repository.Id));
             fileSystem.Move(uploadPath, destination, overwrite: true);
 
-            foreach (var architecture in DatabaseArchitectures(repository, package.Architecture))
+            foreach (var architecture in targets)
             {
                 fileSystem.CreateDirectory(DatabaseFor(repository, architecture).SyncDirectory);
                 await cliRunner.RunToolCheckedAsync(
                     new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, destination),
                     cancellationToken);
                 added.Add(architecture);
+            }
+
+            foreach (var architecture in vacated)
+            {
+                await cliRunner.RunToolCheckedAsync(
+                    new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, package.Name),
+                    cancellationToken);
+                removed.Add(architecture);
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -489,15 +534,14 @@ internal class PackageService(
 
             try
             {
-                if (added.Count > 0)
+                if (added.Count > 0 || removed.Count > 0)
                 {
-                    await CompensateCommittedAddAsync(
-                        repository, package, added, destination, previousFileName, created);
+                    await CompensatePublishAsync(repository, package, added, removed, destination, superseded);
                 }
                 else
                 {
-                    // The previous version, if there was one, is untouched on disk under its own
-                    // name and the row still names it, so the repository is exactly as it was.
+                    // The previous builds, if there were any, are untouched on disk under their own
+                    // names and the rows still name them, so the repository is exactly as it was.
                     DeleteQuietly(destination, "package file from a failed publish");
                 }
             }
@@ -514,8 +558,8 @@ internal class PackageService(
     }
 
     /// <summary>
-    /// Undoes the <c>repo-add</c> runs that succeeded before a commit, or a later <c>repo-add</c>,
-    /// that did not.
+    /// Puts every database a failed publish touched back as it was: the new entry out, and every
+    /// replaced build back in.
     /// </summary>
     /// <remarks>
     /// This takes no cancellation token on purpose. One of the ordinary ways the commit fails is
@@ -525,15 +569,21 @@ internal class PackageService(
     /// describes. Undoing a side effect is work that has to happen whatever became of the request
     /// that caused it.
     /// </remarks>
-    private async Task CompensateCommittedAddAsync(
+    /// <param name="repository">The repository published into.</param>
+    /// <param name="package">The build that failed to publish.</param>
+    /// <param name="added">The databases <c>repo-add</c> put the new build into.</param>
+    /// <param name="removed">The databases a replaced build was taken out of.</param>
+    /// <param name="destination">Where the new build's file was moved.</param>
+    /// <param name="superseded">The builds the publish would have replaced.</param>
+    private async Task CompensatePublishAsync(
         PacmanRepository repository,
         PacmanPackage package,
-        IEnumerable<string> addedArchitectures,
+        IReadOnlyList<string> added,
+        IReadOnlyList<string> removed,
         string destination,
-        string? previousFileName,
-        bool created)
+        IReadOnlyList<SupersededBuild> superseded)
     {
-        foreach (var architecture in addedArchitectures)
+        foreach (var architecture in added)
         {
             await cliRunner.RunToolCheckedAsync(
                 new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, package.Name),
@@ -541,29 +591,27 @@ internal class PackageService(
         }
 
         // Nothing references the file that was just moved into place: no row was committed, and
-        // the entry that named it has just been removed. It is never the previous version's file,
-        // since a publish has to move the version forward to get this far.
+        // every entry that named it has just been removed.
         DeleteQuietly(destination, "package file from a rolled back publish");
 
-        if (created || previousFileName is null)
+        // The replaced files have deliberately not been deleted yet, so putting their entries back
+        // is enough to leave the databases describing what the rows still say.
+        var touched = added.Concat(removed).ToList();
+        foreach (var previous in superseded)
         {
-            return;
-        }
+            var previousPath = pathResolver.GetPackageFilePath(repository.Id, previous.FileName);
+            if (!fileSystem.Exists(previousPath))
+            {
+                continue;
+            }
 
-        // The previous file has deliberately not been deleted yet, so putting its entry back is
-        // enough to leave the databases describing what the rows still say. A replacement has the
-        // same architecture as what it replaces, so it was listed in exactly these databases.
-        var previousPath = pathResolver.GetPackageFilePath(repository.Id, previousFileName);
-        if (!fileSystem.Exists(previousPath))
-        {
-            return;
-        }
-
-        foreach (var architecture in addedArchitectures)
-        {
-            await cliRunner.RunToolCheckedAsync(
-                new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, previousPath),
-                CancellationToken.None);
+            foreach (var architecture in DatabaseArchitectures(repository, previous.Architecture)
+                         .Where(a => touched.Contains(a, StringComparer.Ordinal)))
+            {
+                await cliRunner.RunToolCheckedAsync(
+                    new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, previousPath),
+                    CancellationToken.None);
+            }
         }
     }
 
@@ -600,36 +648,6 @@ internal class PackageService(
         }
 
         throw new PackageArchitectureMismatchException(architecture, repository.SupportedArchitectures);
-    }
-
-    /// <summary>
-    /// Rejects an <c>any</c> build of a name the repository already holds an architecture specific
-    /// build of, and the reverse.
-    /// </summary>
-    /// <remarks>
-    /// An <c>any</c> package is listed in every supported architecture's database, so it and an
-    /// architecture specific build of the same name would be two entries for one name in the same
-    /// database. That is the rule Arch applies, and the unique index cannot express it, since the
-    /// two rows differ in architecture. Builds for two different specific architectures never share
-    /// a database, so they coexist.
-    /// </remarks>
-    /// <param name="sameName">Every build of the name the repository already holds.</param>
-    /// <param name="name">The package being published.</param>
-    /// <param name="architecture">The architecture it was built for.</param>
-    /// <exception cref="PackageArchitectureConflictException">The two cannot coexist.</exception>
-    private static void RequireNoArchitectureConflict(
-        IEnumerable<PacmanPackage> sameName,
-        string name,
-        string architecture)
-    {
-        var conflict = sameName.FirstOrDefault(p =>
-            !string.Equals(p.Architecture, architecture, StringComparison.Ordinal)
-            && (IsAny(p.Architecture) || IsAny(architecture)));
-
-        if (conflict is not null)
-        {
-            throw new PackageArchitectureConflictException(name, architecture, conflict.Architecture);
-        }
     }
 
     /// <summary>
@@ -972,7 +990,7 @@ internal class PackageService(
     /// </summary>
     /// <remarks>
     /// This takes no cancellation token, for the reason
-    /// <see cref="CompensateCommittedAddAsync"/> does not: one of the ordinary ways the commit
+    /// <see cref="CompensatePublishAsync"/> does not: one of the ordinary ways the commit
     /// fails is the request being cancelled, and a compensation running on the cancelled token
     /// would abandon itself at its first await and leave the database file missing a package the
     /// rows still describe.

@@ -12,7 +12,7 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// <remarks>
 /// <para>
 /// The publish path deliberately knows nothing about HTTP, so it says what went wrong with an
-/// exception and this decides what that is worth. Four things can go wrong that are not a
+/// exception and this decides what that is worth. Three things can go wrong that are not a
 /// <c>500</c>:
 /// </para>
 /// <list type="bullet">
@@ -24,11 +24,6 @@ namespace PacmanManager.RepoHost.Infrastructure;
 ///     <see cref="PackageNotNewerException"/> — the repository already holds that version of the
 ///     package, and a published version's bytes do not change under a client that has synced
 ///     them. That is a conflict with what is stored rather than a bad file, so it is a <c>409</c>.
-///   </description></item>
-///   <item><description>
-///     <see cref="PackageArchitectureConflictException"/> — the repository holds a build of the same
-///     name that an <c>any</c> build cannot sit beside, or the reverse. Also a <c>409</c>, for the same
-///     reason.
 ///   </description></item>
 ///   <item><description>
 ///     A <see cref="BadHttpRequestException"/> carrying <c>413</c>, which is how Kestrel reports a
@@ -55,8 +50,6 @@ public class PackagePublishExceptionHandler(IProblemDetailsService problemDetail
             InvalidPackageException => (StatusCodes.Status400BadRequest, "The uploaded package was not accepted."),
             PackageNotNewerException => (StatusCodes.Status409Conflict,
                 "That version is already published."),
-            PackageArchitectureConflictException => (StatusCodes.Status409Conflict,
-                "A build of that package for another architecture is already published."),
             BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } =>
                 (StatusCodes.Status413PayloadTooLarge, "The uploaded package is too large."),
             _ => (0, string.Empty),

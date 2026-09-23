@@ -141,7 +141,10 @@ public interface IPackageService
     /// The upsert key is <c>(repositoryId, name, architecture)</c>: a repository holds exactly one
     /// version of a package per architecture, so replacing one is the normal path. A replacement
     /// keeps the package's id and creation time and reassigns its publisher to whoever pushed it.
-    /// An <c>any</c> build may not sit beside an architecture specific build of the same name.
+    /// An <c>any</c> build and an architecture specific build of the same name replace each other:
+    /// publishing an <c>any</c> build removes every architecture specific build of that name, and
+    /// publishing an architecture specific build removes the <c>any</c> build, from every database it
+    /// was listed in. Each replaced build must be older than the one published.
     /// </para>
     /// <para>
     /// The package file is stored once and added to every database it belongs in: its own
@@ -164,12 +167,8 @@ public interface IPackageService
     /// format, metadata that cannot name a file, or an architecture the repository does not serve.
     /// </exception>
     /// <exception cref="PackageNotNewerException">
-    /// The repository already holds this package, for this architecture, at that version or a
-    /// newer one.
-    /// </exception>
-    /// <exception cref="PackageArchitectureConflictException">
-    /// The repository holds a build of the same name for another architecture, and one of the two is
-    /// built for <c>any</c>.
+    /// The repository already holds this package, for this architecture or a build this one would
+    /// replace, at that version or a newer one.
     /// </exception>
     /// <exception cref="CliToolFailedException">
     /// <c>repo-add</c> could not write the repository's database, so nothing was published.
