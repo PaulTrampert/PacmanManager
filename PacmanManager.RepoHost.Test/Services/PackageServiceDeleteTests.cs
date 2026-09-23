@@ -81,12 +81,11 @@ public class PackageServiceDeleteTests
         _pathResolver = new PackagePathResolver(settings);
         _fileSystem = new FaultInjectingFileSystem(new PhysicalFileSystem());
 
-        _actors = new TestActorAccessor { Actor = Actor.For(_owner) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_owner, ActorScope.Unrestricted) };
         _service = new PackageService(
             _dbContext,
             _actors,
-            new RepositoryAccessPolicy(),
-            new PackageAccessPolicy(),
+            new PackageAccessPolicy(new RepositoryAccessPolicy()),
             _cliRunner.Object,
             _fileSystem,
             _pathResolver,

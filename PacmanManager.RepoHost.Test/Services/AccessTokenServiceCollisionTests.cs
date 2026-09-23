@@ -58,7 +58,7 @@ public class AccessTokenServiceCollisionTests
         _other = _dbContext.Add(new User { DisplayName = "other", NormalizedDisplayName = "other", Email = "other@test.com" }).Entity;
         await _dbContext.SaveChangesAsync();
 
-        _actors = new TestActorAccessor { Actor = Actor.For(_owner) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_owner, ActorScope.Unrestricted) };
         _service = new AccessTokenService(
             _dbContext,
             _actors,
@@ -97,9 +97,9 @@ public class AccessTokenServiceCollisionTests
     [Test]
     public async Task Create_Succeeds_WhenTheNameIsTakenOnlyByAnotherUser()
     {
-        _actors.Actor = Actor.For(_other);
+        _actors.Actor = Actor.For(_other, ActorScope.Unrestricted);
         await _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "laptop" });
-        _actors.Actor = Actor.For(_owner);
+        _actors.Actor = Actor.For(_owner, ActorScope.Unrestricted);
 
         var created = await _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "laptop" });
 

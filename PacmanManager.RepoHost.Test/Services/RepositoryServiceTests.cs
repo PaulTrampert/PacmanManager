@@ -54,7 +54,7 @@ public class RepositoryServiceTests
         _mockCliRunner = new Mock<ICliToolRunner>();
         // Most tests care about what the owner of a repository can do, so that is the default
         // actor. Tests that exercise the authorization rules override it.
-        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser, ActorScope.Unrestricted) };
         _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 

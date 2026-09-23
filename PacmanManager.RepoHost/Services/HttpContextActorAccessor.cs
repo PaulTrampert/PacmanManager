@@ -28,7 +28,22 @@ public class HttpContextActorAccessor(
         }
 
         var user = await FindUserAsync(ct);
-        return _cached = user is null ? Actor.Anonymous : Actor.For(user);
+        return _cached = user is null ? Actor.Anonymous : Actor.For(user, ParseScope());
+    }
+
+    /// <summary>
+    /// Parses the principal's <c>scope</c> claim. This is the one place it is read. Whatever it parses
+    /// to is the actor's scope, an empty one included: a credential carrying none of our values keeps
+    /// its user, and may do only what a stranger may.
+    /// </summary>
+    private ActorScope ParseScope()
+    {
+        // RFC 6749 makes scope one space-delimited string, but joining tolerates a provider that
+        // issues it as repeated claims instead.
+        var values = httpContext.HttpContext?.User.Claims
+            .Where(c => c.Type == AuthnConstants.ScopeClaimType)
+            .Select(c => c.Value);
+        return ActorScope.Parse(values is null ? null : string.Join(' ', values), logger);
     }
 
     private Task<User?> FindUserAsync(CancellationToken ct)

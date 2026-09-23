@@ -71,7 +71,7 @@ public class RepositoryServiceCollisionTests
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
         _mockFileSystem = new Mock<IFileSystem>();
-        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser, ActorScope.Unrestricted) };
         _settings = new PacmanConfigSettings { DataDir = "/tmp/pacman" };
         var pacmanSettings = new Mock<IOptionsSnapshot<PacmanConfigSettings>>();
         pacmanSettings.Setup(s => s.Value).Returns(_settings);
