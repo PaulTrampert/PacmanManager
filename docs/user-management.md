@@ -403,8 +403,8 @@ A username would be a second identifier for a user, and this design has no use f
 
 The reason to want it was the route. Addressing a repository as
 `/repos/{ownerName}/{repoName}/{architecture}` needs a stable, unique, URL-safe name on `User`, and
-[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name) records that the
-absence of one is what stood between this application and a pacman-consumable URL. Adding it brought
+[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name) once recorded that
+the absence of one was what stood between this application and a pacman-consumable URL. Adding it brought
 a schema decision about case-insensitive uniqueness, a normalisation and generation rule, a backfill
 migration, a reserved-name list, and — worst — a rename that silently broke every `pacman.conf`
 naming the old value, along with a table of retired names to stop a released name being picked up by
