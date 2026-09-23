@@ -818,12 +818,21 @@ alongside `Name`), the
 [listing](#the-listing-follows-the-standard-shape), and deletion. Every method's subject is the
 actor's own tokens.
 
+The types the service's signatures are written in land here too: the three wire models
+([`CreateAccessTokenRequest`, `AccessToken` and `CreatedAccessToken`](#models)), including the rule
+that a past `expiresAt` fails validation; the
+[`AccessTokenFilter` and `AccessTokenSortField`](#the-listing-follows-the-standard-shape); and raising
+`ItemExistsException` on a duplicate token name, which only the minting method can do.
+
 *Acceptance:* listing returns only the actor's own tokens, filtered and sorted as specified;
 deleting another user's token is a `404`-shaped miss rather than a forbidden; minting returns the
-secret exactly once and never again; a minted token's `NormalizedName` is its name lowered with the
-invariant culture, including under a non-invariant current culture such as `tr-TR`. An enforcement
-test asserts that `AccessTokenService` and `UserService` are the only things naming
-`DbContext.PacmanAccessTokens`.
+secret exactly once and never again, and the listing model has no secret to return; a minted token's
+`NormalizedName` is its name lowered with the invariant culture, including under a non-invariant
+current culture such as `tr-TR`; a second token with the same name, or one differing only in case,
+raises `ItemExistsException`, asserted against Postgres since the in-memory provider does not enforce
+unique indexes; `CreateAccessTokenRequest` rejects an `expiresAt` that is not in the future and
+accepts an omitted one. An enforcement test asserts that `AccessTokenService` and `UserService` are
+the only things naming `DbContext.PacmanAccessTokens`.
 
 *Depends on:* 2a.
 
@@ -832,6 +841,9 @@ test asserts that `AccessTokenService` and `UserService` are the only things nam
 * [two services, not one](#why-two-services-not-one)
 * [token management is not on `IUserService`](#why-token-management-is-not-on-iuserservice)
 * [revocation is a delete rather than a flag](#why-revocation-is-a-delete-rather-than-a-flag)
+* [the service owns its models, filter and sort field](#why-the-service-owns-its-models-filter-and-sort-field)
+* [two token models rather than a nullable secret](#why-two-token-models-rather-than-a-nullable-secret)
+* [there is no maximum lifetime](#why-there-is-no-maximum-lifetime)
 
 ### 3. Scoped actors — `MINOR`
 
@@ -955,10 +967,9 @@ but it must not go untested in both.
 
 ### 5. `AccessTokensController` — `MINOR`
 
-The three routes, the three wire models
-([`CreateAccessTokenRequest`, `AccessToken` and `CreatedAccessToken`](#models)), the
-[`AccessTokenFilter` and `AccessTokenSortField`](#the-listing-follows-the-standard-shape), the
-`ControllerConstants` template, and raising `ItemExistsException` on a duplicate token name.
+The three routes and the `ControllerConstants` template, over the `IAccessTokenService`, wire
+models, filter and sort field that [issue 2b](#2b-iaccesstokenservice--minor) adds. The controller
+maps the service's results onto the statuses in [Routes](#routes); it adds no rules of its own.
 
 *Acceptance:* E2E tests: creating a token returns the secret exactly once, and listing tokens never
 returns it, asserted against the raw response body; the listing shows the same `username` the create
@@ -975,6 +986,7 @@ unauthenticated; and a Basic-authenticated caller cannot mint a token.
 * [two token models rather than a nullable secret](#why-two-token-models-rather-than-a-nullable-secret)
 * [the token listing is paged](#why-the-token-listing-is-paged)
 * [there is no maximum lifetime](#why-there-is-no-maximum-lifetime)
+* [the service owns its models, filter and sort field](#why-the-service-owns-its-models-filter-and-sort-field)
 
 ### 6. Scopes on a `Bearer` token — `MINOR`
 
@@ -1653,6 +1665,22 @@ Token management is arguably user management, and `IUserService` already exists 
 actor-scoped and cannot become so, because `ClaimsTransformer` calls it during authentication, before
 there is an actor to scope to. Putting actor-scoped methods on it would recreate the mixed-authority
 problem the split exists to avoid.
+
+### Why the service owns its models, filter and sort field
+
+*Amended during implementation, with project-owner sign-off.* The plan as first accepted put the
+three wire models, `AccessTokenFilter`, `AccessTokenSortField` and the duplicate-name
+`ItemExistsException` in [issue 5](#5-accesstokenscontroller--minor), the controller. But issue 5
+depends on [issue 2b](#2b-iaccesstokenservice--minor), and 2b's service is written in those types: its
+listing takes the filter and the sort field and returns `AccessToken`, and minting returns
+`CreatedAccessToken`. A service cannot compile against types scheduled for an issue that depends on
+it, and the duplicate name can only be detected where the row is saved, which is the service's
+minting method, not the controller.
+
+They therefore land with the service in 2b. This is also how the rest of the API is arranged:
+`RepositoryService` owns `Repository`, `RepositoryFilter` and `RepositorySortField`, and
+`RepositoriesController` only routes to it. Issue 5 keeps the routes, the route template and the E2E
+tests.
 
 ### Why verification is on `IUserService`
 
