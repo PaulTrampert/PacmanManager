@@ -285,7 +285,8 @@ ones.
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees).
 * `.github/workflows/` holds the CI workflows described under
-  [Continuous integration](#continuous-integration). They install the same toolchain as
+  [Continuous integration](#continuous-integration). The toolchain they build with is installed
+  by the local composite action `.github/actions/setup-toolchain`, which mirrors
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
   and its known gaps. A new design document starts from `docs/design-doc-template.md`, which carries
