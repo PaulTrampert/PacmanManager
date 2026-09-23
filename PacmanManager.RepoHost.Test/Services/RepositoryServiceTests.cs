@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using PacmanManager.CliTools;
@@ -359,6 +360,19 @@ public class RepositoryServiceTests
 
         // Act & Assert
         Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_WhenTheScopeDoesNotPermitIt_IsForbiddenAndCreatesNothing()
+    {
+        // The caller is known, so this is a refusal rather than a challenge.
+        // Arrange
+        _actors.Actor = Actor.For(_existingUser, ActorScope.Parse("pacman-manager:*:read", NullLogger.Instance));
+        var request = new WriteRepositoryRequest { Name = "read-only-repo", Architecture = "x86_64" };
+
+        // Act & Assert
+        Assert.ThrowsAsync<RepositoryCreationForbiddenException>(async () => await _service.CreateRepositoryAsync(request));
+        Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "read-only-repo"), Is.False);
     }
 
     [Test]
