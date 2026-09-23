@@ -205,6 +205,19 @@ is the point: the binding is exercised against a distribution that only carries 
 13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
 database is read the same way by both.
 
+### Claude fixes failing CI (`claude-fix-ci.yml`)
+
+`.github/workflows/claude-fix-ci.yml` runs when `CI` or `PR Title` fails on an open pull request
+labelled **`claude-autofix`**. The label is the opt-in: `/implement-unblocked` adds it to the PRs it
+opens, and a PR without it is left alone. Claude reads the failed run, fixes the cause on the PR
+branch and pushes, reruns a failure unrelated to the change once, or explains in a PR comment what
+it could not fix. It may not skip or loosen tests, suppress warnings or edit workflows.
+
+It attempts each failure at most once. A fix commit carries a `Claude-Autofix: ci` trailer and is
+never fixed again. Before Claude starts, the workflow posts a comment with a hidden marker naming
+the failed workflow and commit, and a later run that finds that marker stops; that stops reruns and
+title edits from retrying the same commit. It needs the same one-time setup as `claude.yml`.
+
 ## Version control
 
 ### Worktrees
