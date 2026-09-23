@@ -239,6 +239,20 @@ stops reruns and title edits from retrying the same commit. An attempt that dies
 finishes is reported in a new PR comment and not counted, so rerunning the failed workflow tries
 again. It needs the same one-time setup as `claude.yml`.
 
+### Claude resolves merge conflicts (`claude-resolve-conflicts.yml`)
+
+`.github/workflows/claude-resolve-conflicts.yml` runs when `CI` finishes on a push to `main` (the
+action does not accept `push` events itself), and when a pull request is labelled `claude-autofix`. It finds the open PRs carrying that label that conflict with
+`main`, and runs Claude on each: it merges `main` into the branch (never rebasing, which would need a
+force-push and would orphan review comments), resolves the conflicts so both sides' intent survives,
+builds, runs the affected unit tests, pushes, and comments with a summary. A conflict that needs a
+decision is aborted and explained in a PR comment instead. Each pair of branch and `main` commits gets
+one *finished* attempt: the workflow's progress comment gains a hidden marker only when Claude's step
+completes, so an unresolved conflict is retried only once `main` moves. An attempt that dies before
+then -- a failed setup step, a timeout, a cancellation -- is reported in a new PR comment and not
+counted, so the next trigger tries again. It needs the same one-time setup as
+`claude.yml`.
+
 ## Version control
 
 ### Worktrees
