@@ -86,15 +86,20 @@ jobs:
           echo "fix=true" >> "$GITHUB_OUTPUT"
           echo "number=$number" >> "$GITHUB_OUTPUT"
 
+      # The toolchain comes from main's copy of the setup action: a PR branch cut before the action
+      # existed would not have it. The second checkout then replaces the workspace with the branch.
+      - uses: actions/checkout@v5
+        if: steps.pr.outputs.fix == 'true'
+
+      - name: Set up the build toolchain
+        if: steps.pr.outputs.fix == 'true'
+        uses: ./.github/actions/setup-toolchain
+
       - uses: actions/checkout@v5
         if: steps.pr.outputs.fix == 'true'
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
-
-      - name: Set up the build toolchain
-        if: steps.pr.outputs.fix == 'true'
-        uses: ./.github/actions/setup-toolchain
 
       # No `github_token`, so the action uses the Claude GitHub App's token, and its push triggers
       # CI again on the fix.
