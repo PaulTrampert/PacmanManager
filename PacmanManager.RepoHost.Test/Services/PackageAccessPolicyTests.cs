@@ -58,10 +58,10 @@ public class PackageAccessPolicyTests
 
     #endregion
 
-    #region Publish, replace and delete
+    #region Publish and replace
 
-    // CheckPublish answers for publish, replace and delete alike: the permission is held over the
-    // repository, so the operation being attempted does not change the verdict.
+    // CheckPublish answers for a first publish and a replacement alike: the permission is held over
+    // the repository, so whether the package is already there does not change the verdict.
 
     [Test]
     public void CheckPublish_OwnerOfPrivateRepository_IsAllowed()
@@ -128,6 +128,82 @@ public class PackageAccessPolicyTests
         // Having published a package grants nothing: the permission is held over the repository,
         // so CheckPublish takes no package argument to consult in the first place.
         var result = _subject.CheckPublish(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Forbidden));
+    }
+
+    #endregion
+
+    #region Delete
+
+    // CheckDelete has every row CheckPublish has. The two are separate verdicts because a caller
+    // that may publish need not be able to delete, not because the rules differ today.
+
+    [Test]
+    public void CheckDelete_OwnerOfPrivateRepository_IsAllowed()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.For(_owner));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
+    }
+
+    [Test]
+    public void CheckDelete_OwnerOfPublicRepository_IsAllowed()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.For(_owner));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
+    }
+
+    [Test]
+    public void CheckDelete_NonOwnerOfPublicRepository_IsForbidden()
+    {
+        // The repository is public, so admitting it exists and refusing the delete leaks nothing.
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Forbidden));
+    }
+
+    [Test]
+    public void CheckDelete_NonOwnerOfPrivateRepository_IsNotFound()
+    {
+        // Reporting this as forbidden would confirm that the repository exists. In practice such a
+        // repository never reaches the check, being already absent from the visible set.
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.For(_stranger));
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.NotFound));
+    }
+
+    [Test]
+    public void CheckDelete_Anonymous_IsUnauthenticated()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.Anonymous),
+                Is.EqualTo(RepositoryAccess.Unauthenticated),
+                "public repository");
+            Assert.That(
+                _subject.CheckDelete(RepositoryOf(_owner, isPublic: false), Actor.Anonymous),
+                Is.EqualTo(RepositoryAccess.Unauthenticated),
+                "private repository");
+        });
+    }
+
+    [Test]
+    public void CheckDelete_System_IsAllowed()
+    {
+        var result = _subject.CheckDelete(RepositoryOf(_stranger, isPublic: false), Actor.System);
+
+        Assert.That(result, Is.EqualTo(RepositoryAccess.Allowed));
+    }
+
+    [Test]
+    public void CheckDelete_PublisherOfAPackageWhoDoesNotOwnTheRepository_IsForbidden()
+    {
+        // Having published a package grants nothing: the permission is held over the repository,
+        // so CheckDelete takes no package argument to consult in the first place.
+        var result = _subject.CheckDelete(RepositoryOf(_owner, isPublic: true), Actor.For(_stranger));
 
         Assert.That(result, Is.EqualTo(RepositoryAccess.Forbidden));
     }

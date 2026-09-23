@@ -69,8 +69,9 @@ controller, a CLI tool, a job — has to reason about authorization to use it co
 *   **`RepositoryAccessPolicy`** (`Services/RepositoryAccessPolicy.cs`) — the single definition of
     the rules table above. It has no database, HTTP or logging dependency, so every row of that
     table is a plain unit test in `RepositoryAccessPolicyTests`. `VisibleTo` returns an expression
-    that composes into an EF Core query; `CheckWrite` and `CheckCreate` return a
-    `RepositoryAccess` verdict.
+    that composes into an EF Core query; `CheckUpdate`, `CheckDelete` and `CheckCreate` each return
+    a `RepositoryAccess` verdict. There is one verdict per action, so updating and deleting are
+    separate questions even while their rules agree.
 
 ### Why this is hard to get wrong
 
@@ -80,8 +81,9 @@ and every write starts there. A method that skips the rules therefore has to nam
 itself, which is conspicuous in review and is asserted against by
 `RepositoryServiceEnforcementTests`.
 
-Writes then run through `LoadForWriteAsync`, which loads from the visible set and translates the
-policy verdict into the result the caller expects. A private repository owned by someone else
+Writes then run through `LoadForChangeAsync`, which loads from the visible set and translates the
+verdict it is handed — `CheckUpdate` or `CheckDelete`, chosen by the operation — into the result the
+caller expects. A private repository owned by someone else
 never reaches the check — it is already absent from the visible set — so the 404-versus-403
 distinction falls out of the structure rather than being restated per operation.
 

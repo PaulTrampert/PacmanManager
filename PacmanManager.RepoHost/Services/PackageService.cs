@@ -204,7 +204,7 @@ internal class PackageService(
 
         // Step 1: authorize before a single byte of the body is read, so an unauthorized caller is
         // turned away without uploading megabytes first.
-        var repository = await LoadRepositoryForPublishAsync(repositoryId, cancellationToken);
+        var repository = await LoadRepositoryForChangeAsync(repositoryId, packagePolicy.CheckPublish, cancellationToken);
         if (repository is null)
         {
             return null;
@@ -231,12 +231,19 @@ internal class PackageService(
     }
 
     /// <summary>
-    /// Loads the repository being published into, translating the policy outcome into the result or
-    /// exception the caller expects.
+    /// Loads the repository whose packages are changing, translating the outcome of
+    /// <paramref name="verdict"/> into the result or exception the caller expects.
     /// </summary>
+    /// <param name="repositoryId">The repository to load.</param>
+    /// <param name="verdict">
+    /// The <see cref="PackageAccessPolicy"/> verdict for the change being made, so that the
+    /// operation, not this helper, decides which question is asked.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The tracked entity, or null when the actor must be told it does not exist.</returns>
-    private async Task<PacmanRepository?> LoadRepositoryForPublishAsync(
+    private async Task<PacmanRepository?> LoadRepositoryForChangeAsync(
         Guid repositoryId,
+        Func<PacmanRepository, Actor, RepositoryAccess> verdict,
         CancellationToken cancellationToken)
     {
         var visible = await VisibleRepositoriesAsync(cancellationToken);
@@ -250,7 +257,7 @@ internal class PackageService(
         }
 
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
-        return packagePolicy.CheckPublish(repository, actor) switch
+        return verdict(repository, actor) switch
         {
             RepositoryAccess.Allowed => repository,
             RepositoryAccess.NotFound => null,
@@ -738,10 +745,13 @@ internal class PackageService(
             return false;
         }
 
-        // The permission is held over the repository, not over the package, so this is the same
-        // check publishing makes and it is made against the same tracked entity whose UpdatedAt the
-        // delete moves. Whoever published the package is irrelevant to it.
-        var repository = await LoadRepositoryForPublishAsync(package.RepositoryId, cancellationToken);
+        // The permission is held over the repository, not over the package, so the check is made
+        // against the same tracked entity whose UpdatedAt the delete moves. Whoever published the
+        // package is irrelevant to it.
+        var repository = await LoadRepositoryForChangeAsync(
+            package.RepositoryId,
+            packagePolicy.CheckDelete,
+            cancellationToken);
         if (repository is null)
         {
             return false;

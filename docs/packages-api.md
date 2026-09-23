@@ -199,19 +199,22 @@ This keeps one definition of repository visibility. Restating it as
 `p.Repository.IsPublic || p.Repository.OwnerId == userId` would be a second copy of the rule to
 keep in step, which is the thing the existing design goes out of its way to avoid.
 
-`PackageAccessPolicy` then holds only what is genuinely new: `CheckPublish(repository, actor)`,
-returning the existing `RepositoryAccess` verdict enum so the *verdict* type is unchanged.
+`PackageAccessPolicy` then holds only what is genuinely new: `CheckPublish(repository, actor)` and
+`CheckDelete(repository, actor)`, each returning the existing `RepositoryAccess` verdict enum so the
+*verdict* type is unchanged.
 `PackageForbiddenException` mirrors `RepositoryForbiddenException`, and
 `AuthorizationExceptionHandler` does need a new arm for it: the handler switches on exception type
 (`NoCurrentUserException` → 401, `RepositoryForbiddenException` → 403, everything else unhandled),
 so an unmapped `PackageForbiddenException` would fall through to a `500`. Issue 6 covers the added
 mapping and a title of its own ("You may not publish to this repository.").
 
-Note the signature. Because the permission is repository-scoped, the check needs no package
-argument, and the same method answers for publish, replace and delete. It is nonetheless a separate
-method from `RepositoryAccessPolicy.CheckWrite` even though the two agree today, because `Publish`
-and "may edit the repository itself" are different questions that a grant table will answer
-differently.
+Note the signatures. Because the permission is repository-scoped, neither check needs a package
+argument. `CheckPublish` answers for publish and replace; `CheckDelete` answers for delete, and has
+the same rules today, but is a verdict of its own because a caller that may publish need not be able
+to delete (see [`basic-auth.md`](basic-auth.md#why-delete-is-its-own-action)). Both are nonetheless
+separate from `RepositoryAccessPolicy.CheckUpdate` and `CheckDelete` even though they all agree
+today, because `Publish` and "may edit the repository itself" are different questions that a grant
+table will answer differently.
 
 As with repositories, `PackageService` must touch `DbContext.PacmanPackages` in exactly one place,
 and a `PackageServiceEnforcementTests` asserts it, mirroring `RepositoryServiceEnforcementTests`.
@@ -540,7 +543,7 @@ the same known gap repositories already have.
 ## Deleting
 
 `DELETE /api/v1/packages/{packageId}` (and the `(repositoryId, name)` alias) resolves the package
-from the visible set, runs `CheckPublish`, and then, **under the same per-repository lock publishing
+from the visible set, runs `CheckDelete`, and then, **under the same per-repository lock publishing
 uses**, mirrors publish's ordering:
 
 1. Run `repo-remove {repositoryId}.db.tar.gz {name}`.
@@ -628,7 +631,8 @@ creation is unchanged.
 ### 6. `PackageAccessPolicy` — `MINOR`
 
 `CheckPublish(repository, actor)` returning `RepositoryAccess`, answering for publish, replace and
-delete alike; `PackageForbiddenException`; `AuthorizationExceptionHandler` extended with an arm
+delete alike (since split, so that `CheckDelete` answers for delete — see
+[`basic-auth.md`](basic-auth.md#10-a-verdict-per-action--patch)); `PackageForbiddenException`; `AuthorizationExceptionHandler` extended with an arm
 mapping it to `403` (without which it would fall through to a `500`).
 
 *Acceptance:* `PackageAccessPolicyTests` covers every row of the rules table above as a plain unit
