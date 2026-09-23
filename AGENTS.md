@@ -246,6 +246,8 @@ path that already exists. That way a sub-agent only ever works; it never has to 
 ### Branches, commits, and PRs
 
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
+* **An agent never merges a pull request on its own initiative**, only when the user directly asks
+  it to. Finished work, green CI or an approving review does not count as being asked.
 * Commit early and often — a meaningful change that builds is a good commit point.
 * PR titles start with a parenthesised change level -- `(PATCH) ...`, `(MINOR) ...`, `(MAJOR) ...` --
   depending on the nature of the change. The parentheses matter: that is the form the shared
