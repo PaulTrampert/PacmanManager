@@ -286,7 +286,7 @@ ones.
   every open, unassigned issue with no open blocker to the `gh` user, moves it to *In Progress*, and
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees). Each sub-agent then stays on its PR, resolving merge conflicts with
-  `main` and addressing the `gh` user's `@claude` comments, until someone merges it; `.claude/scripts/await-pr-activity.sh` is what it
+  `main`, fixing failing CI checks, and addressing the `gh` user's `@claude` comments, until someone merges it; `.claude/scripts/await-pr-activity.sh` is what it
   polls with.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). They install the same toolchain as
