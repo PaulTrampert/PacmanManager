@@ -37,41 +37,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The runner image is Ubuntu, and this is a pacman repository host. See
-      # docs/cloud-environment.md, which installs the same set for cloud dev sessions:
-      #   pacman-package-manager  repo-add / repo-remove, which RepoHost shells out to
-      #   libalpm-dev             the libalpm.so symlink NativeMethods' DllImport resolves
-      #   libarchive-tools, zstd  bsdtar and zstd, used by the package fixtures
-      - name: Install pacman tooling and libalpm
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends \
-            pacman-package-manager \
-            libalpm-dev \
-            libarchive-tools \
-            zstd
-
-      # Antlr4BuildTasks runs the ANTLR jar to generate the pacman.conf parser, so the build
-      # itself needs a JRE. Pinning one beats relying on whatever the runner image ships.
-      # 25 is the current LTS and the newest ANTLR runs on: checked by deleting LibAlpmSharp/obj
-      # and regenerating the parser under it, which produced the same sources and built clean.
-      - name: Set up Java for the ANTLR build task
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '.config/dotnet-tools.json') }}
-          restore-keys: nuget-${{ runner.os }}-
+      # pacman tooling, libalpm, the ANTLR JRE, .NET and the NuGet cache. The Claude workflows
+      # install the same set, so it lives in one place.
+      - name: Set up the build toolchain
+        uses: ./.github/actions/setup-toolchain
 
       - name: Restore
         run: dotnet restore PacmanManager.sln
