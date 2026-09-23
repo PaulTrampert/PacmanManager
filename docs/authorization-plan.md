@@ -127,27 +127,23 @@ that property, because the set of criteria is still fixed by the type.
 
 ## Looking a repository up by name
 
-A repository name on its own identifies nothing. The database enforces uniqueness over
-`(OwnerId, Name, Architecture)`, so two users may each own a repository called `custom`, and one
-user may own both an `x86_64` and an `any` repository under that name.
+A repository name identifies exactly one repository. The database enforces uniqueness over `Name`
+alone, across every owner, so `GetRepositoryByNameAsync` takes the name as a bare string and needs
+neither an owner nor an architecture to reach at most one row.
 
-`GetRepositoryByNameAsync` therefore takes a `RepositoryKey` — that same triple — rather than a
-bare string, which means the lookup matches at most one row and needs no tie-breaking rule.
-Supplying an owner is not a way around the visibility rules: the key selects a row from the
-already-visible set, so naming someone else's private repository still returns nothing.
+The lookup selects from the already-visible set, like every other query in `RepositoryService`, so
+naming someone else's private repository returns nothing — the same `404` a caller gets by id. What
+a global name does disclose is that the name is taken, through the `409` a colliding create or
+rename returns; [`pacman-controller.md`](pacman-controller.md#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not)
+records that trade and its bounds.
 
-Note that the owner is identified by user id.
-
-*Both paragraphs above are superseded by*
-[`pacman-controller.md`](pacman-controller.md#1b-look-a-repository-up-by-name-alone--major)*, which
-reduces* `RepositoryKey` *to the name, and*
-[*issue 1c*](pacman-controller.md#1c-the-global-name-index-and-its-migration--major)*, which makes the
-index* `Name` *alone — architecture moves onto the repository as* `SupportedArchitectures`*, so it is
-no longer part of any key. Issue 1b owns rewriting this section. The friendlier URL form this section used to call for —*
-`{owner}/{name}/{arch}` *— was abandoned along with the user-facing name on* `User` *it would have
-needed; a globally unique repository name removes the owner from the URL entirely, and*
-[`user-management.md`](user-management.md#why-there-is-no-username) *records why that is the better
-trade.*
+An earlier design keyed the lookup on `(OwnerId, Name, Architecture)`, and called for a user-facing
+name on `User` so the URL could read `{owner}/{name}/{arch}`. Both were abandoned: architecture moves
+onto the repository as a set (see
+[`pacman-controller.md`](pacman-controller.md#why-the-key-is-name-alone)), and a globally unique
+repository name removes the owner from the URL entirely —
+[`user-management.md`](user-management.md#why-there-is-no-username) records why that is the better
+trade.
 
 ## Known gaps
 

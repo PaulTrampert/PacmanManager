@@ -171,7 +171,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(name: repoName);
 
         // Act
-        var result = await _service.GetRepositoryByNameAsync(KeyFor(repoName));
+        var result = await _service.GetRepositoryByNameAsync(repoName);
 
         // Assert
         Assert.Multiple(() =>
@@ -182,40 +182,61 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenTheNameIsHeldForAnotherArchitecture()
+    public async Task GetRepositoryByNameAsync_ReturnsAnotherOwnersPublicRepository_ByNameAlone()
     {
+        // The caller names no owner: the name alone identifies the repository.
         // Arrange
-        await GivenRepositoryAsync(name: "single-arch", architecture: "x86_64");
+        var repository = await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: true);
 
         // Act
-        var result = await _service.GetRepositoryByNameAsync(KeyFor("single-arch", architecture: "any"));
+        var result = await _service.GetRepositoryByNameAsync("theirs");
 
         // Assert
-        Assert.That(result, Is.Null);
-    }
-
-    [Test]
-    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenTheNameBelongsToADifferentOwner()
-    {
-        // Arrange
-        await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: true);
-
-        // Act
-        var result = await _service.GetRepositoryByNameAsync(KeyFor("theirs", owner: _existingUser));
-
-        // Assert
-        Assert.That(result, Is.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Id, Is.EqualTo(repository.Id));
+        });
     }
 
     [Test]
     public async Task GetRepositoryByNameAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
     {
-        // Naming the owner explicitly must not become a way around the visibility rules.
         // Arrange
         await GivenRepositoryAsync(name: "theirs-private", owner: _otherUser);
 
         // Act
-        var result = await _service.GetRepositoryByNameAsync(KeyFor("theirs-private", owner: _otherUser));
+        var result = await _service.GetRepositoryByNameAsync("theirs-private");
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenNoRepositoryHasTheName()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "existing-repo");
+
+        // Act
+        var result = await _service.GetRepositoryByNameAsync("missing-repo");
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryFileByNameAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "theirs-private-file", owner: _otherUser);
+
+        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
+
+        // Act
+        var result = await _service.GetRepositoryFileByNameAsync("theirs-private-file");
 
         // Assert
         Assert.That(result, Is.Null);
@@ -233,7 +254,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(KeyFor(repoName));
+        var result = await _service.GetRepositoryFileByNameAsync(repoName);
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -263,7 +284,7 @@ public class RepositoryServiceTests
         var repoName = "non-existent-repo";
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(KeyFor(repoName));
+        var result = await _service.GetRepositoryFileByNameAsync(repoName);
 
         // Assert
         Assert.That(result, Is.Null);
@@ -983,13 +1004,6 @@ public class RepositoryServiceTests
         await _dbContext.SaveChangesAsync();
         return repository;
     }
-
-    private RepositoryKey KeyFor(string name, User? owner = null, string architecture = "x86_64") => new()
-    {
-        OwnerId = (owner ?? _existingUser).Id,
-        Name = name,
-        Architecture = architecture,
-    };
 
     private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
 }

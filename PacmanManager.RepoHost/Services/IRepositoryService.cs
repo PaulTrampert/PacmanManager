@@ -31,17 +31,16 @@ public interface IRepositoryService
     Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves a repository by its natural key.
+    /// Retrieves a repository by its name.
     /// </summary>
-    /// <param name="key">The owner, name and architecture identifying the repository.</param>
+    /// <param name="name">The repository's name, matched exactly as stored.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The repository if it exists and is visible to the current actor; otherwise, null.</returns>
     /// <remarks>
-    /// A name alone does not identify a repository, because names are unique only per owner and
-    /// architecture. Taking the whole <see cref="RepositoryKey"/> means this lookup always has at
-    /// most one answer.
+    /// Repository names are unique across the whole deployment, so a name alone identifies at most
+    /// one repository. A repository the current actor may not see is reported as absent.
     /// </remarks>
-    Task<Repository?> GetRepositoryByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default);
+    Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the file stream for a repository by its ID.
@@ -52,12 +51,12 @@ public interface IRepositoryService
     Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves the file stream for a repository by its natural key.
+    /// Retrieves the file stream for a repository by its name.
     /// </summary>
-    /// <param name="key">The owner, name and architecture identifying the repository.</param>
+    /// <param name="name">The repository's name, matched exactly as stored.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A stream to the repository file if it is visible to the current actor; otherwise, null.</returns>
-    Task<Stream?> GetRepositoryFileByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default);
+    Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new repository owned by the current actor's user.
