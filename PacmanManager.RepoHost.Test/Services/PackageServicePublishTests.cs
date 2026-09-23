@@ -345,25 +345,181 @@ public class PackageServicePublishTests
             "1.10 is newer than 1.9; comparing the versions as strings would refuse this.");
     }
 
+    #endregion
+
+    #region Architectures
+
+    // x86_64 is the only architecture the wire model lets a repository support today, but nothing
+    // below the wire model assumes that, so these seed a repository supporting two directly.
+
     [Test]
-    public async Task PublishPackageAsync_AcceptsTheSameVersionBuiltForAnotherArchitecture()
+    public async Task PublishPackageAsync_AnArchitectureSpecificPackage_LandsInItsOwnArchitecturesDatabaseOnly()
     {
-        // A build for a different architecture is a different package file rather than a re-push
-        // of the same one, so it is allowed to carry the version it was built with.
         // Arrange
-        _packageArchitecture = "any";
-        await PublishAsync();
-        _packageArchitecture = "x86_64";
+        var repository = GivenMultiArchitectureRepository();
 
         // Act
-        var second = await PublishAsync();
+        var result = await PublishAsync(repository.Id);
 
         // Assert
+        var storedPath = _pathResolver.GetPackageFilePath(repository.Id, result!.Package.FileName);
+        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto("aarch64", storedPath, Times.Never());
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_AnAnyPackage_LandsInEverySupportedArchitecturesDatabase_AndIsStoredOnce()
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        _packageArchitecture = "any";
+
+        // Act
+        var result = await PublishAsync(repository.Id);
+
+        // Assert
+        var storedPath = _pathResolver.GetPackageFilePath(repository.Id, result!.Package.FileName);
+        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto("aarch64", storedPath, Times.Once());
         Assert.Multiple(() =>
         {
-            Assert.That(second!.Created, Is.False);
-            Assert.That(second.Package.Architecture, Is.EqualTo("x86_64"));
-            Assert.That(second.Package.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+            Assert.That(_dbContext.PacmanPackages.Count(p => p.RepositoryId == repository.Id), Is.EqualTo(1),
+                "One row, however many databases list it.");
+            Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)),
+                Is.EqualTo(new[] { storedPath }), "One file, added to every database from the same path.");
+        });
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_HoldsBuildsOfOneNameForTwoArchitectures_AsTwoPackages()
+    {
+        // A build for a different architecture is a different package rather than a re-push of the
+        // same one, so it is allowed to carry the version it was built with.
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        var first = await PublishAsync(repository.Id);
+        _packageArchitecture = "aarch64";
+
+        // Act
+        var second = await PublishAsync(repository.Id);
+
+        // Assert
+        var stored = await _dbContext.PacmanPackages.Where(p => p.RepositoryId == repository.Id).ToListAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(second!.Created, Is.True, "A build for another architecture is a new package.");
+            Assert.That(second.Package.Id, Is.Not.EqualTo(first!.Package.Id));
+            Assert.That(stored.Select(p => p.Architecture), Is.EquivalentTo(new[] { "x86_64", "aarch64" }));
+            Assert.That(stored.Select(p => p.Version).Distinct(),
+                Is.EqualTo(new[] { PackageFixtures.MinimalPackageVersion }));
+        });
+
+        var secondPath = _pathResolver.GetPackageFilePath(repository.Id, second!.Package.FileName);
+        VerifyRepoAddInto("aarch64", secondPath, Times.Once());
+        VerifyRepoAddInto("x86_64", secondPath, Times.Never());
+    }
+
+    [TestCase("x86_64")]
+    [TestCase("aarch64")]
+    public async Task PublishPackageAsync_RejectsAnAnyBuild_BesideAnArchitectureSpecificBuildOfTheSameName(
+        string published)
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        _packageArchitecture = published;
+        await PublishAsync(repository.Id);
+        _cliRunner.Invocations.Clear();
+        _packageArchitecture = "any";
+
+        // Act & Assert
+        var thrown = Assert.ThrowsAsync<PackageArchitectureConflictException>(
+            async () => await PublishAsync(repository.Id));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.OfferedArchitecture, Is.EqualTo("any"));
+            Assert.That(thrown.PublishedArchitecture, Is.EqualTo(published));
+            Assert.That(_dbContext.PacmanPackages.Select(p => p.Architecture), Is.EqualTo(new[] { published }));
+        });
+
+        VerifyNoDatabaseToolRan();
+    }
+
+    [TestCase("x86_64")]
+    [TestCase("aarch64")]
+    public async Task PublishPackageAsync_RejectsAnArchitectureSpecificBuild_BesideAnAnyBuildOfTheSameName(
+        string offered)
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        _packageArchitecture = "any";
+        await PublishAsync(repository.Id);
+        _cliRunner.Invocations.Clear();
+        _packageArchitecture = offered;
+
+        // Act & Assert
+        var thrown = Assert.ThrowsAsync<PackageArchitectureConflictException>(
+            async () => await PublishAsync(repository.Id));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.OfferedArchitecture, Is.EqualTo(offered));
+            Assert.That(thrown.PublishedArchitecture, Is.EqualTo("any"));
+            Assert.That(_dbContext.PacmanPackages.Select(p => p.Architecture), Is.EqualTo(new[] { "any" }));
+        });
+
+        VerifyNoDatabaseToolRan();
+    }
+
+    [Test]
+    public async Task PublishPackageAsync_ReplacesAnAnyBuild_InEverySupportedArchitecturesDatabase()
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        _packageArchitecture = "any";
+        var first = await PublishAsync(repository.Id);
+        _packageVersion = PackageFixtures.UpgradePackageVersion;
+        _cliRunner.Invocations.Clear();
+
+        // Act
+        var second = await PublishAsync(repository.Id);
+
+        // Assert
+        var storedPath = _pathResolver.GetPackageFilePath(repository.Id, second!.Package.FileName);
+        Assert.Multiple(() =>
+        {
+            Assert.That(second.Created, Is.False);
+            Assert.That(second.Package.Id, Is.EqualTo(first!.Package.Id));
+        });
+        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto("aarch64", storedPath, Times.Once());
+    }
+
+    [Test]
+    public void PublishPackageAsync_RepoAddFailureForALaterArchitecture_UndoesTheEarlierOnes()
+    {
+        // An any package goes into each database in turn. If the second refuses it, the first
+        // already names a file the failed publish is about to delete, so its entry has to go too.
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        _packageArchitecture = "any";
+        _cliRunner
+            .Setup(c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoAdd && t.WorkingDirectory.EndsWith("/aarch64")),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        // Act & Assert
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync(repository.Id));
+
+        VerifyRepoRemoveFrom("x86_64", PackageFixtures.MinimalPackageName, Times.Once());
+        VerifyRepoRemoveFrom("aarch64", PackageFixtures.MinimalPackageName, Times.Never());
+        Assert.Multiple(() =>
+        {
+            Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
+            Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)), Is.Empty,
+                "The file goes too, since no database names it any more.");
         });
     }
 
@@ -382,7 +538,7 @@ public class PackageServicePublishTests
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.PackageArchitecture, Is.EqualTo("aarch64"));
-            Assert.That(thrown.RepositoryArchitecture, Is.EqualTo("x86_64"));
+            Assert.That(thrown.RepositoryArchitectures, Is.EqualTo(new[] { "x86_64" }));
             Assert.That(_dbContext.PacmanPackages.Any(), Is.False, "Nothing is stored for a rejected upload.");
             Assert.That(Directory.Exists(_pathResolver.GetRepositoryDirectory(_repository.Id)), Is.False);
         });
@@ -401,7 +557,7 @@ public class PackageServicePublishTests
 
         // Assert
         Assert.That(result!.Package.Architecture, Is.EqualTo("any"),
-            "A repository serves its own architecture and 'any'.");
+            "A repository serves its own architectures and 'any'.");
     }
 
     [Test]
@@ -647,15 +803,30 @@ public class PackageServicePublishTests
         return _service.PublishPackageAsync(repositoryId, body, cancellationToken);
     }
 
-    private PacmanRepository GivenRepository(string name, User owner, bool isPublic) =>
+    private PacmanRepository GivenRepository(
+        string name,
+        User owner,
+        bool isPublic,
+        IEnumerable<string>? architectures = null) =>
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            Architecture = "x86_64",
+            SupportedArchitectures = architectures?.ToList() ?? ["x86_64"],
             IsPublic = isPublic,
             Owner = owner,
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1),
         }).Entity;
+
+    /// <summary>
+    /// A repository of the owner's supporting two architectures, which the entity allows even
+    /// though the wire model does not yet.
+    /// </summary>
+    private PacmanRepository GivenMultiArchitectureRepository()
+    {
+        var repository = GivenRepository("multi", _owner, isPublic: false, ["x86_64", "aarch64"]);
+        _dbContext.SaveChanges();
+        return repository;
+    }
 
     /// <summary>
     /// A double for the package libalpm would report for the uploaded file. Every value it returns
@@ -719,6 +890,26 @@ public class PackageServicePublishTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoAdd && t.Arguments.Contains(packageFilePath)),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()),
+            times);
+
+    private void VerifyRepoAddInto(string architecture, string packageFilePath, Times times) =>
+        _cliRunner.Verify(
+            c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoAdd
+                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.Arguments.Contains(packageFilePath)),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()),
+            times);
+
+    private void VerifyRepoRemoveFrom(string architecture, string packageName, Times times) =>
+        _cliRunner.Verify(
+            c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoRemove
+                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.Arguments.Contains(packageName)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
             times);

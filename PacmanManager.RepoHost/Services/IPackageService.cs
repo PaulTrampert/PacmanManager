@@ -138,16 +138,21 @@ public interface IPackageService
     /// stored under on disk is derived rather than accepted.
     /// </para>
     /// <para>
-    /// The upsert key is <c>(repositoryId, name)</c>: a repository holds exactly one version of a
-    /// package, so replacing one is the normal path. A replacement keeps the package's id and
-    /// creation time and reassigns its publisher to whoever pushed it.
+    /// The upsert key is <c>(repositoryId, name, architecture)</c>: a repository holds exactly one
+    /// version of a package per architecture, so replacing one is the normal path. A replacement
+    /// keeps the package's id and creation time and reassigns its publisher to whoever pushed it.
+    /// An <c>any</c> build may not sit beside an architecture specific build of the same name.
+    /// </para>
+    /// <para>
+    /// The package file is stored once and added to every database it belongs in: its own
+    /// architecture's for a specific build, and every supported architecture's for an <c>any</c>
+    /// build.
     /// </para>
     /// <para>
     /// A replacement has to move the package forward. Pacman only rolls forward, and the bytes of
     /// a version already published are bytes a client may have cached and checksummed, so an
     /// upload is accepted only when it is newer than what is stored — by pacman's own version
-    /// ordering — or built for a different architecture. A rebuild of a version already there is
-    /// refused rather than overwritten.
+    /// ordering. A rebuild of a version already there is refused rather than overwritten.
     /// </para>
     /// </remarks>
     /// <exception cref="NoCurrentUserException">There is no identity to publish as.</exception>
@@ -161,6 +166,10 @@ public interface IPackageService
     /// <exception cref="PackageNotNewerException">
     /// The repository already holds this package, for this architecture, at that version or a
     /// newer one.
+    /// </exception>
+    /// <exception cref="PackageArchitectureConflictException">
+    /// The repository holds a build of the same name for another architecture, and one of the two is
+    /// built for <c>any</c>.
     /// </exception>
     /// <exception cref="CliToolFailedException">
     /// <c>repo-add</c> could not write the repository's database, so nothing was published.

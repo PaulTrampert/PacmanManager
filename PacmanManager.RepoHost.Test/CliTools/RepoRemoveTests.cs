@@ -6,11 +6,12 @@ public class RepoRemoveTests
 {
     private const string RepositoryId = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
     private const string RepoHome = "/data/libalpm";
+    private const string Architecture = "x86_64";
 
     [Test]
     public void Executable_IsRepoRemove()
     {
-        var subject = new RepoRemove(RepositoryId, RepoHome, "my-tool");
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, "my-tool");
 
         Assert.Multiple(() =>
         {
@@ -20,17 +21,17 @@ public class RepoRemoveTests
     }
 
     [Test]
-    public void WorkingDirectory_IsTheSyncDirectoryOfTheDatabaseHome()
+    public void WorkingDirectory_IsTheArchitecturesDirectoryUnderTheSyncDirectory()
     {
-        var subject = new RepoRemove(RepositoryId, RepoHome, "my-tool");
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, "my-tool");
 
-        Assert.That(subject.WorkingDirectory, Is.EqualTo("/data/libalpm/sync"));
+        Assert.That(subject.WorkingDirectory, Is.EqualTo("/data/libalpm/sync/x86_64"));
     }
 
     [Test]
     public void Arguments_AreTheDatabaseFileNameThenThePackageName()
     {
-        var subject = new RepoRemove(RepositoryId, RepoHome, "my-tool");
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, "my-tool");
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", "my-tool" }));
     }
@@ -38,7 +39,7 @@ public class RepoRemoveTests
     [Test]
     public void Arguments_WithSeveralPackages_KeepsThePackageOrder()
     {
-        var subject = new RepoRemove(RepositoryId, RepoHome, "my-tool", "other-tool");
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, "my-tool", "other-tool");
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", "my-tool", "other-tool" }));
     }
@@ -48,7 +49,7 @@ public class RepoRemoveTests
     {
         var names = new List<string> { "my-tool", "other-tool" };
 
-        var subject = new RepoRemove(RepositoryId, RepoHome, names);
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, names);
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", "my-tool", "other-tool" }));
     }
@@ -58,7 +59,7 @@ public class RepoRemoveTests
     {
         var names = new[] { "my-tool" };
 
-        var subject = new RepoRemove(RepositoryId, RepoHome, names.Select(n => n));
+        var subject = new RepoRemove(RepositoryId, RepoHome, Architecture, names.Select(n => n));
         var first = subject.Arguments.ToArray();
         var second = subject.Arguments.ToArray();
 
@@ -69,7 +70,7 @@ public class RepoRemoveTests
     public void Constructor_WithNoPackageNames_Throws()
     {
         Assert.That(
-            () => new RepoRemove(RepositoryId, RepoHome),
+            () => new RepoRemove(RepositoryId, RepoHome, Architecture),
             Throws.ArgumentException.With.Property("ParamName").EqualTo("packageNames"));
     }
 }

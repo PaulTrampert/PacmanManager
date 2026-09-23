@@ -135,6 +135,36 @@ public class RepositoriesControllerTests
         });
     }
 
+    [Test]
+    public async Task Get_FilteredBySupportedArchitecture_ReturnsRepositoriesSupportingIt()
+    {
+        // Arrange
+        var name = $"arch-filter-{Guid.NewGuid():N}";
+        await CreateAsync(_client, name, isPublic: true);
+
+        // Act
+        var response = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+            $"/api/v1/repositories?nameContains={name}&architecture=x86_64");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response!.Total, Is.EqualTo(1));
+            Assert.That(response.Results.Single().SupportedArchitectures, Does.Contain("x86_64"));
+        });
+    }
+
+    [TestCase("any")]
+    [TestCase("sparc64")]
+    public async Task Get_FilteredByAnArchitectureNoRepositoryMaySupport_ReturnsBadRequest(string architecture)
+    {
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repositories?architecture={architecture}");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
     #endregion
 
     #region GetById Tests
@@ -178,7 +208,7 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "test-repo",
-            Architecture = "x86_64"
+            SupportedArchitectures = ["x86_64"]
         };
 
         // Act
@@ -195,7 +225,7 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "test-repo-2",
-            Architecture = "x86_64"
+            SupportedArchitectures = ["x86_64"]
         };
 
         // Act
@@ -214,7 +244,8 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "custom-repo",
-            Architecture = "any"
+            SupportedArchitectures = ["x86_64"],
+            IsPublic = true
         };
 
         // Act
@@ -224,7 +255,33 @@ public class RepositoriesControllerTests
         // Assert
         Assert.That(repository, Is.Not.Null);
         Assert.That(repository!.Name, Is.EqualTo(request.Name));
-        Assert.That(repository.Architecture, Is.EqualTo(request.Architecture));
+        Assert.That(repository.SupportedArchitectures, Is.EqualTo(request.SupportedArchitectures));
+        Assert.That(repository.IsPublic, Is.True);
+    }
+
+    [TestCase("[\"any\"]", TestName = "Create_SupportingAny_ReturnsBadRequest")]
+    [TestCase("[]", TestName = "Create_SupportingNothing_ReturnsBadRequest")]
+    [TestCase("[\"sparc64\"]", TestName = "Create_SupportingAnUnknownArchitecture_ReturnsBadRequest")]
+    [TestCase("[\"x86_64\", \"any\"]", TestName = "Create_SupportingAnyAlongsideARealArchitecture_ReturnsBadRequest")]
+    [TestCase("null", TestName = "Create_WithNullSupportedArchitectures_ReturnsBadRequest")]
+    public async Task Create_WithUnsupportedArchitectures_ReturnsBadRequest(string supportedArchitectures)
+    {
+        // Arrange
+        var name = $"bad-arch-{Guid.NewGuid():N}";
+        using var content = new StringContent(
+            $$"""{ "name": "{{name}}", "supportedArchitectures": {{supportedArchitectures}} }""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        // Act
+        var response = await _client.PostAsync("/api/v1/repositories", content);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest),
+            await response.Content.ReadAsStringAsync());
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+            $"/api/v1/repositories?nameContains={name}");
+        Assert.That(listing!.Total, Is.Zero, "Nothing is created for a rejected request.");
     }
 
     [Test]
@@ -283,14 +340,14 @@ public class RepositoriesControllerTests
 
         // Assert
         Assert.That(repository, Is.Not.Null);
-        Assert.That(repository!.Architecture, Is.EqualTo("x86_64"));
+        Assert.That(repository!.SupportedArchitectures, Is.EqualTo(new[] { "x86_64" }));
     }
 
     [Test]
     public async Task Create_WithATakenNameAndArchitecture_ReturnsConflict()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "conflict-on-create", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "conflict-on-create" };
         var first = await _client.PostAsJsonAsync("/api/v1/repositories", request);
         Assert.That(first.StatusCode, Is.EqualTo(HttpStatusCode.Created));
         var existing = (await first.Content.ReadFromJsonAsync<Repository>())!;
@@ -313,7 +370,7 @@ public class RepositoriesControllerTests
 
         // Act
         var response = await _client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "custom", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "custom" });
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
@@ -328,7 +385,7 @@ public class RepositoriesControllerTests
         // Arrange
         var theirs = await CreateAsync(_otherUsersClient, "collision-still-hidden", isPublic: false);
         var collision = await _client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = theirs.Name, Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = theirs.Name });
         Assert.That(collision.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
 
         // Act
@@ -389,15 +446,15 @@ public class RepositoriesControllerTests
     {
         // Arrange
         var taken = await _client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "conflict-on-update-taken", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "conflict-on-update-taken" });
         var existing = (await taken.Content.ReadFromJsonAsync<Repository>())!;
         var renamed = await _client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "conflict-on-update-original", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "conflict-on-update-original" });
         var renamedId = (await renamed.Content.ReadFromJsonAsync<Repository>())!.Id;
 
         // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/repositories/{renamedId}",
-            new WriteRepositoryRequest { Name = existing.Name, Architecture = existing.Architecture });
+            new WriteRepositoryRequest { Name = existing.Name, SupportedArchitectures = existing.SupportedArchitectures });
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
@@ -416,7 +473,7 @@ public class RepositoriesControllerTests
 
         // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/repositories/{mine.Id}",
-            new WriteRepositoryRequest { Name = theirs.Name, Architecture = mine.Architecture });
+            new WriteRepositoryRequest { Name = theirs.Name, SupportedArchitectures = mine.SupportedArchitectures });
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
@@ -662,7 +719,7 @@ public class RepositoriesControllerTests
     private static async Task<Repository> CreateAsync(HttpClient client, string name, bool isPublic)
     {
         var response = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = name, Architecture = "x86_64", IsPublic = isPublic });
+            new WriteRepositoryRequest { Name = name, IsPublic = isPublic });
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created),
             $"Arranging '{name}' failed: {await response.Content.ReadAsStringAsync()}");
         return (await response.Content.ReadFromJsonAsync<Repository>())!;
@@ -698,54 +755,16 @@ public class RepositoriesControllerTests
         {
             Id = Guid.CreateVersion7(),
             Name = "test",
-            Architecture = "x86_64",
+            SupportedArchitectures = ["x86_64"],
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
         // Assert
         Assert.That(repository.Name, Is.Not.Null);
-        Assert.That(repository.Architecture, Is.Not.Null);
+        Assert.That(repository.SupportedArchitectures, Is.Not.Empty);
         Assert.That(repository.CreatedAt, Is.Not.EqualTo(default(DateTimeOffset)));
         Assert.That(repository.UpdatedAt, Is.Not.EqualTo(default(DateTimeOffset)));
-    }
-
-    [Test]
-    public void Repository_GetPath_ReturnsCorrectPath()
-    {
-        // Arrange
-        var repository = new Repository
-        {
-            Id = Guid.CreateVersion7(),
-            Name = "custom-repo",
-            Architecture = "aarch64"
-        };
-        var basePath = "/var/lib/pacman/repos";
-
-        // Act
-        var path = repository.GetPath(basePath);
-
-        // Assert
-        Assert.That(path, Is.EqualTo("/var/lib/pacman/repos/custom-repo/aarch64"));
-    }
-
-    [Test]
-    public void Repository_GetPath_WithDifferentArchitecture_ReturnsCorrectPath()
-    {
-        // Arrange
-        var repository = new Repository
-        {
-            Id =  Guid.CreateVersion7(),
-            Name = "test-repo",
-            Architecture = "x86_64"
-        };
-        var basePath = "/srv/repos";
-
-        // Act
-        var path = repository.GetPath(basePath);
-
-        // Assert
-        Assert.That(path, Is.EqualTo("/srv/repos/test-repo/x86_64"));
     }
 
     #endregion

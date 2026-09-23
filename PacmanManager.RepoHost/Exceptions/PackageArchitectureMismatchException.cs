@@ -4,17 +4,19 @@ namespace PacmanManager.RepoHost.Exceptions;
 /// Thrown when an uploaded package was built for an architecture the repository does not serve.
 /// </summary>
 /// <remarks>
-/// A repository serves exactly one architecture, plus <see cref="AnyArchitecture"/> for packages
-/// that contain nothing architecture specific. Accepting anything else would put a package into a
-/// database no pacman client reading it could install, so the upload is refused rather than
+/// A repository serves the architectures it supports, plus <see cref="AnyArchitecture"/> for
+/// packages that contain nothing architecture specific. Accepting anything else would put a package
+/// into a database no pacman client reading it could install, so the upload is refused rather than
 /// stored.
 /// </remarks>
 /// <param name="packageArchitecture">The architecture the package was built for.</param>
-/// <param name="repositoryArchitecture">The architecture the repository serves.</param>
-public class PackageArchitectureMismatchException(string packageArchitecture, string repositoryArchitecture)
+/// <param name="repositoryArchitectures">The architectures the repository supports.</param>
+public class PackageArchitectureMismatchException(
+    string packageArchitecture,
+    IEnumerable<string> repositoryArchitectures)
     : InvalidPackageException(
         $"The package was built for '{packageArchitecture}', but this repository serves "
-        + $"'{repositoryArchitecture}' and '{AnyArchitecture}'.")
+        + string.Join(", ", repositoryArchitectures.Append(AnyArchitecture).Select(a => $"'{a}'")) + ".")
 {
     /// <summary>
     /// The architecture every repository accepts alongside its own, for packages that contain
@@ -28,7 +30,7 @@ public class PackageArchitectureMismatchException(string packageArchitecture, st
     public string PackageArchitecture { get; } = packageArchitecture;
 
     /// <summary>
-    /// The architecture the repository serves.
+    /// The architectures the repository supports.
     /// </summary>
-    public string RepositoryArchitecture { get; } = repositoryArchitecture;
+    public IEnumerable<string> RepositoryArchitectures { get; } = repositoryArchitectures.ToList();
 }

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PacmanManager.Entities;
+using PacmanManager.RepoHost.Validation;
 using PTrampert.QueryObjects.Attributes;
 
 namespace PacmanManager.RepoHost.Models;
@@ -29,10 +30,16 @@ public record RepositoryFilter
     public string? NameContains { get; init; }
 
     /// <summary>
-    /// Matches repositories built for this architecture.
+    /// Matches repositories that support this architecture.
     /// </summary>
-    [AllowedValues(null, "x86_64", "any")]
-    [EqualsQuery]
+    /// <remarks>
+    /// The repository's architectures are a collection, so this is a containment test rather than an
+    /// equality: <c>repository.SupportedArchitectures.Contains(architecture)</c>, which Npgsql
+    /// translates to an array containment check. <c>any</c> is not accepted, since no repository
+    /// supports it.
+    /// </remarks>
+    [SupportedArchitecture]
+    [ContainsQuery(nameof(PacmanRepository.SupportedArchitectures))]
     public string? Architecture { get; init; }
 
     /// <summary>

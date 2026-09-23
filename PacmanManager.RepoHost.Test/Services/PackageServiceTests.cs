@@ -1064,7 +1064,7 @@ public class PackageServiceTests
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            Architecture = "x86_64",
+            SupportedArchitectures = ["x86_64"],
             IsPublic = isPublic,
             Owner = owner,
         }).Entity;

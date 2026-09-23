@@ -6,11 +6,12 @@ public class RepoAddTests
 {
     private const string RepositoryId = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
     private const string RepoHome = "/data/libalpm";
+    private const string Architecture = "x86_64";
 
     [Test]
     public void Executable_IsRepoAdd()
     {
-        var subject = new RepoAdd(RepositoryId, RepoHome);
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture);
 
         Assert.Multiple(() =>
         {
@@ -20,17 +21,17 @@ public class RepoAddTests
     }
 
     [Test]
-    public void WorkingDirectory_IsTheSyncDirectoryOfTheDatabaseHome()
+    public void WorkingDirectory_IsTheArchitecturesDirectoryUnderTheSyncDirectory()
     {
-        var subject = new RepoAdd(RepositoryId, RepoHome, "/data/repositories/repo/my-tool-1.0-1-x86_64.pkg.tar.zst");
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture, "/data/repositories/repo/my-tool-1.0-1-x86_64.pkg.tar.zst");
 
-        Assert.That(subject.WorkingDirectory, Is.EqualTo("/data/libalpm/sync"));
+        Assert.That(subject.WorkingDirectory, Is.EqualTo("/data/libalpm/sync/x86_64"));
     }
 
     [Test]
     public void Arguments_WithNoPackages_IsJustTheDatabaseFileName()
     {
-        var subject = new RepoAdd(RepositoryId, RepoHome);
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture);
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz" }));
     }
@@ -40,7 +41,7 @@ public class RepoAddTests
     {
         const string packagePath = "/data/repositories/repo/my-tool-1.4.2-1-x86_64.pkg.tar.zst";
 
-        var subject = new RepoAdd(RepositoryId, RepoHome, packagePath);
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture, packagePath);
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", packagePath }));
     }
@@ -51,7 +52,7 @@ public class RepoAddTests
         const string first = "/data/repositories/repo/a-1.0-1-x86_64.pkg.tar.zst";
         const string second = "/data/repositories/repo/b-2.0-1-any.pkg.tar.zst";
 
-        var subject = new RepoAdd(RepositoryId, RepoHome, first, second);
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture, first, second);
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", first, second }));
     }
@@ -65,7 +66,7 @@ public class RepoAddTests
             "/data/repositories/repo/b-2.0-1-any.pkg.tar.zst"
         };
 
-        var subject = new RepoAdd(RepositoryId, RepoHome, packages);
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture, packages);
 
         Assert.That(subject.Arguments, Is.EqualTo(new[] { $"{RepositoryId}.db.tar.gz", packages[0], packages[1] }));
     }
@@ -75,7 +76,7 @@ public class RepoAddTests
     {
         var packages = new[] { "/data/repositories/repo/a-1.0-1-x86_64.pkg.tar.zst" };
 
-        var subject = new RepoAdd(RepositoryId, RepoHome, packages.Select(p => p));
+        var subject = new RepoAdd(RepositoryId, RepoHome, Architecture, packages.Select(p => p));
         var first = subject.Arguments.ToArray();
         var second = subject.Arguments.ToArray();
 
