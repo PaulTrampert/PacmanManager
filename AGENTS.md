@@ -205,6 +205,25 @@ is the point: the binding is exercised against a distribution that only carries 
 13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
 database is read the same way by both.
 
+### Claude on pull requests (`claude.yml`)
+
+`.github/workflows/claude.yml` runs
+[`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action) when the
+repository owner mentions `@claude` on a pull request, whether in a PR comment, an inline review
+comment or a review body. Claude answers, or makes the change on the PR branch and pushes it. Each
+run starts fresh and reads the PR for its context; this file is its `CLAUDE.md`, so the rules here
+bind it too. Mentions from anyone else are ignored, and so are Claude's own replies, which are
+posted as `claude[bot]`.
+
+It needs two things set up once, which every Claude workflow here shares:
+
+* the [Claude GitHub App](https://github.com/apps/claude) installed on the repository. The action
+  exchanges the job's OIDC token for the App's token, and pushes made with it trigger CI, where
+  pushes made with the workflow's own `GITHUB_TOKEN` would not;
+* a `CLAUDE_CODE_OAUTH_TOKEN` repository secret, generated with `claude setup-token`.
+
+Claude may run `dotnet`, `git` and read-only `gh` commands; `gh pr merge` is denied outright.
+
 ## Version control
 
 ### Worktrees
