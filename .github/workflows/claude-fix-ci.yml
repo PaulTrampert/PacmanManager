@@ -1,0 +1,184 @@
+name: Claude fixes CI
+
+# When CI or the PR-title check fails on a pull request labelled `claude-autofix`, Claude diagnoses
+# the failure on the PR branch and fixes it. See AGENTS.md, "Continuous integration".
+#
+# At most one attempt per workflow per commit, so it cannot loop:
+#   * a commit this workflow pushed carries a `Claude-Autofix: ci` trailer, and is never fixed
+#     again -- if the fix itself fails, the PR waits for a person;
+#   * once Claude's step completes, the workflow's progress comment gains a marker for the failed
+#     workflow and commit, and a run that finds its marker already there stops. That covers
+#     reruns, which keep the commit, and title edits, which re-run the title check on the same
+#     commit. An attempt that dies before Claude finishes is reported in a PR comment and not
+#     counted, so rerunning the failed workflow tries again.
+on:
+  workflow_run:
+    workflows: [CI, PR Title]
+    types: [completed]
+
+# A fix for one failure queues behind a fix for another on the same branch, rather than both
+# pushing at once.
+concurrency:
+  group: claude-autofix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  fix:
+    # Same-repository pull requests only: a fork's branch cannot be pushed to, and its code should
+    # not run with these permissions.
+    if: >-
+      github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      # Reading the failed run's logs, and rerunning a failure unrelated to the change.
+      actions: write
+      checks: read
+      # Exchanged for the Claude GitHub App's token, whose pushes trigger CI.
+      id-token: write
+    steps:
+      - name: Decide whether to attempt a fix
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          FIX_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          skip() { echo "Skipping: $1"; echo "fix=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+            --json number,headRefOid,labels --jq '.[0] // empty')"
+          if [ -z "$pr" ]; then skip "no open pull request for $BRANCH"; fi
+          number="$(jq -r .number <<<"$pr")"
+
+          if ! jq -e '[.labels[].name] | index("claude-autofix")' <<<"$pr" >/dev/null; then
+            skip "#$number is not labelled claude-autofix"
+          fi
+          if [ "$(jq -r .headRefOid <<<"$pr")" != "$SHA" ]; then
+            skip "#$number has moved on from $SHA"
+          fi
+
+          # Captured before grepping: the shell runs with pipefail, and `grep -q` exiting early
+          # would fail the pipeline with SIGPIPE even on a match.
+          message="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq .commit.message)"
+          if grep -qx 'Claude-Autofix: ci' <<<"$message"; then
+            skip "$SHA is itself a fix from this workflow"
+          fi
+
+          marker="<!-- claude-autofix:$WORKFLOW:$SHA -->"
+          comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$number/comments" --jq '.[].body')"
+          if grep -qF "$marker" <<<"$comments"; then
+            skip "an attempt already finished for $WORKFLOW on $SHA"
+          fi
+
+          comment="$(gh api "repos/$GITHUB_REPOSITORY/issues/$number/comments" --jq .id \
+            -f body="Claude is looking into the failed [$WORKFLOW run]($RUN_URL) on ${SHA:0:7}. [Fix run]($FIX_RUN_URL)")"
+          {
+            echo "fix=true"
+            echo "number=$number"
+            echo "marker=$marker"
+            echo "comment=$comment"
+          } >> "$GITHUB_OUTPUT"
+
+      # The toolchain comes from main's copy of the setup action: a PR branch cut before the action
+      # existed would not have it. The second checkout then replaces the workspace with the branch.
+      - uses: actions/checkout@v5
+        if: steps.pr.outputs.fix == 'true'
+
+      - name: Set up the build toolchain
+        if: steps.pr.outputs.fix == 'true'
+        uses: ./.github/actions/setup-toolchain
+
+      - uses: actions/checkout@v5
+        if: steps.pr.outputs.fix == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      # No `github_token`, so the action uses the Claude GitHub App's token, and its push triggers
+      # CI again on the fix.
+      - uses: anthropics/claude-code-action@v1
+        if: steps.pr.outputs.fix == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh run rerun:*),Bash(gh issue view:*)"
+            --disallowedTools "Bash(gh pr merge:*)"
+          prompt: |
+            The `${{ github.event.workflow_run.name }}` workflow failed on pull request
+            #${{ steps.pr.outputs.number }} in ${{ github.repository }}, at commit
+            ${{ github.event.workflow_run.head_sha }}. The failed run is
+            ${{ github.event.workflow_run.html_url }} (run id ${{ github.event.workflow_run.id }}).
+            The PR branch, `${{ github.event.workflow_run.head_branch }}`, is checked out, and the
+            .NET toolchain is installed.
+
+            Fix the failure, following AGENTS.md:
+
+            1. Find out why each failed job failed: `gh run view ${{ github.event.workflow_run.id }} --log-failed`,
+               and for test failures the "Test results" check run and PR comment, which name each
+               failing test. Read the PR and its issue (`gh pr view`, `gh issue view`) for what the
+               change is meant to do.
+            2. If the PR-title check failed, the title lacks its `(PATCH)`, `(MINOR)` or `(MAJOR)`
+               prefix. Fix it with `gh pr edit --title`; that needs no commit.
+            3. Otherwise reproduce the failure locally where you can, and fix its cause. Never make a
+               check pass by skipping, deleting or loosening a test, suppressing a warning or
+               analyzer finding, or editing anything under `.github/`.
+            4. If the failure has nothing to do with this PR's change -- a flaky test, a network
+               timeout, a runner problem -- do not change code. Rerun the failed jobs once with
+               `gh run rerun ${{ github.event.workflow_run.id }} --failed` and stop.
+            5. For a code fix: `dotnet build` must pass with no new warnings, and so must the unit
+               tests of the projects you touched. Run an E2E fixture only if the failure is in one.
+               Commit on the PR branch. The commit message must carry this trailer on a line of its
+               own, or a failure of the fix will not be recognised as one and will be fixed again:
+
+               Claude-Autofix: ci
+
+               Then `git push origin HEAD:${{ github.event.workflow_run.head_branch }}`. Never push
+               to any other branch, and never merge a pull request.
+            6. Finish with a comment on the PR (`gh pr comment ${{ steps.pr.outputs.number }}`)
+               saying what failed, what you found, and what you did: the fix and its commit, the
+               rerun, or, if you could not fix it, what you tried. Do not write "@claude" in it.
+
+      # The progress comment gains the marker, which is what counts the attempt as finished.
+      - name: Record the finished attempt
+        if: success() && steps.pr.outputs.fix == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MARKER: ${{ steps.pr.outputs.marker }}
+          COMMENT: ${{ steps.pr.outputs.comment }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          FIX_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT" --silent \
+            -f body="$MARKER
+          Claude finished its attempt to fix the failed $WORKFLOW run on ${SHA:0:7}; its summary follows. [Fix run]($FIX_RUN_URL)"
+
+      # Anything that stops the attempt short -- a failed step, a timeout, a cancellation -- leaves
+      # no marker. Say so, rather than leaving the progress comment claiming work that is no longer
+      # happening. A new comment, since editing one notifies nobody.
+      - name: Report the failed attempt
+        if: (failure() || cancelled()) && steps.pr.outputs.fix == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          COMMENT: ${{ steps.pr.outputs.comment }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          FIX_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT" --silent \
+            -f body="Claude's attempt to fix the failed $WORKFLOW run on ${SHA:0:7} did not finish; see below. [Fix run]($FIX_RUN_URL)"
+          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "The attempt to fix the failed $WORKFLOW run on ${SHA:0:7} failed before Claude finished: [fix run]($FIX_RUN_URL). Nothing was counted, so rerunning the failed $WORKFLOW jobs will try again."

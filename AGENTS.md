@@ -224,6 +224,21 @@ It needs two things set up once, which every Claude workflow here shares:
 
 Claude may run `dotnet`, `git` and read-only `gh` commands; `gh pr merge` is denied outright.
 
+### Claude fixes failing CI (`claude-fix-ci.yml`)
+
+`.github/workflows/claude-fix-ci.yml` runs when `CI` or `PR Title` fails on an open pull request
+labelled **`claude-autofix`**. The label is the opt-in: `/implement-unblocked` adds it to the PRs it
+opens, and a PR without it is left alone. Claude reads the failed run, fixes the cause on the PR
+branch and pushes, reruns a failure unrelated to the change once, or explains in a PR comment what
+it could not fix. It may not skip or loosen tests, suppress warnings or edit workflows.
+
+It attempts each failure at most once. A fix commit carries a `Claude-Autofix: ci` trailer and is
+never fixed again. Once Claude's step completes, the workflow's progress comment gains a hidden
+marker naming the failed workflow and commit, and a later run that finds that marker stops; that
+stops reruns and title edits from retrying the same commit. An attempt that dies before Claude
+finishes is reported in a new PR comment and not counted, so rerunning the failed workflow tries
+again. It needs the same one-time setup as `claude.yml`.
+
 ### Claude resolves merge conflicts (`claude-resolve-conflicts.yml`)
 
 `.github/workflows/claude-resolve-conflicts.yml` runs when `CI` finishes on a push to `main` (the
