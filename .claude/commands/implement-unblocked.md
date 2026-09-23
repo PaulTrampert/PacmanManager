@@ -151,8 +151,9 @@ prompt, filled in:
 > 5. Commit in meaningful steps. End each commit message with
 >    `Co-Authored-By: Claude <noreply@anthropic.com>`.
 > 6. Push with `git -C <path> push -u origin <branch>` and open a PR against `main` with
->    `gh pr create`. The title starts with `(PATCH)`, `(MINOR)` or `(MAJOR)` per `AGENTS.md`; the body
->    starts with `Fixes #<n>`, explains what the diff does not make obvious, and ends with
+>    `gh pr create --label claude-autofix`; the label lets the Claude workflows fix the PR's CI
+>    failures and merge conflicts after you finish. The title starts with `(PATCH)`, `(MINOR)` or
+>    `(MAJOR)` per `AGENTS.md`; the body starts with `Fixes #<n>`, explains what the diff does not make obvious, and ends with
 >    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 >
 > Finish with a short report: the PR URL (or why there is none), what you tested and how, and
@@ -164,8 +165,10 @@ gives one.
 ## 6. Report
 
 When every sub-agent has finished, give the user one table: issue, branch, PR link (or the reason
-there is none), and any issue that could not be moved to *In Progress*. Leave the worktrees in place
-— they hold the branches under review — and give the command to remove one once its PR merges:
+there is none), and any issue that could not be moved to *In Progress*. Tell them the PRs carry the
+`claude-autofix` label, so the Claude workflows in `.github/workflows/` fix their CI failures and
+merge conflicts, and that commenting `@claude` on a PR asks for changes. Leave the worktrees in
+place — they hold the branches under review — and give the command to remove one once its PR merges:
 `git worktree remove <path>`.
 
 Do not unassign an issue or move it back on the board when its sub-agent fails; report the failure
