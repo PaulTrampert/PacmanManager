@@ -126,22 +126,18 @@ The entity stays `User`, unprefixed, against the `Pacman` convention in
 
 | Parameter | Applied by | Meaning |
 | :--- | :--- | :--- |
-| `displayNameContains` | `StringContainsQuery` | Substring of the display name, case-insensitive. |
+| `displayNameContains` | `StringContainsQuery` | Substring of the display name, case-insensitive: the term is lowered with `ToLowerInvariant()` once in C# and matched against `NormalizedDisplayName`. |
 
 * `UserSortField` has one member, `DisplayName`, carrying
   `[DefaultSortDirection(SortDirection.Ascending)]`. Being first, it makes an unsorted listing
   alphabetical. There is no `Created` member and no timestamp column to back one.
-* `displayNameContains` must match regardless of case. Implement it by lowering both sides —
-  `u.DisplayName.ToLower().Contains(term)`, with `term` lowered once in C# — as
-  [`packages-api.md`](packages-api.md#listing) does for the package search. `DisplayName` is
-  non-nullable, so it needs none of that section's null guarding.
 * The listing is anonymous and projects `PublicUserInfo`. There is no `emailContains` and no other
   parameter that reaches `Email`.
 
 **Why:**
 
 * [`UserSortField` has one member](#why-usersortfield-has-one-member)
-* [`displayNameContains` lowers both sides](#why-displaynamecontains-lowers-both-sides)
+* [a display name has a normalized copy](#why-a-display-name-has-a-normalized-copy)
 * [the listing can be anonymous](#why-the-listing-can-be-anonymous)
 * [there is no `emailContains`](#why-there-is-no-emailcontains)
 
@@ -256,23 +252,48 @@ the service something to test before the others arrive.
 * [`CurrentUser` is a separate model](#why-currentuser-is-a-separate-model)
 * [`User` keeps its bare name](#why-user-keeps-its-bare-name)
 
+### 2a. `User.NormalizedDisplayName` — `MINOR`
+
+A stored, lowered copy of the display name, for [`displayNameContains`](#listing) to match against.
+
+* `User.NormalizedDisplayName`: `DisplayName` lowered with `string.ToLowerInvariant()`, used for
+  matching and never shown. It is `[Required]`, with its max length from
+  `UserValidationConstants.NormalizedDisplayNameMaxLength`, which equals `DisplayNameMaxLength`. It
+  follows `PacmanAccessToken.NormalizedName`: the invariant culture is required, the value is written
+  in the same statement that writes `DisplayName`, and no wire model carries it.
+* No index. Display names are not unique, and a substring match cannot use a b-tree index.
+* The migration `AddColumn_Users_NormalizedDisplayName` backfills existing rows from `DisplayName`
+  with Postgres's `lower()`.
+* `UserService.EnsureUserLinkedAsync` sets it when it creates a user. `UpdateCurrentUserAsync`
+  ([6](#6-patch-apiv1usersme--minor)) is the only other writer of `DisplayName`, and keeps it in step.
+
+*Acceptance:* unit tests that `EnsureUserLinkedAsync` stores `NormalizedDisplayName` as the
+invariant-lowered `DisplayName`, including a case where culture-sensitive lowering would differ
+(`I` under `tr-TR`). `dotnet ef migrations list --no-connect` shows the new migration, and the model
+snapshot matches.
+
+*Depends on:* nothing. Must land before 3 and 6.
+
+**Why:**
+
+* [a display name has a normalized copy](#why-a-display-name-has-a-normalized-copy)
+
 ### 3. `ListUsersAsync`, `UserFilter` and `UserSortField` — `MINOR`
 
 The paged listing on `IUserManagementService`, and the filter and sort-field types it takes, as
 [Listing](#listing) specifies. No route.
 
 *Acceptance:* service unit tests for paging, for the filter, and for the unsorted default being
-alphabetical by display name. No migration and no schema change: the sort field enum has one member
-and `User` is untouched. A test that `displayNameContains` matches a term whose case differs from the
-stored value, which fails against the naive `Contains`. A test that the result is projected to
+alphabetical by display name. A test that `displayNameContains` matches a term whose case differs
+from the stored value, which fails against the naive `Contains`. A test that the result is projected to
 `PublicUserInfo`, so no email can reach it.
 
-*Depends on:* 1, 2.
+*Depends on:* 1, 2, 2a.
 
 **Why:**
 
 * [`UserSortField` has one member](#why-usersortfield-has-one-member)
-* [`displayNameContains` lowers both sides](#why-displaynamecontains-lowers-both-sides)
+* [a display name has a normalized copy](#why-a-display-name-has-a-normalized-copy)
 * [the listing can be anonymous](#why-the-listing-can-be-anonymous)
 * [there is no `emailContains`](#why-there-is-no-emailcontains)
 
@@ -310,7 +331,9 @@ body rather than a deserialised model so that an added property cannot slip past
 
 Changing the display name, with `WriteUserRequest`, the `PTrampert.SimplePatch` package reference,
 `AddSimplePatchConverters()` on the existing `AddJsonOptions` block, the route on `UsersController`,
-and `UpdateCurrentUserAsync` on `IUserManagementService` behind it.
+and `UpdateCurrentUserAsync` on `IUserManagementService` behind it. `UpdateCurrentUserAsync` writes
+`NormalizedDisplayName` (`DisplayName.ToLowerInvariant()`) in the same statement that writes
+`DisplayName`.
 
 *Constraints:* the behaviour table and the four bullets under
 [Changing a display name](#changing-a-display-name) are the specification for this issue. The
@@ -327,7 +350,7 @@ body `{}` leaves the display name untouched and is a `200` rather than a `400`; 
 attribute rather than silently clearing the name. A test also asserts the route's Swagger schema
 still shows an optional `displayName`, since the patch type is generated rather than declared.
 
-*Depends on:* 5.
+*Depends on:* 2a, 5.
 
 **Why:**
 
@@ -465,13 +488,31 @@ A single-member enum still earns its place: it keeps this listing on the same
 `SortOptions<TSortField>` shape as every other one, so a second sort field later is an added enum
 member rather than a new query parameter.
 
-### Why `displayNameContains` lowers both sides
+### Why a display name has a normalized copy
 
-The naive `Contains` is case-sensitive under both Npgsql, where it translates to a case-sensitive
-`LIKE`, and `Microsoft.EntityFrameworkCore.InMemory`, where it is `string.Contains` — so a
-case-insensitive match has to be written as one. Lowering both sides is what
-[`packages-api.md`](packages-api.md#listing) settled on for the package search, and using the same
-shape here keeps one idiom rather than two.
+*Amended by #118, with the project owner's sign-off.* The original plan was to lower both sides in the
+query — `u.DisplayName.ToLower().Contains(term)`, with `term` lowered once in C# — as
+[`packages-api.md`](packages-api.md#listing) does for the package search. It was needed at all because
+the naive `Contains` is case-sensitive under both Npgsql, where it translates to a case-sensitive
+`LIKE`, and `Microsoft.EntityFrameworkCore.InMemory`, where it is `string.Contains`.
+
+It was replaced by a stored `NormalizedDisplayName`, matched with an ordinary `StringContainsQuery`,
+because that is the idiom token names already use
+([`basic-auth.md`](basic-auth.md#why-a-token-name-has-a-normalized-copy)): the two listings of
+user-chosen labels then match case-insensitively the same way, and neither lowers anything in the
+query. The lowering happens once, in C#, with the invariant culture, so it cannot vary with the
+host's culture — the Turkish dotted and dotless `i` being the standard example — or with the database
+provider's translation of `ToLower()`. There is no index: display names are not unique, and a b-tree
+index cannot serve a substring match.
+
+**The backfill is not exactly `ToLowerInvariant()`.** The migration fills existing rows with
+Postgres's `lower()`, which agrees with `ToLowerInvariant()` on ASCII but can differ on some non-ASCII
+characters, depending on the database's collation and on the two sides' Unicode tables — `İ`
+(U+0130), which .NET's invariant culture leaves unchanged, is one. A pre-existing row whose display
+name contains such a character may therefore not match a search whose term does, until its display
+name is next written through the service. That was accepted rather than backfilling from C#, because
+it can only affect names that were provisioned before the column existed, and only for characters
+where the two lowerings disagree.
 
 ### Why the listing can be anonymous
 

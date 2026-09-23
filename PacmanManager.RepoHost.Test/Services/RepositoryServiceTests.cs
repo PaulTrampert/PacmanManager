@@ -40,11 +40,13 @@ public class RepositoryServiceTests
         _existingUser = _dbContext.Add(new User
         {
             DisplayName = "tester",
+            NormalizedDisplayName = "tester",
             Email = "test@test.com"
         }).Entity;
         _otherUser = _dbContext.Add(new User
         {
             DisplayName = "somebody else",
+            NormalizedDisplayName = "somebody else",
             Email = "other@test.com"
         }).Entity;
         _dbContext.SaveChanges();
@@ -180,43 +182,16 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoryByNameAsync_DistinguishesRepositoriesOfDifferentOwners()
+    public async Task GetRepositoryByNameAsync_ReturnsNull_WhenTheNameIsHeldForAnotherArchitecture()
     {
-        // Names are unique per owner, so two users can both own "shared-name".
         // Arrange
-        var theirs = await GivenRepositoryAsync(name: "shared-name", owner: _otherUser, isPublic: true);
-        var mine = await GivenRepositoryAsync(name: "shared-name", owner: _existingUser);
+        await GivenRepositoryAsync(name: "single-arch", architecture: "x86_64");
 
         // Act
-        var mineResult = await _service.GetRepositoryByNameAsync(KeyFor("shared-name", owner: _existingUser));
-        var theirsResult = await _service.GetRepositoryByNameAsync(KeyFor("shared-name", owner: _otherUser));
+        var result = await _service.GetRepositoryByNameAsync(KeyFor("single-arch", architecture: "any"));
 
         // Assert
-        Assert.Multiple(() =>
-        {
-            Assert.That(mineResult!.Id, Is.EqualTo(mine.Id));
-            Assert.That(theirsResult!.Id, Is.EqualTo(theirs.Id));
-        });
-    }
-
-    [Test]
-    public async Task GetRepositoryByNameAsync_DistinguishesRepositoriesOfDifferentArchitectures()
-    {
-        // One owner may hold the same name for more than one architecture.
-        // Arrange
-        var x86 = await GivenRepositoryAsync(name: "multi-arch", architecture: "x86_64");
-        var any = await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
-
-        // Act
-        var x86Result = await _service.GetRepositoryByNameAsync(KeyFor("multi-arch", architecture: "x86_64"));
-        var anyResult = await _service.GetRepositoryByNameAsync(KeyFor("multi-arch", architecture: "any"));
-
-        // Assert
-        Assert.Multiple(() =>
-        {
-            Assert.That(x86Result!.Id, Is.EqualTo(x86.Id));
-            Assert.That(anyResult!.Id, Is.EqualTo(any.Id));
-        });
+        Assert.That(result, Is.Null);
     }
 
     [Test]

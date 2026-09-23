@@ -68,8 +68,8 @@ public class PackageServicePublishTests
             .Options;
         _dbContext = new FailingCommitDbContext(options);
 
-        _owner = _dbContext.Add(new User { DisplayName = "owner", Email = "owner@test.com" }).Entity;
-        _other = _dbContext.Add(new User { DisplayName = "somebody else", Email = "other@test.com" }).Entity;
+        _owner = _dbContext.Add(new User { DisplayName = "owner", NormalizedDisplayName = "owner", Email = "owner@test.com" }).Entity;
+        _other = _dbContext.Add(new User { DisplayName = "somebody else", NormalizedDisplayName = "somebody else", Email = "other@test.com" }).Entity;
         _dbContext.SaveChanges();
 
         _repository = GivenRepository("mine", _owner, isPublic: false);

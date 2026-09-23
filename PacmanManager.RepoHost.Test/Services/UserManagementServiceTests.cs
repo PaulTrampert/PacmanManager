@@ -35,7 +35,7 @@ public class UserManagementServiceTests
     [Test]
     public async Task GetCurrentUserAsync_WithCurrentUser_ReturnsItProjectedToCurrentUser()
     {
-        var user = new User { DisplayName = "Alex", Email = "alex@example.com" };
+        var user = new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" };
         _actorAccessor.Actor = Actor.For(user);
 
         var result = await _subject.GetCurrentUserAsync();
@@ -68,7 +68,7 @@ public class UserManagementServiceTests
     public async Task GetCurrentUserAsync_PassesCancellationTokenThrough()
     {
         using var cts = new CancellationTokenSource();
-        var user = new User { DisplayName = "Alex", Email = "alex@example.com" };
+        var user = new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" };
         var actorAccessor = new Mock<IActorAccessor>(MockBehavior.Strict);
         actorAccessor
             .Setup(a => a.GetActorAsync(cts.Token))
@@ -83,8 +83,8 @@ public class UserManagementServiceTests
     [Test]
     public async Task GetUserByIdAsync_WithKnownId_ReturnsThatUserAsPublicUserInfo()
     {
-        var user = _dbContext.Users.Add(new User { DisplayName = "Alex", Email = "alex@example.com" }).Entity;
-        _dbContext.Users.Add(new User { DisplayName = "Sam", Email = "sam@example.com" });
+        var user = _dbContext.Users.Add(new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" }).Entity;
+        _dbContext.Users.Add(new User { DisplayName = "Sam", NormalizedDisplayName = "sam", Email = "sam@example.com" });
         await _dbContext.SaveChangesAsync();
 
         var result = await _subject.GetUserByIdAsync(user.Id);
@@ -99,7 +99,7 @@ public class UserManagementServiceTests
     [Test]
     public async Task GetUserByIdAsync_WithUnknownId_ReturnsNull()
     {
-        _dbContext.Users.Add(new User { DisplayName = "Alex", Email = "alex@example.com" });
+        _dbContext.Users.Add(new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" });
         await _dbContext.SaveChangesAsync();
 
         var result = await _subject.GetUserByIdAsync(Guid.CreateVersion7());

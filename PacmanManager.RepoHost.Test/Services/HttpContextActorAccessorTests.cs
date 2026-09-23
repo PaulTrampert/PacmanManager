@@ -25,7 +25,7 @@ public class HttpContextActorAccessorTests
         _dbContext = new PacmanManagerDbContext(new DbContextOptionsBuilder<PacmanManagerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options);
-        _existingUser = _dbContext.Users.Add(new User { DisplayName = "Alex", Email = "alex@example.com" }).Entity;
+        _existingUser = _dbContext.Users.Add(new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" }).Entity;
         await _dbContext.SaveChangesAsync();
 
         _httpContextAccessor = new Mock<IHttpContextAccessor>();
