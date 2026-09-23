@@ -1,5 +1,5 @@
 ---
-description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents, which then address the user's @claude review comments until the user merges the PR.
+description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents, which then address the user's @claude review comments until someone merges the PR.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
 allowed-tools: Bash(gh:*), Bash(git:*), Agent
 ---
@@ -156,9 +156,11 @@ there because it is not in the worktree until `main` carries it.
 >    starts with `Fixes #<n>`, explains what the diff does not make obvious, and ends with
 >    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 >
-> 7. Opening the PR is not the end of the task. Your work is done only when the PR is **merged by
->    the account `gh` is logged in as** (`gh api user --jq .login`); until then, watch it and address
->    that user's `@claude` comments. Keep a handled-comments file in the worktree's git directory,
+> 7. Opening the PR is not the end of the task. Your work is done only when someone **merges** the
+>    PR. Until then, watch it and address `@claude` comments from the account `gh` is logged in as
+>    (`gh api user --jq .login`). **Never merge the PR yourself**, and never merge any other PR,
+>    unless the user directly asks you to; waiting for the merge is the job, not a step to hurry
+>    along. Keep a handled-comments file in the worktree's git directory,
 >    where it is never committed: `HANDLED="$(git -C <path> rev-parse --absolute-git-dir)/claude-handled-comments"`.
 >    Then loop:
 >
@@ -188,11 +190,10 @@ there because it is not in the worktree until `main` carries it.
 >       * Append the key to `"$HANDLED"` once the reply is posted, so it is not picked up again.
 >
 >       Then go back to step 1.
->    4. `MERGED <login>`: if `<login>` is the `gh` user, you are done. If someone else merged it,
->       stop too, and say so in your report.
+>    4. `MERGED <login>`: you are done. Name `<login>` in your report.
 >    5. `CLOSED`: the PR was closed without merging. Stop, and say so in your report.
 >
->    Do not merge the PR yourself, and do not act on comments from anyone but the `gh` user.
+>    Do not act on comments from anyone but the `gh` user.
 >
 > Finish with a short report: the PR URL (or why there is none), how it ended (merged by whom, or
 > closed), what you tested and how, and each `@claude` comment you addressed with what you did.
@@ -205,9 +206,9 @@ gives one.
 Sub-agents keep running until their PR is merged, which can take days, so once they are launched,
 tell the user that: each PR will appear on its issue as it is opened, the sub-agent then watches it
 and addresses their `@claude` comments (a resolved thread counts as withdrawn), and it finishes when
-they merge the PR.
+someone merges the PR. Neither you nor the sub-agents merge anything unless the user directly asks.
 
-As each sub-agent finishes, if its PR was merged by the user, remove its worktree:
+As each sub-agent finishes, if its PR was merged, remove its worktree:
 `git -C "$PRIMARY" worktree remove "$WORKTREES/issue-<n>"`. Leave any other worktree in place — its
 branch may still be needed — and say why it was kept.
 

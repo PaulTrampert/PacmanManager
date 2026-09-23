@@ -246,6 +246,8 @@ path that already exists. That way a sub-agent only ever works; it never has to 
 ### Branches, commits, and PRs
 
 * **Never commit directly to `main`.** Branch as `feature/...` or `bugfix/...`.
+* **An agent never merges a pull request on its own initiative**, only when the user directly asks
+  it to. Finished work, green CI or an approving review does not count as being asked.
 * Commit early and often — a meaningful change that builds is a good commit point.
 * PR titles start with a parenthesised change level -- `(PATCH) ...`, `(MINOR) ...`, `(MAJOR) ...` --
   depending on the nature of the change. The parentheses matter: that is the form the shared
@@ -284,7 +286,7 @@ ones.
   every open, unassigned issue with no open blocker to the `gh` user, moves it to *In Progress*, and
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees). Each sub-agent then stays on its PR, addressing the `gh` user's
-  `@claude` comments, until that user merges it; `.claude/scripts/await-pr-activity.sh` is what it
+  `@claude` comments, until someone merges it; `.claude/scripts/await-pr-activity.sh` is what it
   polls with.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). They install the same toolchain as
