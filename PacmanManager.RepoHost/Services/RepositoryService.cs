@@ -134,15 +134,14 @@ internal class RepositoryService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<Repository?> GetRepositoryByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default)
+    public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var visible = await VisibleAsync(cancellationToken);
 
         // The name alone is the database's unique index over repositories, so this matches at most
         // one row and needs no tie-break.
-        var (ownerId, name, architecture) = (key.OwnerId, key.Name, key.Architecture);
         return await visible
-            .Where(r => r.OwnerId == ownerId && r.Name == name && r.Architecture == architecture)
+            .Where(r => r.Name == name)
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -157,9 +156,9 @@ internal class RepositoryService(
         return fileSystem.OpenRead(repoFileName);
     }
 
-    public async Task<Stream?> GetRepositoryFileByNameAsync(RepositoryKey key, CancellationToken cancellationToken = default)
+    public async Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        var repository = await GetRepositoryByNameAsync(key, cancellationToken);
+        var repository = await GetRepositoryByNameAsync(name, cancellationToken);
         if (repository is null)
             return null;
 
