@@ -48,7 +48,7 @@ public class AccessTokenServiceTests
             seed.SaveChanges();
         }
 
-        _actors = new TestActorAccessor { Actor = Actor.For(_owner) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_owner, ActorScope.Unrestricted) };
         _service = new AccessTokenService(
             _dbContext,
             _actors,

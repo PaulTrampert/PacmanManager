@@ -11,8 +11,8 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// <remarks>
 /// <para>
 /// Services deliberately do not know about HTTP, so they raise
-/// <see cref="NoCurrentUserException"/>, <see cref="RepositoryForbiddenException"/> and
-/// <see cref="PackageForbiddenException"/> instead of returning action results. Mapping them
+/// <see cref="NoCurrentUserException"/>, <see cref="RepositoryForbiddenException"/>,
+/// <see cref="PackageForbiddenException"/> and <see cref="InsufficientScopeException"/> instead of returning action results. Mapping them
 /// centrally keeps every controller free of the translation and guarantees the same status code
 /// from every route.
 /// </para>
@@ -38,6 +38,7 @@ public class AuthorizationExceptionHandler(IProblemDetailsService problemDetails
             NoCurrentUserException => (StatusCodes.Status401Unauthorized, "Authentication required.", exception.Message),
             RepositoryForbiddenException => (StatusCodes.Status403Forbidden, "You do not own this repository.", exception.Message),
             PackageForbiddenException => (StatusCodes.Status403Forbidden, "You may not publish to this repository.", exception.Message),
+            InsufficientScopeException => (StatusCodes.Status403Forbidden, "The credential's scope does not permit this.", exception.Message),
             ItemExistsException => (StatusCodes.Status409Conflict, "The item already exists.", null),
             _ => (0, string.Empty, (string?)null),
         };

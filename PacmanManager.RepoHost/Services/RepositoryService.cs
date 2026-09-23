@@ -171,9 +171,15 @@ internal class RepositoryService(
         var now = DateTimeOffset.UtcNow;
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
 
-        if (accessPolicy.CheckCreate(actor) != RepositoryAccess.Allowed)
+        switch (accessPolicy.CheckCreate(actor))
         {
-            throw new NoCurrentUserException();
+            case RepositoryAccess.Allowed:
+                break;
+            case RepositoryAccess.Unauthenticated:
+                throw new NoCurrentUserException();
+            default:
+                throw new InsufficientScopeException(
+                    ScopeValues.EntityNames.Repositories, ScopeValues.ActionNames.Create);
         }
 
         var owner = actor.User!;
