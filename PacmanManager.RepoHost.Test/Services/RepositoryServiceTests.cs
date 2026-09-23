@@ -371,7 +371,12 @@ public class RepositoryServiceTests
         var request = new WriteRepositoryRequest { Name = "read-only-repo", Architecture = "x86_64" };
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryCreationForbiddenException>(async () => await _service.CreateRepositoryAsync(request));
+        var thrown = Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.Entity, Is.EqualTo(ScopeValues.EntityNames.Repositories));
+            Assert.That(thrown.Action, Is.EqualTo(ScopeValues.ActionNames.Create));
+        });
         Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "read-only-repo"), Is.False);
     }
 

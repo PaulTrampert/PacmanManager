@@ -89,24 +89,6 @@ public class AuthorizationExceptionHandlerTests
     }
 
     [Test]
-    public async Task TryHandleAsync_RepositoryCreationForbiddenException_Writes403()
-    {
-        var httpContext = new DefaultHttpContext();
-
-        var handled = await _subject.TryHandleAsync(
-            httpContext,
-            new RepositoryCreationForbiddenException(),
-            CancellationToken.None);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(handled, Is.True);
-            Assert.That(httpContext.Response.StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
-            Assert.That(_written?.ProblemDetails.Title, Is.EqualTo("You may not create repositories."));
-        });
-    }
-
-    [Test]
     public async Task TryHandleAsync_NoCurrentUserException_Writes401()
     {
         var httpContext = new DefaultHttpContext();

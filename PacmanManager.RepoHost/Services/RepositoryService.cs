@@ -179,7 +179,8 @@ internal class RepositoryService(
             case RepositoryAccess.Unauthenticated:
                 throw new NoCurrentUserException();
             default:
-                throw new RepositoryCreationForbiddenException();
+                throw new InsufficientScopeException(
+                    ScopeValues.EntityNames.Repositories, ScopeValues.ActionNames.Create);
         }
 
         var owner = actor.User!;
