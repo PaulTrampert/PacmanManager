@@ -199,9 +199,9 @@ The users API is served by a new **`IUserManagementService`**, not by `IUserServ
 | `ListUsersAsync` | a page of `PublicUserInfo` | `GET /api/v1/users` |
 | `UpdateCurrentUserAsync` | `CurrentUser` | `PATCH /api/v1/users/me` |
 
-* The two `me` methods find the caller through `ICurrentUserService` and throw
-  `NoCurrentUserException` when there is none, which `AuthorizationExceptionHandler` already maps to
-  `401`. Neither takes a user id.
+* The two `me` methods find the caller through `IActorAccessor`, taking the user from
+  `Actor.User`, and throw `NoCurrentUserException` when there is none, which
+  `AuthorizationExceptionHandler` already maps to `401`. Neither takes a user id.
 * The service returns wire models, never the `User` entity, so no caller can project an email into an
   anonymous response by accident.
 * **`IUserService` is not changed by this document.** It stays the pre-authentication service that
@@ -554,7 +554,7 @@ listing in this API is built on it, so this is the same ecosystem rather than a 
 `IUserService` already exists and would have been the obvious home. It was not used, because of who
 calls it: `ClaimsTransformer` provisions users through it on first login, and
 [Basic Auth](basic-auth.md#why-verification-is-on-iuserservice) verifies access tokens through it,
-both before any actor or current user exists. Adding methods that depend on `ICurrentUserService` to
+both before any actor or current user exists. Adding methods that depend on `IActorAccessor` to
 that type would put pre-authentication and post-authentication methods side by side, which is the
 mixed shape [Basic Auth](basic-auth.md#why-token-management-is-not-on-iuserservice) already declined
 for token management.
