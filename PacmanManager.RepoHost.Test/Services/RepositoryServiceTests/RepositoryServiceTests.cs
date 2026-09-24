@@ -14,7 +14,7 @@ using PacmanManager.TestUtils;
 using NUnit.Framework;
 using PacmanManager.RepoHost.Exceptions;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 [TestFixture]
 public class RepositoryServiceTests
@@ -87,7 +87,7 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_CreatesRepository_Successfully()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "new-repo", Architecture = "x86_64", IsPublic = true};
+        var request = new WriteRepositoryRequest { Name = "new-repo", IsPublic = true};
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
@@ -99,11 +99,63 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("new-repo"));
-            Assert.That(result.Architecture, Is.EqualTo("x86_64"));
+            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
             Assert.That(result.IsPublic, Is.True);
 
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo");
-            Assert.That(dbRepo, Is.Not.Null);
+            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
+        });
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_CreatesAnEmptyDatabasePerSupportedArchitecture()
+    {
+        // repo-add writes one database per architecture, so a repository supporting two needs two.
+        // The wire model only admits x86_64 today; the service does not assume that.
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "two-arch", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(request);
+
+        // Assert
+        Assert.That(result.SupportedArchitectures, Is.EquivalentTo(new[] { Architectures.X86_64, "aarch64" }));
+        foreach (var architecture in new[] { Architectures.X86_64, "aarch64" })
+        {
+            var directory = $"/tmp/pacman/libalpm/sync/{architecture}";
+            _mockFileSystem.Verify(f => f.CreateDirectory(directory), Times.Once);
+            _mockCliRunner.Verify(
+                c => c.RunToolAsync(
+                    It.Is<RepoAdd>(t => t.WorkingDirectory == directory
+                                        && t.Arguments.SequenceEqual(new[] { $"{result.Id}.db.tar.gz" })),
+                    It.IsAny<ICliOutputHandler>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_RollsBackEveryArchitecturesDatabase_OnFailure()
+    {
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "two-arch-fail", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
+        _mockCliRunner
+            .Setup(c => c.RunToolAsync(It.Is<RepoAdd>(t => t.WorkingDirectory.EndsWith("/aarch64")),
+                It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+
+        // Act
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.CreateRepositoryAsync(request));
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "two-arch-fail"), Is.False);
+            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.StartsWith("/tmp/pacman/libalpm/sync/x86_64/"))), Times.Once);
+            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.StartsWith("/tmp/pacman/libalpm/sync/aarch64/"))), Times.Once);
         });
     }
 
@@ -111,7 +163,7 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_AssignsOwnershipToCurrentUser()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "owned-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "owned-repo" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
@@ -143,7 +195,7 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Id, Is.EqualTo(repoId));
-            Assert.That(result.Architecture, Is.EqualTo(repository.Architecture));
+            Assert.That(result.SupportedArchitectures, Is.EqualTo(repository.SupportedArchitectures));
             Assert.That(result.IsPublic, Is.True);
             Assert.That(result.CreatedAt, Is.EqualTo(repository.CreatedAt));
             Assert.That(result.UpdatedAt, Is.EqualTo(repository.UpdatedAt));
@@ -233,11 +285,10 @@ public class RepositoryServiceTests
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "theirs-private-file", owner: _otherUser);
 
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
-        _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
+        _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync("theirs-private-file");
+        var result = await _service.GetRepositoryFileByNameAsync("theirs-private-file", Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Null);
@@ -251,14 +302,32 @@ public class RepositoryServiceTests
         var repoName = "existing-file-repo";
         await GivenRepositoryAsync(id: repoId, name: repoName);
 
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName);
+        var result = await _service.GetRepositoryFileByNameAsync(repoName, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Not.Null);
+    }
+
+    [TestCase("aarch64")]
+    [TestCase(Architectures.Any)]
+    public async Task GetRepositoryFileByNameAsync_ReturnsNull_ForAnArchitectureTheRepositoryDoesNotSupport(string architecture)
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "x86-only-by-name");
+
+        // Act
+        var result = await _service.GetRepositoryFileByNameAsync("x86-only-by-name", architecture);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
     }
 
     [Test]
@@ -268,14 +337,48 @@ public class RepositoryServiceTests
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "existing-id-file-repo");
 
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByIdAsync(repoId);
+        var result = await _service.GetRepositoryFileByIdAsync(repoId, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetRepositoryFileByIdAsync_ReadsTheRequestedArchitecturesDatabase()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "two-arch-file", architectures: [Architectures.X86_64, "aarch64"]);
+        _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
+
+        // Act
+        await _service.GetRepositoryFileByIdAsync(repoId, "aarch64");
+
+        // Assert
+        _mockFileSystem.Verify(f => f.OpenRead($"/tmp/pacman/libalpm/sync/aarch64/{repoId}.db.tar.gz"), Times.Once);
+    }
+
+    [TestCase("aarch64")]
+    [TestCase(Architectures.Any)]
+    public async Task GetRepositoryFileByIdAsync_ReturnsNull_ForAnArchitectureTheRepositoryDoesNotSupport(string architecture)
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "x86-only");
+
+        // Act
+        var result = await _service.GetRepositoryFileByIdAsync(repoId, architecture);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
     }
 
     [Test]
@@ -285,7 +388,7 @@ public class RepositoryServiceTests
         var repoName = "non-existent-repo";
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName);
+        var result = await _service.GetRepositoryFileByNameAsync(repoName, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Null);
@@ -297,11 +400,10 @@ public class RepositoryServiceTests
         // Arrange
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "someone-elses", owner: _otherUser);
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
-        _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
+        _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByIdAsync(repoId);
+        var result = await _service.GetRepositoryFileByIdAsync(repoId, Architectures.X86_64);
 
         // Assert
         Assert.Multiple(() =>
@@ -315,17 +417,17 @@ public class RepositoryServiceTests
     public void CreateRepositoryAsync_RollsBack_OnFailure()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "fail-repo" };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
-        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz")))).Returns(true);
+        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz")))).Returns(true);
 
         // Act & Assert
         Assert.Multiple(() =>
         {
             Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
-            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))), Times.Once);
+            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz"))), Times.Once);
         });
     }
 
@@ -343,7 +445,7 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_Fails_WhenRepoAddExitsNonZero()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "unwritable-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "unwritable-repo" };
         _mockCliRunner
             .Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()))
@@ -367,7 +469,7 @@ public class RepositoryServiceTests
 
             _mockFileSystem.Verify(
                 f => f.Delete(It.Is<string>(s =>
-                    s.Contains("/tmp/pacman/libalpm/sync/") && s.EndsWith(".db.tar.gz"))),
+                    s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz"))),
                 Times.Once);
         });
     }
@@ -377,7 +479,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         _actors.Actor = Actor.Anonymous;
-        var request = new WriteRepositoryRequest { Name = "fail-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "fail-repo" };
 
         // Act & Assert
         Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
@@ -389,7 +491,7 @@ public class RepositoryServiceTests
         // The caller is known, so this is a refusal rather than a challenge.
         // Arrange
         _actors.Actor = Actor.For(_existingUser, ActorScope.Parse("pacman-manager:*:read", NullLogger.Instance));
-        var request = new WriteRepositoryRequest { Name = "read-only-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "read-only-repo", SupportedArchitectures = [Architectures.X86_64] };
 
         // Act & Assert
         var thrown = Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));
@@ -407,7 +509,7 @@ public class RepositoryServiceTests
         // A system actor bypasses authorization, but a repository still needs an owner.
         // Arrange
         _actors.Actor = Actor.System;
-        var request = new WriteRepositoryRequest { Name = "ownerless-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "ownerless-repo" };
 
         // Act & Assert
         Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
@@ -541,7 +643,7 @@ public class RepositoryServiceTests
         var updateRequest = new WriteRepositoryRequest
         {
             Name = "updated-name",
-            Architecture = "arm64",
+            SupportedArchitectures = [Architectures.X86_64, "aarch64"],
             IsPublic = true
         };
 
@@ -553,12 +655,12 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("updated-name"));
-            Assert.That(result.Architecture, Is.EqualTo("arm64"));
+            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(result.IsPublic, Is.True);
 
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Id == repoId);
             Assert.That(dbRepo.Name, Is.EqualTo("updated-name"));
-            Assert.That(dbRepo.Architecture, Is.EqualTo("arm64"));
+            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(dbRepo.IsPublic, Is.True);
         });
     }
@@ -571,7 +673,6 @@ public class RepositoryServiceTests
         var updateRequest = new WriteRepositoryRequest
         {
             Name = "non-existent",
-            Architecture = "x86_64"
         };
 
         // Act
@@ -587,7 +688,7 @@ public class RepositoryServiceTests
         // Arrange
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "doomed-repo");
-        var repoFileName = Path.Combine("/tmp/pacman/libalpm", "sync", $"{repoId}.db.tar.gz");
+        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
         _mockFileSystem.Setup(f => f.Exists(repoFileName)).Returns(true);
 
         // Act
@@ -600,6 +701,22 @@ public class RepositoryServiceTests
             Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.False);
             _mockFileSystem.Verify(f => f.Delete(repoFileName), Times.Once);
         });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_RemovesEverySupportedArchitecturesDatabase()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "doomed-two-arch", architectures: [Architectures.X86_64, "aarch64"]);
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+
+        // Act
+        await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        _mockFileSystem.Verify(f => f.Delete($"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz"), Times.Once);
+        _mockFileSystem.Verify(f => f.Delete($"/tmp/pacman/libalpm/sync/aarch64/{repoId}.db.tar.gz"), Times.Once);
     }
 
     [Test]
@@ -795,23 +912,43 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task GetRepositoriesAsync_FiltersByArchitecture()
+    public async Task GetRepositoriesAsync_FiltersByArchitecture_AsContainmentInTheSupportedSet()
     {
+        // The column is a collection now, so the filter asks whether the repository supports the
+        // architecture rather than whether its architecture equals it: a repository supporting two
+        // matches either.
         // Arrange
-        await GivenRepositoryAsync(name: "x86-repo", architecture: "x86_64");
-        await GivenRepositoryAsync(name: "any-repo", architecture: "any");
+        await GivenRepositoryAsync(name: "x86-repo", architectures: [Architectures.X86_64]);
+        await GivenRepositoryAsync(name: "arm-repo", architectures: ["aarch64"]);
+        await GivenRepositoryAsync(name: "both-repo", architectures: ["aarch64", Architectures.X86_64]);
 
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { Architecture = "any" });
+            new RepositoryFilter { Architecture = Architectures.X86_64 });
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(result.Total, Is.EqualTo(1));
-            Assert.That(result.Results.Single().Name, Is.EqualTo("any-repo"));
+            Assert.That(result.Total, Is.EqualTo(2));
+            Assert.That(result.Results.Select(r => r.Name), Is.EquivalentTo(new[] { "x86-repo", "both-repo" }));
         });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_UnsetArchitectureFilter_ContributesNothing()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "x86-repo", architectures: [Architectures.X86_64]);
+        await GivenRepositoryAsync(name: "arm-repo", architectures: ["aarch64"]);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            new RepositoryFilter { Architecture = null });
+
+        // Assert
+        Assert.That(result.Total, Is.EqualTo(2));
     }
 
     [Test]
@@ -1004,7 +1141,7 @@ public class RepositoryServiceTests
         string name = "a-repo",
         User? owner = null,
         bool isPublic = false,
-        string architecture = "x86_64",
+        IEnumerable<string>? architectures = null,
         DateTimeOffset? createdAt = null)
     {
         var timestamp = createdAt ?? DateTimeOffset.UtcNow;
@@ -1012,7 +1149,7 @@ public class RepositoryServiceTests
         {
             Id = id ?? Guid.NewGuid(),
             Name = name,
-            Architecture = architecture,
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner ?? _existingUser,
             CreatedAt = timestamp,

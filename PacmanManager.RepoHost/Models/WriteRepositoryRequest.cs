@@ -1,5 +1,5 @@
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Validation;
 
 namespace PacmanManager.RepoHost.Models;
@@ -19,11 +19,17 @@ public record WriteRepositoryRequest
     public required string Name { get; init; }
     
     /// <summary>
-    /// Repository architecture (e.g., "x86_64", "any"). Defaults to "x86_64".
+    /// The machine architectures the repository publishes a database for. Defaults to every
+    /// architecture a repository may support. Must be non-empty, and each element must be one a
+    /// repository may support; <c>any</c> is never one, since it describes a package rather than a
+    /// repository. A package built for <c>any</c> is published into every one of these
+    /// architectures' databases.
     /// </summary>
-    [DefaultValue("x86_64")]
-    [AllowedValues("x86_64", "any")]
-    public string Architecture { get; init; } = "x86_64";
+    [Required]
+    [NotEmpty]
+    [SupportedArchitecture]
+    public IEnumerable<string> SupportedArchitectures { get; init; } =
+        PacmanRepositoryValidationConstants.DefaultArchitecture;
 
     /// <summary>
     /// Whether the repository is public.

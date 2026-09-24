@@ -15,14 +15,16 @@ public class RepoAdd : ICliTool
     /// Creates the tool for the given repository database.
     /// </summary>
     /// <param name="name">Name of the repository database, without extension. This is the repository id.</param>
-    /// <param name="repoHome">The libalpm database home directory. The tool runs in its <c>sync</c> subdirectory.</param>
+    /// <param name="repoHome">The libalpm database home directory. The tool runs in the architecture's directory under its
+    /// <c>sync</c> subdirectory.</param>
+    /// <param name="architecture">The architecture whose database is changed. Never <c>any</c>.</param>
     /// <param name="packageFilePaths">
     /// Absolute paths of the package files to add. Package files live outside the working directory, so relative paths
     /// are not meaningful here. When empty, <c>repo-add</c> creates an empty database.
     /// </param>
-    public RepoAdd(string name, string repoHome, params IEnumerable<string> packageFilePaths)
+    public RepoAdd(string name, string repoHome, string architecture, params IEnumerable<string> packageFilePaths)
     {
-        _database = new RepositoryDatabase(name, repoHome);
+        _database = new RepositoryDatabase(name, repoHome, architecture);
         _packageFilePaths = packageFilePaths.ToArray();
     }
 

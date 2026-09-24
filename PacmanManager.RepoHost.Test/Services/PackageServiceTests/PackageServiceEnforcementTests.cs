@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
 /// <summary>
 /// Guards the structural property that makes <c>PackageService</c> safe: authorization is not
@@ -11,7 +11,7 @@ namespace PacmanManager.RepoHost.Test.Services;
 /// If this test fails, a method has started querying packages without going through
 /// <c>VisibleAsync</c>, which means it is no longer applying the visibility rules. Route the new
 /// query through <c>VisibleAsync</c> rather than relaxing the assertion. This mirrors
-/// <see cref="RepositoryServiceEnforcementTests"/>.
+/// <see cref="PacmanManager.RepoHost.Test.Services.RepositoryServiceTests.RepositoryServiceEnforcementTests"/>.
 /// </remarks>
 [TestFixture]
 public class PackageServiceEnforcementTests

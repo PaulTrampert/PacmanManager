@@ -12,7 +12,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
 /// <summary>
 /// Tests for <c>PackageService</c>'s delete path.
@@ -434,25 +434,112 @@ public class PackageServiceDeleteTests
 
     #endregion
 
+    #region Architectures
+
+    [Test]
+    public async Task DeletePackageAsync_AnAnyPackage_IsRemovedFromEverySupportedArchitecturesDatabase()
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: Architectures.Any);
+
+        // Act
+        var deleted = await _service.DeletePackageAsync(package.Id);
+
+        // Assert
+        Assert.That(deleted, Is.True);
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageName, Times.Once());
+        VerifyRepoRemoveFrom("aarch64", PackageName, Times.Once());
+    }
+
+    [Test]
+    public async Task DeletePackageAsync_AnArchitectureSpecificPackage_IsRemovedFromItsOwnArchitecturesDatabaseOnly()
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        var package = GivenPublishedPackage(repository, publisher: _owner);
+
+        // Act
+        await _service.DeletePackageAsync(package.Id);
+
+        // Assert
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageName, Times.Once());
+        VerifyRepoRemoveFrom("aarch64", PackageName, Times.Never());
+    }
+
+    [Test]
+    public void DeletePackageAsync_RepoRemoveFailureForALaterArchitecture_RestoresTheEarlierOnes()
+    {
+        // Arrange
+        var repository = GivenMultiArchitectureRepository();
+        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: Architectures.Any);
+        var filePath = _pathResolver.GetPackageFilePath(repository.Id, package.FileName);
+        _cliRunner
+            .Setup(c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoRemove && t.WorkingDirectory.EndsWith("/aarch64")),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        // Act & Assert
+        Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.DeletePackageAsync(package.Id));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_dbContext.PacmanPackages.Any(), Is.True, "Nothing was committed.");
+            Assert.That(File.Exists(filePath), Is.True, "The file is still there for every entry that names it.");
+        });
+        _cliRunner.Verify(
+            c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoAdd
+                                     && t.WorkingDirectory.EndsWith("/sync/x86_64")
+                                     && t.Arguments.Contains(filePath)),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once,
+            "The database that had already dropped the package gets it back.");
+    }
+
+    #endregion
+
     #region Helpers
 
-    private PacmanRepository GivenRepository(string name, User owner, bool isPublic) =>
+    private PacmanRepository GivenRepository(
+        string name,
+        User owner,
+        bool isPublic,
+        IEnumerable<string>? architectures = null) =>
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            Architecture = "x86_64",
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner,
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1),
         }).Entity;
 
     /// <summary>
+    /// A repository of the owner's supporting two architectures, which the entity allows even
+    /// though the wire model does not yet.
+    /// </summary>
+    private PacmanRepository GivenMultiArchitectureRepository()
+    {
+        var repository = GivenRepository("multi", _owner, isPublic: false, [Architectures.X86_64, "aarch64"]);
+        _dbContext.SaveChanges();
+        return repository;
+    }
+
+    /// <summary>
     /// Seeds a package that has already been published: a committed row and the file it names.
     /// </summary>
-    private PacmanPackage GivenPublishedPackage(PacmanRepository repository, User publisher, string? name = null)
+    private PacmanPackage GivenPublishedPackage(
+        PacmanRepository repository,
+        User publisher,
+        string? name = null,
+        string architecture = Architectures.X86_64)
     {
         var packageName = name ?? PackageName;
-        var fileName = name is null ? PackageFileName : $"{name}-1.2.3-1-x86_64.pkg.tar.zst";
+        var fileName = $"{packageName}-1.2.3-1-{architecture}.pkg.tar.zst";
 
         var package = _dbContext.Add(new PacmanPackage
         {
@@ -462,7 +549,7 @@ public class PackageServiceDeleteTests
             Publisher = publisher,
             Name = packageName,
             Version = "1.2.3-1",
-            Architecture = "x86_64",
+            Architecture = architecture,
             FileName = fileName,
             Sha256Sum = new string('a', 64),
             Md5Sum = new string('b', 32),
@@ -500,6 +587,16 @@ public class PackageServiceDeleteTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoAdd && t.Arguments.Contains(packageFilePath)),
+                It.IsAny<ICliOutputHandler>(),
+                It.IsAny<CancellationToken>()),
+            times);
+
+    private void VerifyRepoRemoveFrom(string architecture, string packageName, Times times) =>
+        _cliRunner.Verify(
+            c => c.RunToolAsync(
+                It.Is<ICliTool>(t => t is RepoRemove
+                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.Arguments.Contains(packageName)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
             times);

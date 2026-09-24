@@ -43,20 +43,34 @@ public interface IRepositoryService
     Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves the file stream for a repository by its ID.
+    /// Retrieves the database file stream for one of a repository's architectures by its ID.
     /// </summary>
     /// <param name="id">The ID of the repository.</param>
+    /// <param name="architecture">
+    /// The architecture whose database to read. A repository publishes one database per supported
+    /// architecture.
+    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A stream to the repository file if it is visible to the current actor; otherwise, null.</returns>
-    Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <returns>
+    /// A stream to the architecture's database file if the repository is visible to the current actor
+    /// and supports <paramref name="architecture"/>; otherwise, null.
+    /// </returns>
+    Task<Stream?> GetRepositoryFileByIdAsync(Guid id, string architecture, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves the file stream for a repository by its name.
+    /// Retrieves the database file stream for one of a repository's architectures by its name.
     /// </summary>
     /// <param name="name">The repository's name, matched exactly as stored.</param>
+    /// <param name="architecture">
+    /// The architecture whose database to read. A repository publishes one database per supported
+    /// architecture.
+    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A stream to the repository file if it is visible to the current actor; otherwise, null.</returns>
-    Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default);
+    /// <returns>
+    /// A stream to the architecture's database file if the repository is visible to the current actor
+    /// and supports <paramref name="architecture"/>; otherwise, null.
+    /// </returns>
+    Task<Stream?> GetRepositoryFileByNameAsync(string name, string architecture, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new repository owned by the current actor's user.

@@ -36,10 +36,11 @@ internal class RepositoryService(
 {
     private PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
 
-    private string GetRepositoryFileName(Guid id)
-    {
-        return Path.Combine(_pacmanConfig.DbPath, "sync", $"{id}.db.tar.gz");
-    }
+    /// <summary>
+    /// The database <c>repo-add</c> maintains for one of a repository's architectures.
+    /// </summary>
+    private RepositoryDatabase DatabaseFor(Guid id, string architecture) =>
+        new(id.ToString(), _pacmanConfig.DbPath, architecture);
 
     /// <summary>
     /// The repositories the current actor is allowed to see. Every other method in this class
@@ -146,24 +147,28 @@ internal class RepositoryService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<Stream?> GetRepositoryFileByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Stream?> GetRepositoryFileByIdAsync(
+        Guid id,
+        string architecture,
+        CancellationToken cancellationToken = default) =>
+        OpenDatabase(await GetRepositoryByIdAsync(id, cancellationToken), architecture);
+
+    public async Task<Stream?> GetRepositoryFileByNameAsync(
+        string name,
+        string architecture,
+        CancellationToken cancellationToken = default) =>
+        OpenDatabase(await GetRepositoryByNameAsync(name, cancellationToken), architecture);
+
+    /// <summary>
+    /// Opens a visible repository's database for one of its architectures, or nothing when the
+    /// repository is absent or does not support the architecture.
+    /// </summary>
+    private Stream? OpenDatabase(Repository? repository, string architecture)
     {
-        var repository = await GetRepositoryByIdAsync(id, cancellationToken);
-        if (repository is null)
+        if (repository is null || !repository.SupportedArchitectures.Contains(architecture, StringComparer.Ordinal))
             return null;
 
-        var repoFileName = GetRepositoryFileName(repository.Id);
-        return fileSystem.OpenRead(repoFileName);
-    }
-
-    public async Task<Stream?> GetRepositoryFileByNameAsync(string name, CancellationToken cancellationToken = default)
-    {
-        var repository = await GetRepositoryByNameAsync(name, cancellationToken);
-        if (repository is null)
-            return null;
-
-        var repoFileName = GetRepositoryFileName(repository.Id);
-        return fileSystem.OpenRead(repoFileName);
+        return fileSystem.OpenRead(DatabaseFor(repository.Id, architecture).FilePath);
     }
 
     public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
@@ -187,7 +192,7 @@ internal class RepositoryService(
         {
             Id = Guid.CreateVersion7(),
             Name = request.Name,
-            Architecture = request.Architecture,
+            SupportedArchitectures = request.SupportedArchitectures.Distinct(StringComparer.Ordinal).ToList(),
             IsPublic = request.IsPublic,
             CreatedAt = now,
             UpdatedAt = now,
@@ -199,24 +204,32 @@ internal class RepositoryService(
         {
             await dbContext.AddAsync(repository, cancellationToken);
 
-            // repo-add creates the empty database that makes the repository real, so a failure here
-            // has to fail the request. Checked, because the runner reports a tool that ran and
-            // failed only through its exit code: an unchecked call would commit a row naming a
-            // database file that was never written.
-            await cliRunner.RunToolCheckedAsync(
-                new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath),
-                cancellationToken);
+            // repo-add creates the empty databases that make the repository real, one per supported
+            // architecture, so a failure here has to fail the request. Checked, because the runner
+            // reports a tool that ran and failed only through its exit code: an unchecked call would
+            // commit a row naming a database file that was never written.
+            foreach (var architecture in repository.SupportedArchitectures)
+            {
+                var database = DatabaseFor(repository.Id, architecture);
+                fileSystem.CreateDirectory(database.SyncDirectory);
+                await cliRunner.RunToolCheckedAsync(
+                    new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture),
+                    cancellationToken);
+            }
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception e)
         {
-            // The file is named for the new repository's id, never its name, so this removes only
+            // The files are named for the new repository's id, never its name, so this removes only
             // what this call wrote, even when the failure is a collision with an existing repository.
-            var expectedRepoPath = GetRepositoryFileName(repository.Id);
-            if (fileSystem.Exists(expectedRepoPath))
+            foreach (var architecture in repository.SupportedArchitectures)
             {
-                fileSystem.Delete(expectedRepoPath);
+                var expectedRepoPath = DatabaseFor(repository.Id, architecture).FilePath;
+                if (fileSystem.Exists(expectedRepoPath))
+                {
+                    fileSystem.Delete(expectedRepoPath);
+                }
             }
 
             if (e is DbUpdateException dbUpdate && IsNameCollision(dbUpdate))
@@ -241,7 +254,7 @@ internal class RepositoryService(
 
         repository.Name = update.Name;
         repository.IsPublic = update.IsPublic;
-        repository.Architecture = update.Architecture;
+        repository.SupportedArchitectures = update.SupportedArchitectures.Distinct(StringComparer.Ordinal).ToList();
         repository.UpdatedAt = DateTimeOffset.UtcNow;
 
         try
@@ -269,17 +282,20 @@ internal class RepositoryService(
 
         // The row is the source of truth. A file left behind is inert once nothing points at it,
         // so failing to remove it is worth a warning but not worth failing the delete.
-        var repoFileName = GetRepositoryFileName(id);
-        try
+        foreach (var architecture in repository.SupportedArchitectures)
         {
-            if (fileSystem.Exists(repoFileName))
+            var repoFileName = DatabaseFor(id, architecture).FilePath;
+            try
             {
-                fileSystem.Delete(repoFileName);
+                if (fileSystem.Exists(repoFileName))
+                {
+                    fileSystem.Delete(repoFileName);
+                }
             }
-        }
-        catch (Exception e)
-        {
-            logger.LogWarning(e, "Deleted repository {RepositoryId} but could not remove {RepositoryFile}", id, repoFileName);
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Deleted repository {RepositoryId} but could not remove {RepositoryFile}", id, repoFileName);
+            }
         }
 
         return true;

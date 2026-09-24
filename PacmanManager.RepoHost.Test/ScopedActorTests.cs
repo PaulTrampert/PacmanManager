@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
@@ -51,9 +52,9 @@ public class ScopedActorTests
         // Act
         var listed = await ListAsync(client, "scoped-read-");
         var create = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "scoped-read-created", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "scoped-read-created", SupportedArchitectures = [Architectures.X86_64] });
         var update = await client.PutAsJsonAsync($"/api/v1/repositories/{repository.Id}",
-            new WriteRepositoryRequest { Name = "scoped-read-renamed", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "scoped-read-renamed", SupportedArchitectures = [Architectures.X86_64] });
         var delete = await client.DeleteAsync($"/api/v1/repositories/{repository.Id}");
         var publish = await PostPackageAsync(client, repository.Id);
         var deletePackage = await client.DeleteAsync($"/api/v1/packages/{package.Id}");
@@ -82,7 +83,7 @@ public class ScopedActorTests
         // Act
         var publish = await PostPackageAsync(client, repository.Id);
         var create = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "scoped-packages-created", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "scoped-packages-created", SupportedArchitectures = [Architectures.X86_64] });
 
         // Assert
         Assert.Multiple(() =>
@@ -100,10 +101,10 @@ public class ScopedActorTests
 
         // Act
         var create = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "scoped-repositories-created", Architecture = "x86_64", IsPublic = true });
+            new WriteRepositoryRequest { Name = "scoped-repositories-created", SupportedArchitectures = [Architectures.X86_64], IsPublic = true });
         var created = (await create.Content.ReadFromJsonAsync<Repository>())!;
         var update = await client.PutAsJsonAsync($"/api/v1/repositories/{created.Id}",
-            new WriteRepositoryRequest { Name = "scoped-repositories-renamed", Architecture = "x86_64", IsPublic = true });
+            new WriteRepositoryRequest { Name = "scoped-repositories-renamed", SupportedArchitectures = [Architectures.X86_64], IsPublic = true });
 
         // Public, so the repository is found without packages:read and the verdict is what refuses.
         var publish = await PostPackageAsync(client, created.Id);
@@ -153,9 +154,9 @@ public class ScopedActorTests
 
         // Act
         var create = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = "scoped-none-created", Architecture = "x86_64" });
+            new WriteRepositoryRequest { Name = "scoped-none-created", SupportedArchitectures = [Architectures.X86_64] });
         var update = await client.PutAsJsonAsync($"/api/v1/repositories/{publicRepository.Id}",
-            new WriteRepositoryRequest { Name = "scoped-none-renamed", Architecture = "x86_64", IsPublic = true });
+            new WriteRepositoryRequest { Name = "scoped-none-renamed", SupportedArchitectures = [Architectures.X86_64], IsPublic = true });
         var publish = await PostPackageAsync(client, publicRepository.Id);
         var deletePackage = await client.DeleteAsync($"/api/v1/packages/{package.Id}");
         var delete = await client.DeleteAsync($"/api/v1/repositories/{publicRepository.Id}");
@@ -196,7 +197,7 @@ public class ScopedActorTests
     private static async Task<Repository> CreateAsync(HttpClient client, string name, bool isPublic)
     {
         var response = await client.PostAsJsonAsync("/api/v1/repositories",
-            new WriteRepositoryRequest { Name = name, Architecture = "x86_64", IsPublic = isPublic });
+            new WriteRepositoryRequest { Name = name, SupportedArchitectures = [Architectures.X86_64], IsPublic = isPublic });
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created),
             $"Arranging '{name}' failed: {await response.Content.ReadAsStringAsync()}");
         return (await response.Content.ReadFromJsonAsync<Repository>())!;

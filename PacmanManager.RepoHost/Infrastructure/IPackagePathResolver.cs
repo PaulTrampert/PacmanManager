@@ -7,7 +7,7 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// <para>
 /// Package files live per repository, at
 /// <c>{DATA_DIR}/repositories/{repositoryId}/{name}-{version}-{architecture}.pkg.tar.{ext}</c>.
-/// They cannot share the <c>{DbPath}/sync</c> directory with the <c>.db.tar.gz</c> files, because
+/// They cannot share the <c>{DbPath}/sync/{architecture}</c> directories with the <c>.db.tar.gz</c> files, because
 /// <c>repo-add</c> records only the basename of a package file: two repositories each holding
 /// <c>my-tool-1.0-1-x86_64.pkg.tar.zst</c> would collide.
 /// </para>

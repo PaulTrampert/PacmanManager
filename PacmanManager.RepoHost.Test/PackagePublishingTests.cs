@@ -274,21 +274,6 @@ public class PackagePublishingTests
     }
 
     [Test]
-    public async Task Publish_APackageForAnArchitectureTheRepositoryDoesNotServe_ReturnsBadRequest()
-    {
-        // An 'any' repository serves packages that contain nothing architecture specific, so an
-        // x86_64 build does not belong in one.
-        // Arrange
-        var repository = await GivenRepositoryAsync("publish-wrong-arch", architecture: "any");
-
-        // Act
-        var response = await PublishAsync(_client, repository.Id, _packageBytes);
-
-        // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-    }
-
-    [Test]
     public async Task Publish_APackageOverTheConfiguredCeiling_ReturnsPayloadTooLarge()
     {
         // The limit is a configurable maximum rather than no limit at all, so that too large a
@@ -542,13 +527,11 @@ public class PackagePublishingTests
     private async Task<Repository> GivenRepositoryAsync(
         string name,
         bool isPublic = false,
-        string architecture = "x86_64",
         HttpClient? client = null)
     {
         var response = await (client ?? _client).PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = name,
-            Architecture = architecture,
             IsPublic = isPublic,
         });
 
@@ -575,11 +558,12 @@ public class PackagePublishingTests
     }
 
     /// <summary>
-    /// Reads the <c>desc</c> entries out of a repository's <c>.db.tar.gz</c>, which is what
-    /// <c>repo-add</c> wrote and what a pacman client would sync.
+    /// Reads the <c>desc</c> entries out of a repository's <c>x86_64</c> <c>.db.tar.gz</c>, which is
+    /// what <c>repo-add</c> wrote and what a pacman client would sync.
     /// </summary>
     private Task<string> ReadRepositoryDatabaseAsync(Guid repositoryId) =>
-        _fixture.ExecInApiContainerAsync("tar", "-xOzf", $"/data/libalpm/sync/{repositoryId}.db.tar.gz");
+        _fixture.ExecInApiContainerAsync(
+            "tar", "-xOzf", $"/data/libalpm/sync/{PackageFixtures.MinimalPackageArchitecture}/{repositoryId}.db.tar.gz");
 
     /// <summary>
     /// Pulls one field out of a pacman database entry, whose format is a <c>%KEY%</c> line followed

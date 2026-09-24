@@ -22,9 +22,17 @@ public record PacmanRepository
     
     public virtual User Owner { get; set; }
     
+    /// <summary>
+    /// The machine architectures this repository publishes a database for. Never <c>any</c>, which
+    /// describes a package rather than a repository; an <c>any</c> package is listed in every one of
+    /// these architectures' databases.
+    /// </summary>
+    /// <remarks>
+    /// The allowed values are <see cref="PacmanRepositoryValidationConstants.SupportedArchitectures"/>,
+    /// which the wire model enforces. Stored as <c>text[]</c> under Npgsql.
+    /// </remarks>
     [Required]
-    [MaxLength(PacmanRepositoryValidationConstants.ArchitectureMaxLength)]
-    public required string Architecture { get; set; } = "x86_64";
+    public IEnumerable<string> SupportedArchitectures { get; set; } = [];
 
     public bool IsPublic { get; set; } = false;
 

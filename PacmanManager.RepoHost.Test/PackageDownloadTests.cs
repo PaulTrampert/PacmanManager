@@ -238,7 +238,7 @@ public class PackageDownloadTests
         var created = await _client.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = repositoryName,
-            Architecture = PackageFixtures.MinimalPackageArchitecture,
+            SupportedArchitectures = [PackageFixtures.MinimalPackageArchitecture],
             IsPublic = isPublic,
         });
 

@@ -9,11 +9,15 @@ namespace PacmanManager.Entities;
 /// asserted.
 /// </summary>
 /// <remarks>
-/// The unique index on <c>(RepositoryId, Name)</c> is the model, not a simplification: a repository
-/// holds exactly one version of a package, because pacman rolls forward and has no rollback. It is
-/// what makes <c>(repositoryId, name)</c> a usable route key and what the publish upsert relies on.
+/// The unique index on <c>(RepositoryId, Name, Architecture)</c> is the model, not a simplification:
+/// a repository holds exactly one version of a package per architecture, because pacman rolls forward
+/// and has no rollback, and it is what the publish upsert relies on. A repository supports a set of
+/// architectures, so <c>foo</c> built for <c>x86_64</c> and <c>foo</c> built for <c>aarch64</c> are
+/// two packages. An <c>any</c> build is listed in every architecture's database, so it and an
+/// architecture specific build of the same name replace each other when published; the index cannot
+/// say that, and the publish path enforces it.
 /// </remarks>
-[Index(nameof(RepositoryId), nameof(Name), IsUnique = true)]
+[Index(nameof(RepositoryId), nameof(Name), nameof(Architecture), IsUnique = true)]
 public record PacmanPackage
 {
     /// <summary>

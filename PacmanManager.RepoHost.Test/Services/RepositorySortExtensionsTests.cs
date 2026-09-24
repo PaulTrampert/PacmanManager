@@ -22,9 +22,9 @@ public class RepositorySortExtensionsTests
 
     private static readonly PacmanRepository[] Repositories =
     [
-        new() { Name = "alpha", Architecture = "x86_64", CreatedAt = Middle, UpdatedAt = Newest },
-        new() { Name = "bravo", Architecture = "x86_64", CreatedAt = Newest, UpdatedAt = Oldest },
-        new() { Name = "charlie", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Middle },
+        new() { Name = "alpha", SupportedArchitectures = [Architectures.X86_64], CreatedAt = Middle, UpdatedAt = Newest },
+        new() { Name = "bravo", SupportedArchitectures = [Architectures.X86_64], CreatedAt = Newest, UpdatedAt = Oldest },
+        new() { Name = "charlie", SupportedArchitectures = [Architectures.X86_64], CreatedAt = Oldest, UpdatedAt = Middle },
     ];
 
     // An omitted direction is the point of this fixture: Name defaults to A→Z, and the two dates
@@ -73,8 +73,8 @@ public class RepositorySortExtensionsTests
         var second = Guid.Parse("00000000-0000-0000-0000-000000000002");
         var tied = new PacmanRepository[]
         {
-            new() { Id = second, Name = "tied-b", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
-            new() { Id = first, Name = "tied-a", Architecture = "x86_64", CreatedAt = Oldest, UpdatedAt = Oldest },
+            new() { Id = second, Name = "tied-b", SupportedArchitectures = [Architectures.X86_64], CreatedAt = Oldest, UpdatedAt = Oldest },
+            new() { Id = first, Name = "tied-a", SupportedArchitectures = [Architectures.X86_64], CreatedAt = Oldest, UpdatedAt = Oldest },
         };
 
         // Act

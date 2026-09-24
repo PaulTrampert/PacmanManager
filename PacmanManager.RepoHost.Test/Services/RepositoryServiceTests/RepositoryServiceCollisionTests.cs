@@ -15,7 +15,7 @@ using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 /// <summary>
 /// Repository name collisions. Nothing checks for a collision before writing; the unique index
@@ -98,8 +98,8 @@ public class RepositoryServiceCollisionTests
     public async Task CreateRepositoryAsync_Throws_WhenTheOwnerAlreadyHasTheName()
     {
         // Arrange
-        await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
-        var request = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+        await GivenRepositoryAsync(name: "taken");
+        var request = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
@@ -114,10 +114,10 @@ public class RepositoryServiceCollisionTests
         // repo-add runs before the index refuses the row, so the collision is cleaned up like any
         // other failure. The file is named for the new id, so the existing repository's is untouched.
         // Arrange
-        var existing = await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
-        var existingFile = Path.Combine(_settings.DbPath, "sync", $"{existing.Id}.db.tar.gz");
+        var existing = await GivenRepositoryAsync(name: "taken");
+        var existingFile = new RepositoryDatabase(existing.Id.ToString(), _settings.DbPath, Architectures.X86_64).FilePath;
         _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
-        var request = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "taken" };
 
         // Act
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
@@ -128,12 +128,12 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_Throws_WhenTheNameIsTakenForAnotherArchitecture()
+    public async Task CreateRepositoryAsync_Throws_WhenTheNameIsTakenBySupportingOtherArchitectures()
     {
         // Architecture is not part of the name: a name belongs to one repository.
         // Arrange
-        await GivenRepositoryAsync(name: "multi-arch", architecture: "any");
-        var request = new WriteRepositoryRequest { Name = "multi-arch", Architecture = "x86_64" };
+        await GivenRepositoryAsync(name: "multi-arch", architectures: ["aarch64"]);
+        var request = new WriteRepositoryRequest { Name = "multi-arch" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
@@ -147,7 +147,7 @@ public class RepositoryServiceCollisionTests
         // caller cannot see the repository that holds the name.
         // Arrange
         await GivenRepositoryAsync(name: "custom", owner: _otherUser, isPublic: theirsIsPublic);
-        var request = new WriteRepositoryRequest { Name = "custom", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "custom" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
@@ -161,9 +161,9 @@ public class RepositoryServiceCollisionTests
     public async Task UpdateRepositoryAsync_Throws_WhenRenamedIntoAnotherOfTheOwnersRepositories()
     {
         // Arrange
-        await GivenRepositoryAsync(name: "taken", architecture: "x86_64");
-        var renamed = await GivenRepositoryAsync(name: "original", architecture: "x86_64");
-        var update = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+        await GivenRepositoryAsync(name: "taken");
+        var renamed = await GivenRepositoryAsync(name: "original");
+        var update = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
@@ -180,7 +180,7 @@ public class RepositoryServiceCollisionTests
         // Arrange
         await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: theirsIsPublic);
         var mine = await GivenRepositoryAsync(name: "mine");
-        var update = new WriteRepositoryRequest { Name = "theirs", Architecture = "x86_64" };
+        var update = new WriteRepositoryRequest { Name = "theirs" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(mine.Id, update));
@@ -194,8 +194,8 @@ public class RepositoryServiceCollisionTests
     public async Task UpdateRepositoryAsync_KeepingItsOwnName_IsNotACollision()
     {
         // Arrange
-        var repository = await GivenRepositoryAsync(name: "unchanged", architecture: "x86_64");
-        var update = new WriteRepositoryRequest { Name = "unchanged", Architecture = "x86_64", IsPublic = true };
+        var repository = await GivenRepositoryAsync(name: "unchanged");
+        var update = new WriteRepositoryRequest { Name = "unchanged", IsPublic = true };
 
         // Act
         var result = await _service.UpdateRepositoryAsync(repository.Id, update);
@@ -205,17 +205,17 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task UpdateRepositoryAsync_ChangingOnlyTheArchitecture_IsNotACollision()
+    public async Task UpdateRepositoryAsync_ChangingOnlyTheArchitectures_IsNotACollision()
     {
         // Arrange
-        var repository = await GivenRepositoryAsync(name: "unchanged", architecture: "x86_64");
-        var update = new WriteRepositoryRequest { Name = "unchanged", Architecture = "any" };
+        var repository = await GivenRepositoryAsync(name: "unchanged");
+        var update = new WriteRepositoryRequest { Name = "unchanged", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
 
         // Act
         var result = await _service.UpdateRepositoryAsync(repository.Id, update);
 
         // Assert
-        Assert.That(result!.Architecture, Is.EqualTo("any"));
+        Assert.That(result!.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
     }
 
     [Test]
@@ -226,7 +226,7 @@ public class RepositoryServiceCollisionTests
         _actors.Actor = Actor.System;
         await GivenRepositoryAsync(name: "taken");
         var renamed = await GivenRepositoryAsync(name: "original");
-        var update = new WriteRepositoryRequest { Name = "taken", Architecture = "x86_64" };
+        var update = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
@@ -235,7 +235,7 @@ public class RepositoryServiceCollisionTests
     private async Task<PacmanRepository> GivenRepositoryAsync(
         string name = "a-repo",
         User? owner = null,
-        string architecture = "x86_64",
+        IEnumerable<string>? architectures = null,
         bool isPublic = false)
     {
         var now = DateTimeOffset.UtcNow;
@@ -243,7 +243,7 @@ public class RepositoryServiceCollisionTests
         {
             Id = Guid.CreateVersion7(),
             Name = name,
-            Architecture = architecture,
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner ?? _existingUser,
             CreatedAt = now,

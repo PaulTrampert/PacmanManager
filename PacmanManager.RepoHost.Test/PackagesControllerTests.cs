@@ -370,7 +370,7 @@ public class PackagesControllerTests
             PublisherId = publisherId,
             Name = name,
             Version = "1.0.0-1",
-            Architecture = "x86_64",
+            Architecture = Architectures.X86_64,
             FileName = $"{name}-1.0.0-1-x86_64.pkg.tar.zst",
             CompressedSize = installedSize / 2,
             InstalledSize = installedSize,

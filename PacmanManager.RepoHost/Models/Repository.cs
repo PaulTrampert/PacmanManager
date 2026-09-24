@@ -20,9 +20,10 @@ public record Repository
     public string Name { get; init; } = string.Empty;
 
     /// <summary>
-    /// Repository architecture (e.g., "x86_64", "any").
+    /// The machine architectures the repository publishes a database for (e.g., <c>["x86_64"]</c>).
+    /// Never <c>any</c>: a package built for <c>any</c> is listed in every one of these.
     /// </summary>
-    public string Architecture { get; init; } = "x86_64";
+    public IEnumerable<string> SupportedArchitectures { get; init; } = [];
 
     /// <summary>
     /// Whether the repository is public.
@@ -45,16 +46,6 @@ public record Repository
     public DateTimeOffset UpdatedAt { get; init; }
     
     /// <summary>
-    /// Gets the file system path for this repository based on its name and architecture.
-    /// </summary>
-    /// <param name="baseRepositoryPath">The base path where repositories are stored.</param>
-    /// <returns>The full path to this repository's directory.</returns>
-    public string GetPath(string baseRepositoryPath)
-    {
-        return Path.Combine(baseRepositoryPath, Name, Architecture);
-    }
-
-    /// <summary>
     /// Projects the underlying db object onto this model inside a query.
     /// </summary>
     /// <remarks>
@@ -66,7 +57,7 @@ public record Repository
     {
         Id = repository.Id,
         Name = repository.Name,
-        Architecture = repository.Architecture,
+        SupportedArchitectures = repository.SupportedArchitectures,
         IsPublic = repository.IsPublic,
         Owner = new PublicUserInfo
         {
@@ -88,7 +79,7 @@ public record Repository
         {
             Id = repository.Id,
             Name = repository.Name,
-            Architecture = repository.Architecture,
+            SupportedArchitectures = repository.SupportedArchitectures,
             IsPublic = repository.IsPublic,
             Owner = PublicUserInfo.FromUser(repository.Owner),
             CreatedAt = repository.CreatedAt,

@@ -11,7 +11,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
 /// <summary>
 /// Tests for <see cref="PackageService"/>'s read paths.
@@ -595,14 +595,14 @@ public class PackageServiceTests
     public async Task GetPackagesAsync_FiltersByArchitecture()
     {
         // Arrange
-        GivenPackage(_publicRepository, "native", architecture: "x86_64");
-        GivenPackage(_publicRepository, "portable", architecture: "any");
+        GivenPackage(_publicRepository, "native", architecture: Architectures.X86_64);
+        GivenPackage(_publicRepository, "portable", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Architecture = "any" });
+            new PackageFilter { Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results.Select(p => p.Name), Is.EqualTo(new[] { "portable" }));
@@ -760,14 +760,14 @@ public class PackageServiceTests
     public async Task GetPackagesAsync_CombinesCriteria_ByNarrowingWithEachOne()
     {
         // Arrange
-        GivenPackage(_publicRepository, "my-tool", architecture: "x86_64");
-        GivenPackage(_publicRepository, "my-tool-docs", architecture: "any");
+        GivenPackage(_publicRepository, "my-tool", architecture: Architectures.X86_64);
+        GivenPackage(_publicRepository, "my-tool-docs", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Search = "my-tool", Architecture = "any" });
+            new PackageFilter { Search = "my-tool", Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results.Select(p => p.Name), Is.EqualTo(new[] { "my-tool-docs" }));
@@ -883,13 +883,13 @@ public class PackageServiceTests
     public async Task GetPackagesAsync_ArchitectureCannotRevealPackagesInAnInvisibleRepository()
     {
         // Arrange
-        GivenPackage(_othersPrivateRepository, "hidden", architecture: "any");
+        GivenPackage(_othersPrivateRepository, "hidden", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Architecture = "any" });
+            new PackageFilter { Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results, Is.Empty);
@@ -1063,7 +1063,7 @@ public class PackageServiceTests
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            Architecture = "x86_64",
+            SupportedArchitectures = [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner,
         }).Entity;
@@ -1073,7 +1073,7 @@ public class PackageServiceTests
         string name,
         User? publisher = null,
         string version = "1.0.0-1",
-        string architecture = "x86_64",
+        string architecture = Architectures.X86_64,
         string? packageBase = null,
         string? description = null,
         long installedSize = 0,

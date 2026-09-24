@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.WebUtilities;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.ModelBinding;
 
 namespace PacmanManager.RepoHost.Test.ModelBinding;
@@ -143,7 +144,7 @@ public class CommaSeparatedArrayModelBinderTests
         await _binder.BindModelAsync(context);
 
         Assert.That(context.Result.IsModelSet, Is.True);
-        Assert.That(context.Result.Model, Is.EqualTo(new[] { "x86_64", "any" }));
+        Assert.That(context.Result.Model, Is.EqualTo(new[] { Architectures.X86_64, Architectures.Any }));
     }
 
     [Test]
