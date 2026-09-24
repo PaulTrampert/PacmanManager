@@ -133,4 +133,49 @@ public class PhysicalFileSystemTests
             Assert.That(_subject.Exists(path), Is.True);
         });
     }
+
+    [Test]
+    public void DeleteDirectory_RemovesTheDirectoryAndEverythingBeneathIt()
+    {
+        var path = Path.Combine(_root, "repositories", "repo");
+        var nested = Path.Combine(path, "db", "x86_64");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(path, "package.pkg.tar.zst"), "contents");
+        File.WriteAllText(Path.Combine(nested, "repo.db.tar.gz"), "contents");
+
+        _subject.DeleteDirectory(path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.DirectoryExists(path), Is.False);
+            Assert.That(_subject.DirectoryExists(Path.Combine(_root, "repositories")), Is.True,
+                "only the named directory goes, not its parent");
+        });
+    }
+
+    [Test]
+    public void DeleteDirectory_RemovesASymbolicLinkWithoutFollowingIt()
+    {
+        // repo-add leaves {id}.db and {id}.files as symlinks in the directory being deleted; deleting
+        // it must never reach through one to whatever it points at.
+        var outside = Path.Combine(_root, "outside.db.tar.gz");
+        File.WriteAllText(outside, "contents");
+        var path = Path.Combine(_root, "repo");
+        Directory.CreateDirectory(path);
+        File.CreateSymbolicLink(Path.Combine(path, "repo.db"), outside);
+
+        _subject.DeleteDirectory(path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.DirectoryExists(path), Is.False);
+            Assert.That(File.ReadAllText(outside), Is.EqualTo("contents"));
+        });
+    }
+
+    [Test]
+    public void DeleteDirectory_ThrowsWhenTheDirectoryDoesNotExist()
+    {
+        Assert.Throws<DirectoryNotFoundException>(() => _subject.DeleteDirectory(Path.Combine(_root, "missing")));
+    }
 }
