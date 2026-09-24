@@ -128,4 +128,21 @@ public class RepositoryDatabaseTests
             Assert.That(all, Has.All.StartWith($"{RepositoryDirectory}/db/"));
         });
     }
+
+    [TestCase(RepositoryDatabaseKind.Sync, $"{RepositoryId}.db.tar.gz")]
+    [TestCase(RepositoryDatabaseKind.Files, $"{RepositoryId}.files.tar.gz")]
+    public void FilePathOf_IsThePathOfTheNamedDatabase(RepositoryDatabaseKind kind, string fileName)
+    {
+        var subject = new RepositoryDatabase(RepositoryId, RepositoryDirectory, Aarch64);
+
+        Assert.That(subject.FilePathOf(kind), Is.EqualTo($"{RepositoryDirectory}/db/aarch64/{fileName}"));
+    }
+
+    [Test]
+    public void FilePathOf_RejectsAnUndefinedKind()
+    {
+        var subject = new RepositoryDatabase(RepositoryId, RepositoryDirectory, Architectures.X86_64);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => subject.FilePathOf((RepositoryDatabaseKind)42));
+    }
 }

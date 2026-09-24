@@ -420,6 +420,105 @@ public class RepositoryServiceTests
         });
     }
 
+    [TestCase(RepositoryDatabaseKind.Sync, "db.tar.gz")]
+    [TestCase(RepositoryDatabaseKind.Files, "files.tar.gz")]
+    public async Task GetRepositoryDatabaseByIdAsync_OpensTheNamedDatabaseWithItsModificationTime(
+        RepositoryDatabaseKind kind, string extension)
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "db-with-time", architectures: [Architectures.X86_64, "aarch64"]);
+        var path = $"/tmp/pacman/repositories/{repoId}/db/aarch64/{repoId}.{extension}";
+        var lastModified = new DateTimeOffset(2024, 7, 28, 12, 34, 56, TimeSpan.Zero);
+        var content = new MemoryStream();
+        _mockFileSystem.Setup(f => f.Exists(path)).Returns(true);
+        _mockFileSystem.Setup(f => f.GetLastWriteTimeUtc(path)).Returns(lastModified);
+        _mockFileSystem.Setup(f => f.OpenRead(path)).Returns(content);
+
+        // Act
+        var result = await _service.GetRepositoryDatabaseByIdAsync(repoId, "aarch64", kind);
+
+        // Assert
+        Assert.That(result, Is.EqualTo(new RepositoryFile(content, lastModified)));
+    }
+
+    [Test]
+    public async Task GetRepositoryDatabaseByIdAsync_ReturnsNull_WhenTheDatabaseIsNotOnDisk()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "db-missing");
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(false);
+
+        // Act
+        var result = await _service.GetRepositoryDatabaseByIdAsync(repoId, Architectures.X86_64, RepositoryDatabaseKind.Sync);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoryDatabaseByIdAsync_ReturnsNull_WhenTheDatabaseDisappearsBeforeItIsOpened()
+    {
+        // repo-add rotates a database by rename, so a reader can see it briefly absent.
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "db-rotating");
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+        _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Throws<FileNotFoundException>();
+
+        // Act
+        var result = await _service.GetRepositoryDatabaseByIdAsync(repoId, Architectures.X86_64, RepositoryDatabaseKind.Sync);
+
+        // Assert
+        Assert.That(result, Is.Null);
+    }
+
+    [TestCase("aarch64")]
+    [TestCase(Architectures.Any)]
+    [TestCase("X86_64")]
+    public async Task GetRepositoryDatabaseByIdAsync_ReturnsNull_ForAnArchitectureTheRepositoryDoesNotSupport(string architecture)
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "db-x86-only");
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+
+        // Act
+        var result = await _service.GetRepositoryDatabaseByIdAsync(repoId, architecture, RepositoryDatabaseKind.Sync);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.Exists(It.IsAny<string>()), Times.Never);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoryDatabaseByIdAsync_ReturnsNull_WhenPrivateAndNotOwner()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "db-someone-elses", owner: _otherUser);
+        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+
+        // Act
+        var result = await _service.GetRepositoryDatabaseByIdAsync(repoId, Architectures.X86_64, RepositoryDatabaseKind.Sync);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _mockFileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+        });
+    }
+
     [Test]
     public void CreateRepositoryAsync_RollsBack_OnFailure()
     {
