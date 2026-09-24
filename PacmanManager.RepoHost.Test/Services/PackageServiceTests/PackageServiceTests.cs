@@ -596,13 +596,13 @@ public class PackageServiceTests
     {
         // Arrange
         GivenPackage(_publicRepository, "native", architecture: Architectures.X86_64);
-        GivenPackage(_publicRepository, "portable", architecture: "any");
+        GivenPackage(_publicRepository, "portable", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Architecture = "any" });
+            new PackageFilter { Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results.Select(p => p.Name), Is.EqualTo(new[] { "portable" }));
@@ -761,13 +761,13 @@ public class PackageServiceTests
     {
         // Arrange
         GivenPackage(_publicRepository, "my-tool", architecture: Architectures.X86_64);
-        GivenPackage(_publicRepository, "my-tool-docs", architecture: "any");
+        GivenPackage(_publicRepository, "my-tool-docs", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Search = "my-tool", Architecture = "any" });
+            new PackageFilter { Search = "my-tool", Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results.Select(p => p.Name), Is.EqualTo(new[] { "my-tool-docs" }));
@@ -883,13 +883,13 @@ public class PackageServiceTests
     public async Task GetPackagesAsync_ArchitectureCannotRevealPackagesInAnInvisibleRepository()
     {
         // Arrange
-        GivenPackage(_othersPrivateRepository, "hidden", architecture: "any");
+        GivenPackage(_othersPrivateRepository, "hidden", architecture: Architectures.Any);
         await _dbContext.SaveChangesAsync();
 
         // Act
         var result = await _service.GetPackagesAsync(
             new PaginationParams { PageSize = 50 },
-            new PackageFilter { Architecture = "any" });
+            new PackageFilter { Architecture = Architectures.Any });
 
         // Assert
         Assert.That(result.Results, Is.Empty);

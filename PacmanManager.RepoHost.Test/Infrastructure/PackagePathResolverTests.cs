@@ -204,7 +204,7 @@ public class PackagePathResolverTests
 
     [TestCase("my-tool", "1.4.2-1", Architectures.X86_64, "my-tool-1.4.2-1-x86_64.pkg.tar.zst")]
     [TestCase("my-tool", "2:1.4.2-1", Architectures.X86_64, "my-tool-2:1.4.2-1-x86_64.pkg.tar.zst")]
-    [TestCase("lib32-foo+bar", "1.0", "any", "lib32-foo+bar-1.0-any.pkg.tar.zst")]
+    [TestCase("lib32-foo+bar", "1.0", Architectures.Any, "lib32-foo+bar-1.0-any.pkg.tar.zst")]
     [TestCase("a", "1", "aarch64", "a-1-aarch64.pkg.tar.zst")]
     public void DeriveFileName_FormatsNameVersionAndArchitecture(
         string name, string version, string architecture, string expected)

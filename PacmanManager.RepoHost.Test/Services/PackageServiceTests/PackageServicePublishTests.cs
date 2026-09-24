@@ -371,7 +371,7 @@ public class PackageServicePublishTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
 
         // Act
         var result = await PublishAsync(repository.Id);
@@ -427,7 +427,7 @@ public class PackageServicePublishTests
         _packageArchitecture = "aarch64";
         var arm = await PublishAsync(repository.Id);
         _cliRunner.Invocations.Clear();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         _packageVersion = PackageFixtures.UpgradePackageVersion;
 
         // Act
@@ -438,7 +438,7 @@ public class PackageServicePublishTests
         var stored = await _dbContext.PacmanPackages.Where(p => p.RepositoryId == repository.Id).ToListAsync();
         Assert.Multiple(() =>
         {
-            Assert.That(stored.Select(p => p.Architecture), Is.EqualTo(new[] { "any" }),
+            Assert.That(stored.Select(p => p.Architecture), Is.EqualTo(new[] { Architectures.Any }),
                 "The any build is the only build of the name left.");
             Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)),
                 Is.EqualTo(new[] { anyPath }), "The replaced builds' files are gone.");
@@ -459,7 +459,7 @@ public class PackageServicePublishTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         var any = await PublishAsync(repository.Id);
         _cliRunner.Invocations.Clear();
         _packageArchitecture = Architectures.X86_64;
@@ -488,8 +488,8 @@ public class PackageServicePublishTests
         VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Never());
     }
 
-    [TestCase("any", Architectures.X86_64)]
-    [TestCase(Architectures.X86_64, "any")]
+    [TestCase(Architectures.Any, Architectures.X86_64)]
+    [TestCase(Architectures.X86_64, Architectures.Any)]
     public async Task PublishPackageAsync_ReplacingAcrossArchitectures_StillHasToMoveTheVersionForward(
         string published, string offered)
     {
@@ -518,7 +518,7 @@ public class PackageServicePublishTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         var any = PublishAsync(repository.Id).GetAwaiter().GetResult();
         var anyPath = _pathResolver.GetPackageFilePath(repository.Id, any!.Package.FileName);
         _cliRunner.Invocations.Clear();
@@ -531,7 +531,7 @@ public class PackageServicePublishTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(_dbContext.PacmanPackages.Select(p => p.Architecture), Is.EqualTo(new[] { "any" }));
+            Assert.That(_dbContext.PacmanPackages.Select(p => p.Architecture), Is.EqualTo(new[] { Architectures.Any }));
             Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)),
                 Is.EqualTo(new[] { anyPath }), "The any file stays and the new file goes.");
         });
@@ -551,7 +551,7 @@ public class PackageServicePublishTests
         var x86Path = _pathResolver.GetPackageFilePath(repository.Id, x86!.Package.FileName);
         var armPath = _pathResolver.GetPackageFilePath(repository.Id, arm!.Package.FileName);
         _cliRunner.Invocations.Clear();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         _packageVersion = PackageFixtures.UpgradePackageVersion;
         _dbContext.FailNextCommit = true;
 
@@ -576,7 +576,7 @@ public class PackageServicePublishTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         var first = await PublishAsync(repository.Id);
         _packageVersion = PackageFixtures.UpgradePackageVersion;
         _cliRunner.Invocations.Clear();
@@ -602,7 +602,7 @@ public class PackageServicePublishTests
         // already names a file the failed publish is about to delete, so its entry has to go too.
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
         _cliRunner
             .Setup(c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoAdd && t.WorkingDirectory.EndsWith("/aarch64")),
@@ -650,13 +650,13 @@ public class PackageServicePublishTests
     public async Task PublishPackageAsync_AcceptsAnArchitectureIndependentPackage()
     {
         // Arrange
-        _packageArchitecture = "any";
+        _packageArchitecture = Architectures.Any;
 
         // Act
         var result = await PublishAsync();
 
         // Assert
-        Assert.That(result!.Package.Architecture, Is.EqualTo("any"),
+        Assert.That(result!.Package.Architecture, Is.EqualTo(Architectures.Any),
             "A repository serves its own architectures and 'any'.");
     }
 

@@ -441,7 +441,7 @@ public class PackageServiceDeleteTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: "any");
+        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: Architectures.Any);
 
         // Act
         var deleted = await _service.DeletePackageAsync(package.Id);
@@ -472,7 +472,7 @@ public class PackageServiceDeleteTests
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
-        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: "any");
+        var package = GivenPublishedPackage(repository, publisher: _owner, architecture: Architectures.Any);
         var filePath = _pathResolver.GetPackageFilePath(repository.Id, package.FileName);
         _cliRunner
             .Setup(c => c.RunToolAsync(

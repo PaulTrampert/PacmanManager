@@ -666,7 +666,7 @@ internal class PackageService(
     /// Whether <paramref name="architecture"/> is the architecture independent <c>any</c>.
     /// </summary>
     private static bool IsAny(string architecture) =>
-        string.Equals(architecture, PackageArchitectureMismatchException.AnyArchitecture, StringComparison.Ordinal);
+        string.Equals(architecture, Architectures.Any, StringComparison.Ordinal);
 
     /// <summary>
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.

@@ -313,7 +313,7 @@ public class RepositoryServiceTests
     }
 
     [TestCase("aarch64")]
-    [TestCase("any")]
+    [TestCase(Architectures.Any)]
     public async Task GetRepositoryFileByNameAsync_ReturnsNull_ForAnArchitectureTheRepositoryDoesNotSupport(string architecture)
     {
         // Arrange
@@ -363,7 +363,7 @@ public class RepositoryServiceTests
     }
 
     [TestCase("aarch64")]
-    [TestCase("any")]
+    [TestCase(Architectures.Any)]
     public async Task GetRepositoryFileByIdAsync_ReturnsNull_ForAnArchitectureTheRepositoryDoesNotSupport(string architecture)
     {
         // Arrange

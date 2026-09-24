@@ -155,7 +155,7 @@ public class RepositoriesControllerTests
         });
     }
 
-    [TestCase("any")]
+    [TestCase(Architectures.Any)]
     [TestCase("sparc64")]
     public async Task Get_FilteredByAnArchitectureNoRepositoryMaySupport_ReturnsBadRequest(string architecture)
     {

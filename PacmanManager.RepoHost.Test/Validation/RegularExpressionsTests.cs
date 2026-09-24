@@ -66,7 +66,7 @@ public class RegularExpressionsTests
     }
 
     [TestCase(Architectures.X86_64, true)]
-    [TestCase("any", true)]
+    [TestCase(Architectures.Any, true)]
     [TestCase("aarch64", true)]
     [TestCase("armv7h", true)]
     [TestCase("i686", true)]

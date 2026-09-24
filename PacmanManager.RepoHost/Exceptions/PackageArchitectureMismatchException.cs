@@ -1,10 +1,12 @@
+using PacmanManager.Entities;
+
 namespace PacmanManager.RepoHost.Exceptions;
 
 /// <summary>
 /// Thrown when an uploaded package was built for an architecture the repository does not serve.
 /// </summary>
 /// <remarks>
-/// A repository serves the architectures it supports, plus <see cref="AnyArchitecture"/> for
+/// A repository serves the architectures it supports, plus <see cref="Architectures.Any"/> for
 /// packages that contain nothing architecture specific. Accepting anything else would put a package
 /// into a database no pacman client reading it could install, so the upload is refused rather than
 /// stored.
@@ -16,14 +18,8 @@ public class PackageArchitectureMismatchException(
     IEnumerable<string> repositoryArchitectures)
     : InvalidPackageException(
         $"The package was built for '{packageArchitecture}', but this repository serves "
-        + string.Join(", ", repositoryArchitectures.Append(AnyArchitecture).Select(a => $"'{a}'")) + ".")
+        + string.Join(", ", repositoryArchitectures.Append(Architectures.Any).Select(a => $"'{a}'")) + ".")
 {
-    /// <summary>
-    /// The architecture every repository accepts alongside its own, for packages that contain
-    /// nothing architecture specific.
-    /// </summary>
-    public const string AnyArchitecture = "any";
-
     /// <summary>
     /// The architecture the package was built for.
     /// </summary>
