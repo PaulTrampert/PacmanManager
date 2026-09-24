@@ -24,6 +24,23 @@ Stop and tell the user how to fix it if this fails. Do not work around a failure
 * `gh auth status` must list the `project` scope, which moving an issue on a project board needs.
   If it is missing, the fix is `gh auth refresh -s project` — ask the user to run it as
   `! gh auth refresh -s project`.
+* Bring `main` up to date, so every worktree starts from the latest `main` rather than whatever this
+  clone last fetched. Resolve the primary checkout from the shared git directory, so this works
+  whichever worktree you were started in, then fetch and pin the commit the whole batch branches
+  from:
+
+  ```bash
+  PRIMARY="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+  git -C "$PRIMARY" fetch origin main
+  BASE="$(git -C "$PRIMARY" rev-parse origin/main)"
+  git -C "$PRIMARY" fetch . origin/main:main   # fast-forward local main; refuses if it has diverged
+  ```
+
+  If the fetch fails, stop. If fast-forwarding local `main` is refused because `main` has commits
+  that are not on `origin/main`, stop and report them; never reset it. If it is refused only because
+  `main` is checked out in a worktree, fast-forward it there with `git merge --ff-only origin/main`
+  when that tree is clean, and otherwise leave it and note it for the final report — the worktrees
+  branch from `$BASE` either way.
 
 ## 2. Find the issues
 
@@ -103,13 +120,10 @@ Claim every issue before starting any implementation, so the board reflects the 
 ## 4. Provision the worktrees
 
 Worktrees live inside the primary checkout, under `.claude/worktrees/`, which is ignored by both
-git and Docker. Never create one beside the checkout. Resolve the primary checkout from the shared
-git directory so this works whichever worktree you were started in:
+git and Docker. Never create one beside the checkout. `$PRIMARY` and `$BASE` come from step 1:
 
 ```bash
-PRIMARY="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 WORKTREES="$PRIMARY/.claude/worktrees"
-git -C "$PRIMARY" fetch origin main
 ```
 
 For each issue, pick a branch name: `bugfix/<n>-<slug>` if the issue carries the `bug` label,
@@ -117,7 +131,7 @@ otherwise `feature/<n>-<slug>`, where `<slug>` is the title lower-cased, reduced
 cut to a few words. Then:
 
 ```bash
-git -C "$PRIMARY" worktree add "$WORKTREES/issue-<n>" -b <branch> origin/main
+git -C "$PRIMARY" worktree add "$WORKTREES/issue-<n>" -b <branch> "$BASE"
 ```
 
 If the branch or the directory already exists, do not reuse or overwrite it — skip that issue and
@@ -132,7 +146,7 @@ prompt, filled in:
 > You are implementing GitHub issue #<n> ("<title>") in `PaulTrampert/PacmanManager`.
 >
 > Work only in the worktree at `<absolute worktree path>`, which is already checked out on branch
-> `<branch>` from `origin/main`. Use absolute paths or `git -C` for everything. Do not create another
+> `<branch>` from `main` at `<base commit>`. Use absolute paths or `git -C` for everything. Do not create another
 > worktree and do not switch branches — if `git branch --show-current` there is not `<branch>`, stop
 > and report that.
 >
