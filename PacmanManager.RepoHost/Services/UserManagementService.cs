@@ -1,7 +1,9 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
+using PTrampert.QueryObjects;
 
 namespace PacmanManager.RepoHost.Services;
 
@@ -28,11 +30,41 @@ public class UserManagementService(
     {
         return await dbContext.Users
             .Where(u => u.Id == userId)
-            .Select(u => new PublicUserInfo
-            {
-                Id = u.Id,
-                DisplayName = u.DisplayName,
-            })
+            .Select(PublicUserInfoProjection)
             .SingleOrDefaultAsync(ct);
     }
+
+    /// <inheritdoc />
+    public async Task<PaginatedResponse<PublicUserInfo>> ListUsersAsync(
+        PaginationParams paginationParams,
+        UserFilter? filter = null,
+        SortOptions<UserSortField>? sort = null,
+        CancellationToken ct = default)
+    {
+        var query = dbContext.Users.Where(filter ?? new UserFilter());
+
+        var total = await query.CountAsync(ct);
+        var results = await query
+            .ApplySort(sort ?? new SortOptions<UserSortField>())
+            .Skip(paginationParams.Offset)
+            .Take(paginationParams.PageSize)
+            .Select(PublicUserInfoProjection)
+            .ToListAsync(ct);
+
+        return new PaginatedResponse<PublicUserInfo>
+        {
+            Results = results,
+            Offset = paginationParams.Offset,
+            Total = total
+        };
+    }
+
+    /// <summary>
+    /// Projects a user to the public model in the query, so that the email is never read.
+    /// </summary>
+    private static readonly Expression<Func<User, PublicUserInfo>> PublicUserInfoProjection = u => new PublicUserInfo
+    {
+        Id = u.Id,
+        DisplayName = u.DisplayName,
+    };
 }
