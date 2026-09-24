@@ -307,4 +307,93 @@ public class PackagePathResolverTests
     {
         public override bool CanSeek => false;
     }
+
+    #region File name parsing
+
+    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar.zst", "my-tool", "1.4.2-1", Architectures.X86_64, PackageCompression.Zstandard)]
+    [TestCase("my-tool-2:1.4.2-1-x86_64.pkg.tar.xz", "my-tool", "2:1.4.2-1", Architectures.X86_64, PackageCompression.Xz)]
+    [TestCase("lib32-foo+bar-1.0-2.1-any.pkg.tar.gz", "lib32-foo+bar", "1.0-2.1", Architectures.Any, PackageCompression.Gzip)]
+    [TestCase("a-1-1-aarch64.pkg.tar.bz2", "a", "1-1", "aarch64", PackageCompression.Bzip2)]
+    [TestCase("a-1-aarch64.pkg.tar.zst", "a", "1", "aarch64", PackageCompression.Zstandard)]
+    public void TryParseFileName_ReadsBackEveryPart(
+        string fileName, string name, string version, string architecture, PackageCompression compression)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.TryParseFileName(fileName, out var parsed), Is.True);
+            Assert.That(parsed, Is.EqualTo(new PackageFileName(name, version, architecture, compression)));
+        });
+    }
+
+    [TestCase("my-tool", "1.4.2-1", Architectures.X86_64, PackageCompression.Zstandard)]
+    [TestCase("my-tool", "2:1.4.2-1", Architectures.X86_64, PackageCompression.Xz)]
+    [TestCase("lib32-foo+bar", "1.0-1", Architectures.Any, PackageCompression.Gzip)]
+    [TestCase("a", "1", "aarch64", PackageCompression.Bzip2)]
+    public void TryParseFileName_IsTheInverseOfDeriveFileName(
+        string name, string version, string architecture, PackageCompression compression)
+    {
+        var fileName = _subject.DeriveFileName(name, version, architecture, compression);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.TryParseFileName(fileName, out var parsed), Is.True);
+            Assert.That(parsed, Is.EqualTo(new PackageFileName(name, version, architecture, compression)));
+        });
+    }
+
+    [Test]
+    public void TryParseFileName_ReadsTheCommittedFixturePackage()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.TryParseFileName(PackageFixtures.MinimalPackageFileName, out var parsed), Is.True);
+            Assert.That(parsed!.Name, Is.EqualTo(PackageFixtures.MinimalPackageName));
+            Assert.That(parsed.Version, Is.EqualTo(PackageFixtures.MinimalPackageVersion));
+            Assert.That(parsed.Architecture, Is.EqualTo(PackageFixtures.MinimalPackageArchitecture));
+        });
+    }
+
+    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar.zst.sig", TestName = "a package signature")]
+    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar", TestName = "no compression extension")]
+    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar.lz4", TestName = "an unrecognised compression extension")]
+    [TestCase("my-tool-1.4.2-1-x86_64.tar.zst", TestName = "no .pkg.tar. suffix")]
+    [TestCase("my-tool-1.4.2-1-x86_64", TestName = "no suffix at all")]
+    [TestCase("my-tool-1.4.2-1-x86/64.pkg.tar.zst", TestName = "a bad architecture token")]
+    [TestCase("my-tool-1.4.2-1-.pkg.tar.zst", TestName = "an empty architecture token")]
+    [TestCase("my-tool-1.4.2-1-_x86_64.pkg.tar.zst", TestName = "an architecture that does not start alphanumerically")]
+    [TestCase("my-tool-:1.4.2-x86_64.pkg.tar.zst", TestName = "a bad version")]
+    [TestCase("x86_64.pkg.tar.zst", TestName = "no name or version")]
+    [TestCase("-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an empty name")]
+    [TestCase("custom.db", TestName = "a sync database")]
+    [TestCase("custom.db.tar.gz", TestName = "a sync database under its real name")]
+    [TestCase("custom.db.sig", TestName = "a sync database signature")]
+    [TestCase("custom.files", TestName = "a files database")]
+    [TestCase("db", TestName = "the db subdirectory")]
+    [TestCase("", TestName = "an empty file name")]
+    [TestCase(".", TestName = "the current directory")]
+    [TestCase("..", TestName = "the parent directory")]
+    [TestCase("../my-tool-1.4.2-1-x86_64.pkg.tar.zst", TestName = "traversal with a slash")]
+    [TestCase("..%2Fmy-tool-1.4.2-1-x86_64.pkg.tar.zst", TestName = "traversal with an encoded slash")]
+    [TestCase("..\\my-tool-1.4.2-1-x86_64.pkg.tar.zst", TestName = "traversal with a backslash")]
+    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar.zst\n", TestName = "a trailing newline")]
+    [TestCase("my-tool\0-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an embedded NUL")]
+    [TestCase("my%00tool-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an encoded NUL")]
+    public void TryParseFileName_RejectsAnythingThatIsNotAPackageFileName(string fileName)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.TryParseFileName(fileName, out var parsed), Is.False);
+            Assert.That(parsed, Is.Null);
+        });
+    }
+
+    [Test]
+    public void TryParseFileName_RejectsANameLongerThanTheStoredFileNameColumn()
+    {
+        var fileName = $"{new string('a', PackageValidationConstants.FileNameMaxLength)}-1.0-1-x86_64.pkg.tar.zst";
+
+        Assert.That(_subject.TryParseFileName(fileName, out _), Is.False);
+    }
+
+    #endregion
 }
