@@ -49,6 +49,12 @@ public class BasicAuthenticationHandler(
     private const string FailureMessage = "Invalid credentials.";
 
     /// <summary>
+    /// The log message template written for every failed Basic verification, so the reason is
+    /// always logged under the same searchable template.
+    /// </summary>
+    private const string VerificationFailedLogTemplate = "Basic credential failed verification: {Reason}";
+
+    /// <summary>
     /// Whether <paramref name="request"/> carries a Basic credential, valid or not.
     /// </summary>
     /// <param name="request">The request.</param>
@@ -73,14 +79,14 @@ public class BasicAuthenticationHandler(
                 out var password))
         {
             // The content is never logged: it holds the secret, or part of it.
-            Logger.LogWarning("Basic credential failed verification: {Reason}", "Undecodable");
+            Logger.LogWarning(VerificationFailedLogTemplate, "Undecodable");
             return AuthenticateResult.Fail(FailureMessage);
         }
 
         var user = await userService.GetUserByAccessTokenAsync(username, password, Context.RequestAborted);
         if (user is null)
         {
-            Logger.LogWarning("Basic credential failed verification: {Reason}", "Invalid Token");
+            Logger.LogWarning(VerificationFailedLogTemplate, "Invalid Token");
             return AuthenticateResult.Fail(FailureMessage);
         }
 
