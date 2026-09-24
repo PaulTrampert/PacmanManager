@@ -60,17 +60,15 @@ public class RepositoryArchitecturePostgresTests
         _user = _dbContext.Add(new User { DisplayName = "tester", NormalizedDisplayName = "tester", Email = "test@test.com" }).Entity;
         await _dbContext.SaveChangesAsync();
 
-        var pacmanSettings = new Mock<IOptionsSnapshot<PacmanConfigSettings>>();
-        pacmanSettings.Setup(s => s.Value).Returns(new PacmanConfigSettings { DataDir = "/tmp/pacman" });
 
         _service = new RepositoryService(
             _dbContext,
             new Mock<ICliToolRunner>().Object,
             new TestActorAccessor { Actor = Actor.For(_user, ActorScope.Unrestricted) },
             new RepositoryAccessPolicy(),
-            pacmanSettings.Object,
             new TestOutputLogger<RepositoryService>(),
-            new Mock<IFileSystem>().Object);
+            new Mock<IFileSystem>().Object,
+            new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" })));
     }
 
     [TearDown]

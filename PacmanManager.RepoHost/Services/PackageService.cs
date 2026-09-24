@@ -508,9 +508,9 @@ internal class PackageService(
 
             foreach (var architecture in targets)
             {
-                fileSystem.CreateDirectory(DatabaseFor(repository, architecture).SyncDirectory);
+                fileSystem.CreateDirectory(DatabaseFor(repository, architecture).DatabaseDirectory);
                 await cliRunner.RunToolCheckedAsync(
-                    new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, destination),
+                    new RepoAdd(DatabaseFor(repository, architecture), destination),
                     cancellationToken);
                 added.Add(architecture);
             }
@@ -518,7 +518,7 @@ internal class PackageService(
             foreach (var architecture in vacated)
             {
                 await cliRunner.RunToolCheckedAsync(
-                    new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, package.Name),
+                    new RepoRemove(DatabaseFor(repository, architecture), package.Name),
                     cancellationToken);
                 removed.Add(architecture);
             }
@@ -586,7 +586,7 @@ internal class PackageService(
         foreach (var architecture in added)
         {
             await cliRunner.RunToolCheckedAsync(
-                new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, package.Name),
+                new RepoRemove(DatabaseFor(repository, architecture), package.Name),
                 CancellationToken.None);
         }
 
@@ -609,7 +609,7 @@ internal class PackageService(
                          .Where(a => touched.Contains(a, StringComparer.Ordinal)))
             {
                 await cliRunner.RunToolCheckedAsync(
-                    new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, previousPath),
+                    new RepoAdd(DatabaseFor(repository, architecture), previousPath),
                     CancellationToken.None);
             }
         }
@@ -672,7 +672,7 @@ internal class PackageService(
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.
     /// </summary>
     private RepositoryDatabase DatabaseFor(PacmanRepository repository, string architecture) =>
-        new(repository.Id.ToString(), _pacmanConfig.DbPath, architecture);
+        new(repository.Id.ToString(), pathResolver.GetRepositoryDirectory(repository.Id), architecture);
 
     /// <summary>
     /// Rejects an upload that does not move the package forward, which is what keeps a published
@@ -958,7 +958,7 @@ internal class PackageService(
             foreach (var architecture in architectures)
             {
                 await cliRunner.RunToolCheckedAsync(
-                    new RepoRemove(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, package.Name),
+                    new RepoRemove(DatabaseFor(repository, architecture), package.Name),
                     cancellationToken);
                 removed.Add(architecture);
             }
@@ -1015,7 +1015,7 @@ internal class PackageService(
         foreach (var architecture in architectures)
         {
             await cliRunner.RunToolCheckedAsync(
-                new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture, packageFilePath),
+                new RepoAdd(DatabaseFor(repository, architecture), packageFilePath),
                 CancellationToken.None);
         }
     }

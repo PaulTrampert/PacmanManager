@@ -5,11 +5,13 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Package files live per repository, at
-/// <c>{DATA_DIR}/repositories/{repositoryId}/{name}-{version}-{architecture}.pkg.tar.{ext}</c>.
-/// They cannot share the <c>{DbPath}/sync/{architecture}</c> directories with the <c>.db.tar.gz</c> files, because
-/// <c>repo-add</c> records only the basename of a package file: two repositories each holding
-/// <c>my-tool-1.0-1-x86_64.pkg.tar.zst</c> would collide.
+/// Everything a repository owns lives under its own directory, <c>{DATA_DIR}/repositories/{repositoryId}</c>, so
+/// deleting a repository is deleting that directory. Package files sit directly in it, at
+/// <c>{DATA_DIR}/repositories/{repositoryId}/{name}-{version}-{architecture}.pkg.tar.{ext}</c>, and each
+/// architecture's databases in its <c>db/{architecture}</c> subdirectory (see
+/// <see cref="CliTools.RepositoryDatabase"/>). The directory is per repository because <c>repo-add</c> records only
+/// the basename of a package file: two repositories each holding <c>my-tool-1.0-1-x86_64.pkg.tar.zst</c> would
+/// otherwise collide.
 /// </para>
 /// <para>
 /// The stored basename is always derived here from package metadata and the sniffed compression of
@@ -20,7 +22,7 @@ namespace PacmanManager.RepoHost.Infrastructure;
 public interface IPackagePathResolver
 {
     /// <summary>
-    /// The directory holding a repository's package files.
+    /// The directory holding everything a repository owns: its package files and its databases.
     /// </summary>
     /// <param name="repositoryId">The repository's id.</param>
     /// <returns>An absolute path, which is not guaranteed to exist yet.</returns>

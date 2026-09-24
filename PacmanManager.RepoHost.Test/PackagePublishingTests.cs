@@ -519,6 +519,40 @@ public class PackagePublishingTests
 
     #endregion
 
+    #region Deleting the repository
+
+    [Test]
+    public async Task DeleteRepository_RemovesTheRepositorysDirectory_PackagesAndEveryDatabaseFileWithIt()
+    {
+        // Everything a repository owns on disk is under one directory: the package files, and every
+        // file repo-add writes for each architecture. Deleting the repository deletes that
+        // directory, so nothing it wrote is left behind.
+        // Arrange
+        var repository = await GivenRepositoryAsync("delete-whole-repository");
+        var package = await PublishAndReadAsync(_client, repository.Id);
+        var directory = $"/data/repositories/{repository.Id}";
+        var databaseDirectory = $"{directory}/db/{PackageFixtures.MinimalPackageArchitecture}";
+
+        var before = await _fixture.ExecInApiContainerAsync("sh", "-c", $"ls -A {directory} {databaseDirectory}");
+        Assert.That(before, Does.Contain(package.FileName).And.Contain($"{repository.Id}.files.tar.gz"),
+            "The repository's directory holds the package and the whole repo-add file set before the delete.");
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/repositories/{repository.Id}");
+
+        // Assert
+        var after = await _fixture.ExecInApiContainerAsync(
+            "sh", "-c", $"if [ -e {directory} ]; then echo present; else echo absent; fi");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(after.Trim(), Is.EqualTo("absent"));
+        });
+    }
+
+    #endregion
+
     #region Helpers
 
     private async Task<AuthenticationHeaderValue> BearerFor(Containers.KeycloakCredentials credentials) =>
@@ -563,7 +597,8 @@ public class PackagePublishingTests
     /// </summary>
     private Task<string> ReadRepositoryDatabaseAsync(Guid repositoryId) =>
         _fixture.ExecInApiContainerAsync(
-            "tar", "-xOzf", $"/data/libalpm/sync/{PackageFixtures.MinimalPackageArchitecture}/{repositoryId}.db.tar.gz");
+            "tar", "-xOzf",
+            $"/data/repositories/{repositoryId}/db/{PackageFixtures.MinimalPackageArchitecture}/{repositoryId}.db.tar.gz");
 
     /// <summary>
     /// Pulls one field out of a pacman database entry, whose format is a <c>%KEY%</c> line followed

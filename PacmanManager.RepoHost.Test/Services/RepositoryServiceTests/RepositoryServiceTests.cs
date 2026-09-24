@@ -21,7 +21,6 @@ public class RepositoryServiceTests
 {
     private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private Mock<ICliToolRunner> _mockCliRunner;
-    private Mock<IOptionsSnapshot<PacmanConfigSettings>> _mockPacmanSettings;
     private TestActorAccessor _actors;
     private TestOutputLogger<RepositoryService> _logger;
     private Mock<IFileSystem> _mockFileSystem;
@@ -63,18 +62,25 @@ public class RepositoryServiceTests
         {
             DataDir = "/tmp/pacman"
         };
-        _mockPacmanSettings = new Mock<IOptionsSnapshot<PacmanConfigSettings>>();
-        _mockPacmanSettings.Setup(s => s.Value).Returns(settings);
-
         _service = new RepositoryService(
             _dbContext,
             _mockCliRunner.Object,
             _actors,
             new RepositoryAccessPolicy(),
-            _mockPacmanSettings.Object,
             _logger,
-            _mockFileSystem.Object);
+            _mockFileSystem.Object,
+            new PackagePathResolver(Options.Create(settings)));
     }
+
+    /// <summary>
+    /// Whether a path is a repository's own directory under the configured <c>DATA_DIR</c>, which
+    /// is all a test can say about the directory of a repository whose id the service generated.
+    /// </summary>
+    private static bool IsARepositoryDirectory(string path) =>
+        path.StartsWith(RepositoriesDir, StringComparison.Ordinal)
+        && Guid.TryParse(path[RepositoriesDir.Length..], out _);
+
+    private const string RepositoriesDir = "/tmp/pacman/repositories/";
 
     [TearDown]
     public void TearDown()
@@ -124,7 +130,7 @@ public class RepositoryServiceTests
         Assert.That(result.SupportedArchitectures, Is.EquivalentTo(new[] { Architectures.X86_64, "aarch64" }));
         foreach (var architecture in new[] { Architectures.X86_64, "aarch64" })
         {
-            var directory = $"/tmp/pacman/libalpm/sync/{architecture}";
+            var directory = $"/tmp/pacman/repositories/{result.Id}/db/{architecture}";
             _mockFileSystem.Verify(f => f.CreateDirectory(directory), Times.Once);
             _mockCliRunner.Verify(
                 c => c.RunToolAsync(
@@ -137,7 +143,7 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_RollsBackEveryArchitecturesDatabase_OnFailure()
+    public async Task CreateRepositoryAsync_RemovesTheRepositoryDirectory_WhenAnyArchitecturesDatabaseFails()
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "two-arch-fail", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
@@ -145,17 +151,18 @@ public class RepositoryServiceTests
             .Setup(c => c.RunToolAsync(It.Is<RepoAdd>(t => t.WorkingDirectory.EndsWith("/aarch64")),
                 It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
-        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+        _mockFileSystem.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns(true);
 
         // Act
         Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.CreateRepositoryAsync(request));
 
         // Assert
+        // Both architectures' databases live under the one directory, so the x86_64 database that
+        // did get written goes with it.
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "two-arch-fail"), Is.False);
-            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.StartsWith("/tmp/pacman/libalpm/sync/x86_64/"))), Times.Once);
-            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.StartsWith("/tmp/pacman/libalpm/sync/aarch64/"))), Times.Once);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.Is<string>(s => IsARepositoryDirectory(s))), Times.Once);
         });
     }
 
@@ -302,7 +309,7 @@ public class RepositoryServiceTests
         var repoName = "existing-file-repo";
         await GivenRepositoryAsync(id: repoId, name: repoName);
 
-        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
+        var repoFileName = $"/tmp/pacman/repositories/{repoId}/db/x86_64/{repoId}.db.tar.gz";
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
@@ -337,7 +344,7 @@ public class RepositoryServiceTests
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "existing-id-file-repo");
 
-        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
+        var repoFileName = $"/tmp/pacman/repositories/{repoId}/db/x86_64/{repoId}.db.tar.gz";
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
@@ -359,7 +366,7 @@ public class RepositoryServiceTests
         await _service.GetRepositoryFileByIdAsync(repoId, "aarch64");
 
         // Assert
-        _mockFileSystem.Verify(f => f.OpenRead($"/tmp/pacman/libalpm/sync/aarch64/{repoId}.db.tar.gz"), Times.Once);
+        _mockFileSystem.Verify(f => f.OpenRead($"/tmp/pacman/repositories/{repoId}/db/aarch64/{repoId}.db.tar.gz"), Times.Once);
     }
 
     [TestCase("aarch64")]
@@ -421,13 +428,13 @@ public class RepositoryServiceTests
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Failed to run tool"));
 
-        _mockFileSystem.Setup(f => f.Exists(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz")))).Returns(true);
+        _mockFileSystem.Setup(f => f.DirectoryExists(It.Is<string>(s => IsARepositoryDirectory(s)))).Returns(true);
 
         // Act & Assert
         Assert.Multiple(() =>
         {
             Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
-            _mockFileSystem.Verify(f => f.Delete(It.Is<string>(s => s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz"))), Times.Once);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.Is<string>(s => IsARepositoryDirectory(s))), Times.Once);
         });
     }
 
@@ -451,7 +458,7 @@ public class RepositoryServiceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
         _mockFileSystem
-            .Setup(f => f.Exists(It.Is<string>(s => s.EndsWith(".db.tar.gz"))))
+            .Setup(f => f.DirectoryExists(It.Is<string>(s => IsARepositoryDirectory(s))))
             .Returns(true);
 
         // Act
@@ -467,10 +474,7 @@ public class RepositoryServiceTests
             Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "unwritable-repo"),
                 Is.False, "the row must not be committed when the database file was never written");
 
-            _mockFileSystem.Verify(
-                f => f.Delete(It.Is<string>(s =>
-                    s.Contains("/tmp/pacman/libalpm/sync/x86_64/") && s.EndsWith(".db.tar.gz"))),
-                Times.Once);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.Is<string>(s => IsARepositoryDirectory(s))), Times.Once);
         });
     }
 
@@ -683,13 +687,13 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public async Task DeleteRepositoryAsync_RemovesRepositoryAndFile_WhenOwner()
+    public async Task DeleteRepositoryAsync_RemovesRepositoryAndItsDirectory_WhenOwner()
     {
         // Arrange
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "doomed-repo");
-        var repoFileName = $"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz";
-        _mockFileSystem.Setup(f => f.Exists(repoFileName)).Returns(true);
+        var repoDirectory = $"/tmp/pacman/repositories/{repoId}";
+        _mockFileSystem.Setup(f => f.DirectoryExists(repoDirectory)).Returns(true);
 
         // Act
         var result = await _service.DeleteRepositoryAsync(repoId);
@@ -699,24 +703,69 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.True);
             Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.False);
-            _mockFileSystem.Verify(f => f.Delete(repoFileName), Times.Once);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(repoDirectory), Times.Once);
         });
     }
 
     [Test]
-    public async Task DeleteRepositoryAsync_RemovesEverySupportedArchitecturesDatabase()
+    public async Task DeleteRepositoryAsync_RemovesEveryArchitecturesDatabase_ByRemovingTheOneDirectory()
     {
+        // Every architecture's databases, and the package files, are under the repository's
+        // directory, so there is nothing to enumerate file by file.
         // Arrange
         var repoId = Guid.NewGuid();
         await GivenRepositoryAsync(id: repoId, name: "doomed-two-arch", architectures: [Architectures.X86_64, "aarch64"]);
-        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+        _mockFileSystem.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns(true);
 
         // Act
         await _service.DeleteRepositoryAsync(repoId);
 
         // Assert
-        _mockFileSystem.Verify(f => f.Delete($"/tmp/pacman/libalpm/sync/x86_64/{repoId}.db.tar.gz"), Times.Once);
-        _mockFileSystem.Verify(f => f.Delete($"/tmp/pacman/libalpm/sync/aarch64/{repoId}.db.tar.gz"), Times.Once);
+        Assert.Multiple(() =>
+        {
+            _mockFileSystem.Verify(f => f.DeleteDirectory($"/tmp/pacman/repositories/{repoId}"), Times.Once);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.IsAny<string>()), Times.Once);
+            _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_SkipsTheDirectory_WhenItIsNotThere()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "never-written");
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.True);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.IsAny<string>()), Times.Never);
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_StillSucceeds_WhenTheDirectoryCannotBeRemoved()
+    {
+        // The row is the source of truth; what is left on disk is inert once nothing points at it.
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "stubborn-files");
+        _mockFileSystem.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns(true);
+        _mockFileSystem.Setup(f => f.DeleteDirectory(It.IsAny<string>())).Throws(new IOException("busy"));
+
+        // Act
+        var result = await _service.DeleteRepositoryAsync(repoId);
+
+        // Assert
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.False);
+        });
     }
 
     [Test]
@@ -1118,7 +1167,7 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.False);
             Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
-            _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Never);
+            _mockFileSystem.Verify(f => f.DeleteDirectory(It.IsAny<string>()), Times.Never);
         });
     }
 

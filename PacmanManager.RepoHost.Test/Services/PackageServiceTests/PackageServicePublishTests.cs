@@ -998,7 +998,7 @@ public class PackageServicePublishTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoAdd
-                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.WorkingDirectory.EndsWith($"/db/{architecture}")
                                      && t.Arguments.Contains(packageFilePath)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
@@ -1008,7 +1008,7 @@ public class PackageServicePublishTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoRemove
-                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.WorkingDirectory.EndsWith($"/db/{architecture}")
                                      && t.Arguments.Contains(packageName)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
