@@ -62,6 +62,7 @@ try
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IRepositoryService, RepositoryService>();
     builder.Services.AddScoped<IPackageService, PackageService>();
+    builder.Services.AddScoped<IPacmanRepoService, PacmanRepoService>();
     builder.Services.AddScoped<IUserManagementService, UserManagementService>();
     builder.Services.AddScoped<IAccessTokenService, AccessTokenService>();
 

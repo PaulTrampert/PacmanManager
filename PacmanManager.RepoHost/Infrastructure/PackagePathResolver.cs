@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using PacmanManager.Entities;
@@ -109,6 +110,86 @@ public class PackagePathResolver(IOptions<PacmanConfigSettings> settings) : IPac
 
         return fileName;
     }
+
+    /// <inheritdoc/>
+    public bool TryParseFileName(string fileName, [NotNullWhen(true)] out PackageFileName? packageFileName)
+    {
+        packageFileName = null;
+
+        if (string.IsNullOrEmpty(fileName)
+            || fileName.Length > PackageValidationConstants.FileNameMaxLength
+            || !IsPlainFileName(fileName))
+        {
+            return false;
+        }
+
+        var suffixAt = fileName.LastIndexOf(PackageFileSuffix, StringComparison.Ordinal);
+        if (suffixAt < 0)
+        {
+            return false;
+        }
+
+        var extension = fileName[(suffixAt + PackageFileSuffix.Length)..];
+        var compressions = Enum.GetValues<PackageCompression>()
+            .Where(c => string.Equals(c.ToFileExtension(), extension, StringComparison.Ordinal))
+            .ToList();
+        if (compressions.Count != 1)
+        {
+            return false;
+        }
+
+        // {name}-{version}-{architecture}: the architecture is everything after the last '-'.
+        var stem = fileName[..suffixAt];
+        var architectureAt = stem.LastIndexOf('-');
+        if (architectureAt < 0)
+        {
+            return false;
+        }
+
+        var architecture = stem[(architectureAt + 1)..];
+        if (!IsValid(architecture, ArchitecturePattern, PackageValidationConstants.ArchitectureMaxLength))
+        {
+            return false;
+        }
+
+        // A name may contain '-', and so may a version (between pkgver and pkgrel), so the split
+        // between them is found by trying the version makepkg writes -- pkgver-pkgrel, the last two
+        // parts -- before a version of one part.
+        var nameAndVersion = stem[..architectureAt];
+        foreach (var versionParts in (int[])[2, 1])
+        {
+            var versionAt = nameAndVersion.Length;
+            for (var part = 0; part < versionParts && versionAt > 0; part++)
+            {
+                versionAt = nameAndVersion.LastIndexOf('-', versionAt - 1);
+            }
+
+            if (versionAt <= 0)
+            {
+                continue;
+            }
+
+            var name = nameAndVersion[..versionAt];
+            var version = nameAndVersion[(versionAt + 1)..];
+            if (IsValid(name, NamePattern, PackageValidationConstants.NameMaxLength)
+                && IsValid(version, VersionPattern, PackageValidationConstants.VersionMaxLength))
+            {
+                packageFileName = new PackageFileName(name, version, architecture, compressions[0]);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a value parsed out of a file name is one <see cref="Validate"/> would have accepted.
+    /// </summary>
+    private static bool IsValid(string value, Regex pattern, int maxLength) =>
+        value.Length > 0
+        && value.Length <= maxLength
+        && IsPlainFileName(value)
+        && pattern.IsMatch(value);
 
     /// <summary>
     /// Rejects a metadata value that does not match its pattern, is empty, is too long, or carries

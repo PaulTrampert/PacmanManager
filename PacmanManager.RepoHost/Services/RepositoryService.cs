@@ -168,6 +168,19 @@ internal class RepositoryService(
         CancellationToken cancellationToken = default) =>
         OpenDatabase(await GetRepositoryByNameAsync(name, cancellationToken), architecture);
 
+    public async Task<RepositoryFile?> GetRepositoryDatabaseByIdAsync(
+        Guid id,
+        string architecture,
+        RepositoryDatabaseKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        var repository = await GetRepositoryByIdAsync(id, cancellationToken);
+        if (repository is null || !repository.SupportedArchitectures.Contains(architecture, StringComparer.Ordinal))
+            return null;
+
+        return fileSystem.OpenRepositoryFile(DatabaseFor(repository.Id, architecture).FilePathOf(kind));
+    }
+
     /// <summary>
     /// Opens a visible repository's database for one of its architectures, or nothing when the
     /// repository is absent or does not support the architecture.

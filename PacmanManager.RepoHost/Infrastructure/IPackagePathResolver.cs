@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace PacmanManager.RepoHost.Infrastructure;
 
 /// <summary>
@@ -70,4 +72,29 @@ public interface IPackagePathResolver
     /// <exception cref="Exceptions.UnsupportedPackageCompressionException">The content is not in an allowed compression format.</exception>
     /// <exception cref="Exceptions.InvalidPackageMetadataException">A value does not match the shape pacman defines for it, is too long, or would produce something other than a plain basename.</exception>
     string DeriveFileName(string name, string version, string architecture, Stream packageContent);
+
+    /// <summary>
+    /// Reads a basename back into the parts <see cref="DeriveFileName(string,string,string,PackageCompression)"/>
+    /// composes it from, validating each against the same patterns and limits. This is how a package
+    /// file name a client asked for is checked before anything touches the disk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A name is accepted only when it is a plain basename of the form
+    /// <c>{name}-{version}-{architecture}.pkg.tar.{ext}</c>, where <c>{ext}</c> is one of the
+    /// <see cref="PackageCompression"/> extensions and every part matches the pattern pacman defines
+    /// for it. Anything else — a <c>.sig</c> file, a database, a directory, a traversal attempt — is
+    /// rejected.
+    /// </para>
+    /// <para>
+    /// The architecture is always the last <c>-</c>-separated part and is unambiguous. The split
+    /// between name and version is not when the version has no <c>pkgrel</c>, since a package name
+    /// may itself contain <c>-</c>; the split that gives the version a <c>pkgrel</c> is preferred,
+    /// because <c>makepkg</c> always writes one.
+    /// </para>
+    /// </remarks>
+    /// <param name="fileName">The basename to parse.</param>
+    /// <param name="packageFileName">The parts of <paramref name="fileName"/>, when this returns true.</param>
+    /// <returns>True when <paramref name="fileName"/> has the shape of a package file name; otherwise, false.</returns>
+    bool TryParseFileName(string fileName, [NotNullWhen(true)] out PackageFileName? packageFileName);
 }

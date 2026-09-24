@@ -680,6 +680,8 @@ public class PackageServiceDeleteTests
 
         public Stream OpenRead(string path) => inner.OpenRead(path);
 
+        public DateTimeOffset GetLastWriteTimeUtc(string path) => inner.GetLastWriteTimeUtc(path);
+
         public Stream OpenWrite(string path) => inner.OpenWrite(path);
 
         public void Move(string sourcePath, string destinationPath, bool overwrite = false) =>
