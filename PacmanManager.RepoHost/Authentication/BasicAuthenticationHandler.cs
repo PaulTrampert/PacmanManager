@@ -80,6 +80,7 @@ public class BasicAuthenticationHandler(
         var user = await userService.GetUserByAccessTokenAsync(username, password, Context.RequestAborted);
         if (user is null)
         {
+            Logger.LogWarning("Basic credential failed verification: {Reason}", "Invalid Token");
             return AuthenticateResult.Fail(FailureMessage);
         }
 
