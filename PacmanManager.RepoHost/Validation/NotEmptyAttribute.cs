@@ -1,5 +1,6 @@
 using System.Collections;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 
 namespace PacmanManager.RepoHost.Validation;
 
@@ -24,7 +25,7 @@ public sealed class NotEmptyAttribute : ValidationAttribute
 
             case IEnumerable collection:
             {
-                foreach (var _ in collection)
+                if (collection.Cast<object>().Any())
                 {
                     return ValidationResult.Success;
                 }
