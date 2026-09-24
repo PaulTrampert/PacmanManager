@@ -17,7 +17,7 @@ public static class AuthnConstants
     /// <summary>
     /// The default authentication scheme: a policy scheme that forwards each request to
     /// <see cref="BasicScheme"/> or to the <c>Bearer</c> scheme by the prefix of its
-    /// <c>Authorization</c> header. See <see cref="AuthenticationServiceCollectionExtensions.SelectScheme"/>.
+    /// <c>Authorization</c> header. See <see cref="PacmanAuthenticationServiceCollectionExtensions.SelectScheme"/>.
     /// </summary>
     public const string SelectorScheme = "AuthorizationHeaderSelector";
 

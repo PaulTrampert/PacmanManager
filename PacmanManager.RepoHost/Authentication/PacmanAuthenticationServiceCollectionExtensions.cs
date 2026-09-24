@@ -6,7 +6,7 @@ namespace PacmanManager.RepoHost.Authentication;
 /// <summary>
 /// Registers the application's authentication schemes.
 /// </summary>
-public static class AuthenticationServiceCollectionExtensions
+public static class PacmanAuthenticationServiceCollectionExtensions
 {
     /// <summary>
     /// Registers <see cref="AuthnConstants.SelectorScheme"/> as the default scheme, forwarding by
