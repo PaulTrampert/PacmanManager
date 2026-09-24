@@ -667,12 +667,18 @@ repository's packages.
 
 These routes require **`Bearer`**, which follows from the header prefix alone: a request carrying a
 `Basic` credential is authenticated by that scheme, and the `pacman-manager:*:read` scope it arrives
-with cannot name a write. A token therefore cannot be used to mint another token without any rule
-saying so.
+with cannot name a write. A token therefore cannot be used to mint another token, and no route
+rule says so: the refusal is the scope arm of `AccessTokenAccessPolicy.CheckCreate`, which
+[issue 12](#12-accesstokenaccesspolicy--minor) adds, refusing any credential without
+`tokens:create`. Until that issue lands, nothing checks a scope on tokens.
 
 `me` is the only subject, for the reason
 [User Management](user-management.md#me-is-the-only-way-to-reach-the-write-route) gives. This
 document does not otherwise depend on that one; the reasoning is shared, the code is not.
+
+**Why:**
+
+* [the Basic-mint refusal is tested with the access policy](#why-the-basic-mint-refusal-is-tested-with-the-access-policy)
 
 ### The listing follows the standard shape
 
@@ -981,8 +987,9 @@ returns it, asserted against the raw response body; the listing shows the same `
 returned; the returned username and secret then authenticate a request; deleting it makes it stop
 authenticating; a second token with the same name is a `409`, and so is one whose name differs only in case; a past `expiresAt` is a `400` and an
 omitted one produces a token with no expiry; another user's token is a `404` to delete; the listing
-pages, filters and sorts, and never shows another user's token; every route is a `401`
-unauthenticated; and a Basic-authenticated caller cannot mint a token.
+pages, filters and sorts, and never shows another user's token; and every route is a `401`
+unauthenticated. That a Basic-authenticated caller cannot mint a token is tested by
+[issue 12](#12-accesstokenaccesspolicy--minor), which adds the check that refuses it.
 
 *Depends on:* 2b, 4, and [`ItemExistsException` → `409`](authorization-plan.md#itemexistsexception--409--patch).
 
@@ -992,6 +999,7 @@ unauthenticated; and a Basic-authenticated caller cannot mint a token.
 * [the token listing is paged](#why-the-token-listing-is-paged)
 * [there is no maximum lifetime](#why-there-is-no-maximum-lifetime)
 * [the service owns its models, filter and sort field](#why-the-service-owns-its-models-filter-and-sort-field)
+* [the Basic-mint refusal is tested with the access policy](#why-the-basic-mint-refusal-is-tested-with-the-access-policy)
 
 ### 6. Scopes on a `Bearer` token — `MINOR`
 
@@ -1186,13 +1194,15 @@ of tokens, so a read without `tokens:read` is refused rather than shown less.
 tests that each method is refused on a `Forbidden` verdict and proceeds otherwise. E2E tests with a
 `pacman-manager-scoped` token carrying `pacman-manager:tokens:read`, which lists tokens and is a
 `403` minting or deleting one, and one carrying `pacman-manager:repositories:*`, for which every
-token route is a `403`.
+token route is a `403`. An E2E test asserts that a Basic-authenticated caller, whose credential carries
+only `pacman-manager:*:read`, gets a `403` minting a token, and that no token is minted.
 
 *Depends on:* 3, 5.
 
 **Why:**
 
 * [users and tokens get access policies](#why-users-and-tokens-get-access-policies)
+* [the Basic-mint refusal is tested with the access policy](#why-the-basic-mint-refusal-is-tested-with-the-access-policy)
 
 ---
 
@@ -1704,6 +1714,18 @@ They therefore land with the service in 2b. This is also how the rest of the API
 `RepositoryService` owns `Repository`, `RepositoryFilter` and `RepositorySortField`, and
 `RepositoriesController` only routes to it. Issue 5 keeps the routes, the route template and the E2E
 tests.
+
+### Why the Basic-mint refusal is tested with the access policy
+
+*Amended during implementation, with project-owner sign-off.* The plan as first accepted made "a
+Basic-authenticated caller cannot mint a token" part of [issue 5](#5-accesstokenscontroller--minor)'s
+acceptance. But the refusal follows from the Basic credential's read-only scope, and nothing checks a
+scope on tokens until [issue 12](#12-accesstokenaccesspolicy--minor) adds `AccessTokenAccessPolicy`.
+Issue 12 depends on issue 5, since its E2E tests need the token routes, so issue 5 cannot pass a test
+of a check that does not exist yet. Adding the check in the controller instead would give it a rule of
+its own, and adding it to the service would be issue 12's work done early.
+
+The test therefore lands with the check, in issue 12. Issue 5 keeps every other acceptance test.
 
 ### Why verification is on `IUserService`
 

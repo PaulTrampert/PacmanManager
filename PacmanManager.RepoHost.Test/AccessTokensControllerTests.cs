@@ -177,26 +177,6 @@ public class AccessTokensControllerTests
         });
     }
 
-    /// <summary>
-    /// A Basic credential carries only a read scope, so it cannot be used to mint another token.
-    /// </summary>
-    [Test]
-    public async Task Create_WithABasicCredential_IsForbidden()
-    {
-        var created = await CreateTokenAsync(_client, NewName());
-        using var basic = BasicClient(created.Username, created.Secret);
-        var name = NewName();
-
-        var response = await basic.PostAsJsonAsync(TokensRoute, new { name });
-        var listed = await ListAsync(_client, name);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
-            Assert.That(listed.Total, Is.Zero, "no token was minted");
-        });
-    }
-
     #endregion
 
     #region Delete
