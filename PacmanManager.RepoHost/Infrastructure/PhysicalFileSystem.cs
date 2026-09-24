@@ -26,4 +26,7 @@ public class PhysicalFileSystem : IFileSystem
 
     /// <inheritdoc/>
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);
+
+    /// <inheritdoc/>
+    public void DeleteDirectory(string path) => Directory.Delete(path, recursive: true);
 }

@@ -33,6 +33,7 @@ public class RepositoryServiceCollisionTests
     private Mock<IFileSystem> _mockFileSystem;
     private TestActorAccessor _actors;
     private PacmanConfigSettings _settings;
+    private PackagePathResolver _pathResolver;
     private RepositoryService _service;
     private User _existingUser;
     private User _otherUser;
@@ -73,17 +74,16 @@ public class RepositoryServiceCollisionTests
         _mockFileSystem = new Mock<IFileSystem>();
         _actors = new TestActorAccessor { Actor = Actor.For(_existingUser, ActorScope.Unrestricted) };
         _settings = new PacmanConfigSettings { DataDir = "/tmp/pacman" };
-        var pacmanSettings = new Mock<IOptionsSnapshot<PacmanConfigSettings>>();
-        pacmanSettings.Setup(s => s.Value).Returns(_settings);
+        _pathResolver = new PackagePathResolver(Options.Create(_settings));
 
         _service = new RepositoryService(
             _dbContext,
             _mockCliRunner.Object,
             _actors,
             new RepositoryAccessPolicy(),
-            pacmanSettings.Object,
             new TestOutputLogger<RepositoryService>(),
-            _mockFileSystem.Object);
+            _mockFileSystem.Object,
+            _pathResolver);
     }
 
     [TearDown]
@@ -109,22 +109,24 @@ public class RepositoryServiceCollisionTests
     }
 
     [Test]
-    public async Task CreateRepositoryAsync_OnACollision_RemovesOnlyTheDatabaseFileItWrote()
+    public async Task CreateRepositoryAsync_OnACollision_RemovesOnlyTheDirectoryItWrote()
     {
         // repo-add runs before the index refuses the row, so the collision is cleaned up like any
-        // other failure. The file is named for the new id, so the existing repository's is untouched.
+        // other failure. The directory is named for the new id, so the existing repository's is
+        // untouched.
         // Arrange
         var existing = await GivenRepositoryAsync(name: "taken");
-        var existingFile = new RepositoryDatabase(existing.Id.ToString(), _settings.DbPath, Architectures.X86_64).FilePath;
-        _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
+        var existingDirectory = _pathResolver.GetRepositoryDirectory(existing.Id);
+        _mockFileSystem.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns(true);
         var request = new WriteRepositoryRequest { Name = "taken" };
 
         // Act
         Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
 
         // Assert
-        _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Once);
-        _mockFileSystem.Verify(f => f.Delete(existingFile), Times.Never);
+        _mockFileSystem.Verify(f => f.DeleteDirectory(It.IsAny<string>()), Times.Once);
+        _mockFileSystem.Verify(f => f.DeleteDirectory(existingDirectory), Times.Never);
+        _mockFileSystem.Verify(f => f.Delete(It.IsAny<string>()), Times.Never);
     }
 
     [Test]

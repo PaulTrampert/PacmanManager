@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
@@ -8,7 +7,6 @@ using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
-using PacmanManager.RepoHost.Startup.LibAlpm;
 using PTrampert.QueryObjects;
 
 namespace PacmanManager.RepoHost.Services;
@@ -30,17 +28,28 @@ internal class RepositoryService(
     ICliToolRunner cliRunner,
     IActorAccessor actorAccessor,
     RepositoryAccessPolicy accessPolicy,
-    IOptionsSnapshot<PacmanConfigSettings> pacmanSettings,
     ILogger<RepositoryService> logger,
-    IFileSystem fileSystem) : IRepositoryService
+    IFileSystem fileSystem,
+    IPackagePathResolver pathResolver) : IRepositoryService
 {
-    private PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
-
     /// <summary>
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.
     /// </summary>
     private RepositoryDatabase DatabaseFor(Guid id, string architecture) =>
-        new(id.ToString(), _pacmanConfig.DbPath, architecture);
+        new(id.ToString(), pathResolver.GetRepositoryDirectory(id), architecture);
+
+    /// <summary>
+    /// Removes a repository's directory and everything in it: its package files and every file
+    /// <c>repo-add</c> wrote for each of its architectures.
+    /// </summary>
+    private void DeleteRepositoryDirectory(Guid id)
+    {
+        var directory = pathResolver.GetRepositoryDirectory(id);
+        if (fileSystem.DirectoryExists(directory))
+        {
+            fileSystem.DeleteDirectory(directory);
+        }
+    }
 
     /// <summary>
     /// The repositories the current actor is allowed to see. Every other method in this class
@@ -211,26 +220,18 @@ internal class RepositoryService(
             foreach (var architecture in repository.SupportedArchitectures)
             {
                 var database = DatabaseFor(repository.Id, architecture);
-                fileSystem.CreateDirectory(database.SyncDirectory);
-                await cliRunner.RunToolCheckedAsync(
-                    new RepoAdd(repository.Id.ToString(), _pacmanConfig.DbPath, architecture),
-                    cancellationToken);
+                fileSystem.CreateDirectory(database.DatabaseDirectory);
+                await cliRunner.RunToolCheckedAsync(new RepoAdd(database), cancellationToken);
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception e)
         {
-            // The files are named for the new repository's id, never its name, so this removes only
-            // what this call wrote, even when the failure is a collision with an existing repository.
-            foreach (var architecture in repository.SupportedArchitectures)
-            {
-                var expectedRepoPath = DatabaseFor(repository.Id, architecture).FilePath;
-                if (fileSystem.Exists(expectedRepoPath))
-                {
-                    fileSystem.Delete(expectedRepoPath);
-                }
-            }
+            // The directory is named for the new repository's id, never its name, so this removes
+            // only what this call wrote, even when the failure is a collision with an existing
+            // repository.
+            DeleteRepositoryDirectory(repository.Id);
 
             if (e is DbUpdateException dbUpdate && IsNameCollision(dbUpdate))
             {
@@ -280,22 +281,18 @@ internal class RepositoryService(
         dbContext.Remove(repository);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // The row is the source of truth. A file left behind is inert once nothing points at it,
-        // so failing to remove it is worth a warning but not worth failing the delete.
-        foreach (var architecture in repository.SupportedArchitectures)
+        // The row is the source of truth. Everything the repository owns on disk -- its package
+        // files and every architecture's databases -- is under one directory, so removing that
+        // leaves nothing to enumerate or forget. Files left behind are inert once nothing points
+        // at them, so failing to remove them is worth a warning but not worth failing the delete.
+        try
         {
-            var repoFileName = DatabaseFor(id, architecture).FilePath;
-            try
-            {
-                if (fileSystem.Exists(repoFileName))
-                {
-                    fileSystem.Delete(repoFileName);
-                }
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Deleted repository {RepositoryId} but could not remove {RepositoryFile}", id, repoFileName);
-            }
+            DeleteRepositoryDirectory(id);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Deleted repository {RepositoryId} but could not remove {RepositoryDirectory}",
+                id, pathResolver.GetRepositoryDirectory(id));
         }
 
         return true;

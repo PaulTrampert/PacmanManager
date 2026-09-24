@@ -492,7 +492,7 @@ public class PackageServiceDeleteTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoAdd
-                                     && t.WorkingDirectory.EndsWith("/sync/x86_64")
+                                     && t.WorkingDirectory.EndsWith("/db/x86_64")
                                      && t.Arguments.Contains(filePath)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
@@ -595,7 +595,7 @@ public class PackageServiceDeleteTests
         _cliRunner.Verify(
             c => c.RunToolAsync(
                 It.Is<ICliTool>(t => t is RepoRemove
-                                     && t.WorkingDirectory.EndsWith($"/sync/{architecture}")
+                                     && t.WorkingDirectory.EndsWith($"/db/{architecture}")
                                      && t.Arguments.Contains(packageName)),
                 It.IsAny<ICliOutputHandler>(),
                 It.IsAny<CancellationToken>()),
@@ -686,6 +686,8 @@ public class PackageServiceDeleteTests
             inner.Move(sourcePath, destinationPath, overwrite);
 
         public void CreateDirectory(string path) => inner.CreateDirectory(path);
+
+        public void DeleteDirectory(string path) => inner.DeleteDirectory(path);
     }
 
     #endregion

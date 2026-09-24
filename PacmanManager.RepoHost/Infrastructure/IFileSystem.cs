@@ -56,4 +56,12 @@ public interface IFileSystem
     /// </summary>
     /// <param name="path">The directory to create.</param>
     void CreateDirectory(string path);
+
+    /// <summary>
+    /// Deletes a directory together with everything beneath it. A symbolic link inside it is removed
+    /// rather than followed.
+    /// </summary>
+    /// <param name="path">The directory to delete.</param>
+    /// <exception cref="DirectoryNotFoundException">The directory does not exist.</exception>
+    void DeleteDirectory(string path);
 }
