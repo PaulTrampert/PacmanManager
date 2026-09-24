@@ -339,7 +339,7 @@ ones.
   `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
   environment needs before the E2E tests can run.
 * `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command: it assigns
-  every open, unassigned issue with no open blocker to the `gh` user, moves it to *In Progress*, and
+  every open, unassigned issue with no open blocker and no `needs decision` label to the `gh` user, moves it to *In Progress*, and
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees).
 * `.github/workflows/` holds the CI workflows described under
