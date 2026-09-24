@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 
 namespace PacmanManager.RepoHost.Test;
@@ -150,7 +151,7 @@ public class RepositoriesControllerTests
         Assert.Multiple(() =>
         {
             Assert.That(response!.Total, Is.EqualTo(1));
-            Assert.That(response.Results.Single().SupportedArchitectures, Does.Contain("x86_64"));
+            Assert.That(response.Results.Single().SupportedArchitectures, Does.Contain(Architectures.X86_64));
         });
     }
 
@@ -208,7 +209,7 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "test-repo",
-            SupportedArchitectures = ["x86_64"]
+            SupportedArchitectures = [Architectures.X86_64]
         };
 
         // Act
@@ -225,7 +226,7 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "test-repo-2",
-            SupportedArchitectures = ["x86_64"]
+            SupportedArchitectures = [Architectures.X86_64]
         };
 
         // Act
@@ -244,7 +245,7 @@ public class RepositoriesControllerTests
         var request = new WriteRepositoryRequest
         {
             Name = "custom-repo",
-            SupportedArchitectures = ["x86_64"],
+            SupportedArchitectures = [Architectures.X86_64],
             IsPublic = true
         };
 
@@ -340,7 +341,7 @@ public class RepositoriesControllerTests
 
         // Assert
         Assert.That(repository, Is.Not.Null);
-        Assert.That(repository!.SupportedArchitectures, Is.EqualTo(new[] { "x86_64" }));
+        Assert.That(repository!.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
     }
 
     [Test]
@@ -755,7 +756,7 @@ public class RepositoriesControllerTests
         {
             Id = Guid.CreateVersion7(),
             Name = "test",
-            SupportedArchitectures = ["x86_64"],
+            SupportedArchitectures = [Architectures.X86_64],
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

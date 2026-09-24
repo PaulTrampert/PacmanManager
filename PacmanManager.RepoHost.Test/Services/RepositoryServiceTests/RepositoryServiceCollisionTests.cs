@@ -15,7 +15,7 @@ using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 /// <summary>
 /// Repository name collisions. Nothing checks for a collision before writing; the unique index
@@ -115,7 +115,7 @@ public class RepositoryServiceCollisionTests
         // other failure. The file is named for the new id, so the existing repository's is untouched.
         // Arrange
         var existing = await GivenRepositoryAsync(name: "taken");
-        var existingFile = new RepositoryDatabase(existing.Id.ToString(), _settings.DbPath, "x86_64").FilePath;
+        var existingFile = new RepositoryDatabase(existing.Id.ToString(), _settings.DbPath, Architectures.X86_64).FilePath;
         _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
         var request = new WriteRepositoryRequest { Name = "taken" };
 
@@ -209,13 +209,13 @@ public class RepositoryServiceCollisionTests
     {
         // Arrange
         var repository = await GivenRepositoryAsync(name: "unchanged");
-        var update = new WriteRepositoryRequest { Name = "unchanged", SupportedArchitectures = ["x86_64", "aarch64"] };
+        var update = new WriteRepositoryRequest { Name = "unchanged", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
 
         // Act
         var result = await _service.UpdateRepositoryAsync(repository.Id, update);
 
         // Assert
-        Assert.That(result!.SupportedArchitectures, Is.EqualTo(new[] { "x86_64", "aarch64" }));
+        Assert.That(result!.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
     }
 
     [Test]
@@ -243,7 +243,7 @@ public class RepositoryServiceCollisionTests
         {
             Id = Guid.CreateVersion7(),
             Name = name,
-            SupportedArchitectures = architectures?.ToList() ?? ["x86_64"],
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner ?? _existingUser,
             CreatedAt = now,

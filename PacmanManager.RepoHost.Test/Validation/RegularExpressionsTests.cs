@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.Validation;
 
 namespace PacmanManager.RepoHost.Test.Validation;
@@ -64,7 +65,7 @@ public class RegularExpressionsTests
         Assert.That(Regex.IsMatch(version, RegularExpressions.PackageVersion), Is.EqualTo(isMatchExpected));
     }
 
-    [TestCase("x86_64", true)]
+    [TestCase(Architectures.X86_64, true)]
     [TestCase("any", true)]
     [TestCase("aarch64", true)]
     [TestCase("armv7h", true)]

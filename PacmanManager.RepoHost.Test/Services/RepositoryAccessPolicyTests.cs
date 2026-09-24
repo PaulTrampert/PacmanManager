@@ -190,7 +190,7 @@ public class RepositoryAccessPolicyTests
     private static PacmanRepository RepositoryOf(User owner, bool isPublic) => new()
     {
         Name = "a-repo",
-        SupportedArchitectures = ["x86_64"],
+        SupportedArchitectures = [Architectures.X86_64],
         OwnerId = owner.Id,
         Owner = owner,
         IsPublic = isPublic,

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 /// <summary>
 /// Guards the structural property that makes <c>RepositoryService</c> safe: authorization is not

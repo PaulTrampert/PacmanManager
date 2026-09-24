@@ -6,28 +6,30 @@ namespace PacmanManager.RepoHost.Validation;
 
 /// <summary>
 /// Requires an architecture, or every architecture in a collection, to be one a repository may
-/// support: a member of <see cref="PacmanRepositoryValidationConstants.SupportedArchitectures"/>.
+/// support: a member of <see cref="PacmanRepositoryValidationConstants.SupportedArchitectures"/>,
+/// plus <see cref="Architectures.Any"/> when <see cref="AllowAny"/> is set.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The allowed set is a shared constant rather than a list repeated in each attribute, so that the
-/// request, the filter and the key cannot drift apart when an architecture is added. <c>any</c> is
-/// never a member: it describes a package, not a repository.
+/// request, the filter and the key cannot drift apart when an architecture is added.
 /// </para>
 /// <para>
-/// A null value is valid, so that an optional filter criterion can be left unset; pair this with
-/// <see cref="RequiredAttribute"/> where a value is mandatory. A collection must also be non-empty
-/// unless <see cref="AllowEmpty"/> is set, because a repository that supports nothing can serve
-/// nothing.
+/// A null value is valid, so that an optional value can be left unset; pair this with
+/// <see cref="RequiredAttribute"/> where a value is mandatory. An empty collection is likewise
+/// valid here -- this attribute only checks membership -- so pair it with
+/// <see cref="NotEmptyAttribute"/> where a collection must have at least one element.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
 public sealed class SupportedArchitectureAttribute : ValidationAttribute
 {
     /// <summary>
-    /// Whether an empty collection is valid. Defaults to <c>false</c>.
+    /// Whether <see cref="Architectures.Any"/> is an allowed value, alongside every member of
+    /// <see cref="PacmanRepositoryValidationConstants.SupportedArchitectures"/>. Defaults to
+    /// <c>false</c>: a repository never supports <c>any</c>, only a package build does.
     /// </summary>
-    public bool AllowEmpty { get; init; }
+    public bool AllowAny { get; init; }
 
     /// <inheritdoc />
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
@@ -46,15 +48,7 @@ public sealed class SupportedArchitectureAttribute : ValidationAttribute
 
             case IEnumerable collection:
             {
-                var architectures = collection.Cast<object?>().ToList();
-                if (architectures.Count == 0 && !AllowEmpty)
-                {
-                    return new ValidationResult(
-                        "At least one architecture is required; a repository that supports nothing can serve nothing.",
-                        memberNames);
-                }
-
-                foreach (var element in architectures)
+                foreach (var element in collection)
                 {
                     if (element is not string architecture || !IsSupported(architecture))
                     {
@@ -70,10 +64,17 @@ public sealed class SupportedArchitectureAttribute : ValidationAttribute
         }
     }
 
-    private static bool IsSupported(string architecture) =>
-        PacmanRepositoryValidationConstants.SupportedArchitectures.Contains(architecture, StringComparer.Ordinal);
+    private bool IsSupported(string architecture) =>
+        PacmanRepositoryValidationConstants.SupportedArchitectures.Contains(architecture, StringComparer.Ordinal)
+        || (AllowAny && architecture == Architectures.Any);
 
-    private static string Unsupported(string? architecture) =>
-        $"'{architecture}' is not a supported architecture. A repository may support: "
-        + string.Join(", ", PacmanRepositoryValidationConstants.SupportedArchitectures) + ".";
+    private string Unsupported(string? architecture)
+    {
+        var allowed = AllowAny
+            ? PacmanRepositoryValidationConstants.SupportedArchitectures.Append(Architectures.Any)
+            : PacmanRepositoryValidationConstants.SupportedArchitectures;
+
+        return $"'{architecture}' is not a supported architecture. A repository may support: "
+            + string.Join(", ", allowed) + ".";
+    }
 }

@@ -94,7 +94,7 @@ public class PackageSortExtensionsTests
     {
         Name = name,
         Version = "1.0.0-1",
-        Architecture = "x86_64",
+        Architecture = Architectures.X86_64,
         FileName = $"{name}-1.0.0-1-x86_64.pkg.tar.zst",
         Sha256Sum = new string('a', 64),
         Md5Sum = new string('b', 32),

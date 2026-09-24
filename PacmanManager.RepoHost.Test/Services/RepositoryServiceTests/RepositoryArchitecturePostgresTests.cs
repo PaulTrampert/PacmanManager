@@ -14,7 +14,7 @@ using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 /// <summary>
 /// The parts of a repository's architectures that only Postgres can answer: how a query over the
@@ -86,14 +86,14 @@ public class RepositoryArchitecturePostgresTests
     public async Task SupportedArchitectures_RoundTripThroughTheColumn()
     {
         // Arrange
-        var repository = await GivenRepositoryAsync("round-trip", "x86_64", "aarch64");
+        var repository = await GivenRepositoryAsync("round-trip", Architectures.X86_64, "aarch64");
 
         // Act
         await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
         var stored = await fresh.PacmanRepositories.SingleAsync(r => r.Id == repository.Id);
 
         // Assert
-        Assert.That(stored.SupportedArchitectures, Is.EqualTo(new[] { "x86_64", "aarch64" }));
+        Assert.That(stored.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
     }
 
     [Test]
@@ -102,14 +102,14 @@ public class RepositoryArchitecturePostgresTests
         // The column is an array, so the filter is a containment test rather than an equality: a
         // repository supporting two architectures matches either.
         // Arrange
-        await GivenRepositoryAsync("x86-only", "x86_64");
+        await GivenRepositoryAsync("x86-only", Architectures.X86_64);
         await GivenRepositoryAsync("arm-only", "aarch64");
-        await GivenRepositoryAsync("both", "aarch64", "x86_64");
+        await GivenRepositoryAsync("both", "aarch64", Architectures.X86_64);
 
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { Architecture = "x86_64" });
+            new RepositoryFilter { Architecture = Architectures.X86_64 });
 
         // Assert
         Assert.Multiple(() =>
@@ -123,8 +123,8 @@ public class RepositoryArchitecturePostgresTests
     public async Task PackageIndex_AdmitsOneNameBuiltForTwoArchitectures()
     {
         // Arrange
-        var repository = await GivenRepositoryAsync("two-builds", "x86_64", "aarch64");
-        _dbContext.AddRange(NewPackage(repository, "foo", "x86_64"), NewPackage(repository, "foo", "aarch64"));
+        var repository = await GivenRepositoryAsync("two-builds", Architectures.X86_64, "aarch64");
+        _dbContext.AddRange(NewPackage(repository, "foo", Architectures.X86_64), NewPackage(repository, "foo", "aarch64"));
 
         // Act
         await _dbContext.SaveChangesAsync();
@@ -137,10 +137,10 @@ public class RepositoryArchitecturePostgresTests
     public async Task PackageIndex_RefusesASecondRowForTheSameNameAndArchitecture()
     {
         // Arrange
-        var repository = await GivenRepositoryAsync("duplicate-build", "x86_64");
-        _dbContext.Add(NewPackage(repository, "foo", "x86_64"));
+        var repository = await GivenRepositoryAsync("duplicate-build", Architectures.X86_64);
+        _dbContext.Add(NewPackage(repository, "foo", Architectures.X86_64));
         await _dbContext.SaveChangesAsync();
-        _dbContext.Add(NewPackage(repository, "foo", "x86_64"));
+        _dbContext.Add(NewPackage(repository, "foo", Architectures.X86_64));
 
         // Act
         var thrown = Assert.ThrowsAsync<DbUpdateException>(async () => await _dbContext.SaveChangesAsync());

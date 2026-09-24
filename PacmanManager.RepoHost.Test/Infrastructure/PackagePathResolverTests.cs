@@ -124,7 +124,7 @@ public class PackagePathResolverTests
     {
         using var content = StreamOf(magic);
 
-        Assert.That(_subject.DeriveFileName("my-tool", "1.4.2-1", "x86_64", content),
+        Assert.That(_subject.DeriveFileName("my-tool", "1.4.2-1", Architectures.X86_64, content),
             Is.EqualTo($"my-tool-1.4.2-1-x86_64.pkg.tar.{extension}"));
     }
 
@@ -143,7 +143,7 @@ public class PackagePathResolverTests
         using var content = StreamOf("this is not a package"u8.ToArray());
 
         var ex = Assert.Throws<UnsupportedPackageCompressionException>(
-            () => _subject.DeriveFileName("my-tool", "1.4.2-1", "x86_64", content));
+            () => _subject.DeriveFileName("my-tool", "1.4.2-1", Architectures.X86_64, content));
 
         Assert.That(ex, Is.InstanceOf<InvalidPackageException>());
     }
@@ -202,8 +202,8 @@ public class PackagePathResolverTests
 
     #region Name derivation
 
-    [TestCase("my-tool", "1.4.2-1", "x86_64", "my-tool-1.4.2-1-x86_64.pkg.tar.zst")]
-    [TestCase("my-tool", "2:1.4.2-1", "x86_64", "my-tool-2:1.4.2-1-x86_64.pkg.tar.zst")]
+    [TestCase("my-tool", "1.4.2-1", Architectures.X86_64, "my-tool-1.4.2-1-x86_64.pkg.tar.zst")]
+    [TestCase("my-tool", "2:1.4.2-1", Architectures.X86_64, "my-tool-2:1.4.2-1-x86_64.pkg.tar.zst")]
     [TestCase("lib32-foo+bar", "1.0", "any", "lib32-foo+bar-1.0-any.pkg.tar.zst")]
     [TestCase("a", "1", "aarch64", "a-1-aarch64.pkg.tar.zst")]
     public void DeriveFileName_FormatsNameVersionAndArchitecture(
@@ -216,7 +216,7 @@ public class PackagePathResolverTests
     [Test]
     public void DeriveFileName_NeverProducesAPathSeparator()
     {
-        var fileName = _subject.DeriveFileName("my-tool", "1.4.2-1", "x86_64", PackageCompression.Zstandard);
+        var fileName = _subject.DeriveFileName("my-tool", "1.4.2-1", Architectures.X86_64, PackageCompression.Zstandard);
 
         Assert.Multiple(() =>
         {
@@ -239,7 +239,7 @@ public class PackagePathResolverTests
     public void DeriveFileName_RejectsANameThatWouldEscapeTheRepositoryDirectory(string name)
     {
         Assert.Throws<InvalidPackageMetadataException>(
-            () => _subject.DeriveFileName(name, "1.4.2-1", "x86_64", PackageCompression.Zstandard));
+            () => _subject.DeriveFileName(name, "1.4.2-1", Architectures.X86_64, PackageCompression.Zstandard));
     }
 
     [TestCase("1.0/../../etc/passwd", TestName = "version contains a forward slash")]
@@ -251,7 +251,7 @@ public class PackagePathResolverTests
     public void DeriveFileName_RejectsAVersionThatWouldEscapeTheRepositoryDirectory(string version)
     {
         Assert.Throws<InvalidPackageMetadataException>(
-            () => _subject.DeriveFileName("my-tool", version, "x86_64", PackageCompression.Zstandard));
+            () => _subject.DeriveFileName("my-tool", version, Architectures.X86_64, PackageCompression.Zstandard));
     }
 
     [TestCase("../../x86_64", TestName = "architecture traverses upwards")]
@@ -271,14 +271,14 @@ public class PackagePathResolverTests
         var name = new string('a', PackageValidationConstants.NameMaxLength + 1);
 
         Assert.Throws<InvalidPackageMetadataException>(
-            () => _subject.DeriveFileName(name, "1.4.2-1", "x86_64", PackageCompression.Zstandard));
+            () => _subject.DeriveFileName(name, "1.4.2-1", Architectures.X86_64, PackageCompression.Zstandard));
     }
 
     [Test]
     public void DeriveFileName_NamesTheFieldItRejected()
     {
         var ex = Assert.Throws<InvalidPackageMetadataException>(
-            () => _subject.DeriveFileName("my-tool", "not/a/version", "x86_64", PackageCompression.Zstandard));
+            () => _subject.DeriveFileName("my-tool", "not/a/version", Architectures.X86_64, PackageCompression.Zstandard));
 
         Assert.That(ex.Field, Is.EqualTo("version"));
         Assert.That(ex, Is.InstanceOf<InvalidPackageException>());

@@ -11,13 +11,14 @@ namespace PacmanManager.RepoHost.Test.Models;
 public class RepositoryModelTests
 {
     [Test]
-    public void Request_DefaultsToSupportingX86_64()
+    public void Request_DefaultsToSupportingEveryAllowedArchitecture()
     {
         var request = new WriteRepositoryRequest { Name = "custom" };
 
         Assert.Multiple(() =>
         {
-            Assert.That(request.SupportedArchitectures, Is.EqualTo(new[] { "x86_64" }));
+            Assert.That(request.SupportedArchitectures,
+                Is.EqualTo(PacmanRepositoryValidationConstants.SupportedArchitectures));
             Assert.That(Validate(request), Is.Empty);
         });
     }
@@ -38,7 +39,7 @@ public class RepositoryModelTests
     public void Request_SupportingAny_IsInvalid()
     {
         // any describes a package, never a repository.
-        var request = new WriteRepositoryRequest { Name = "custom", SupportedArchitectures = ["any"] };
+        var request = new WriteRepositoryRequest { Name = "custom", SupportedArchitectures = [Architectures.Any] };
 
         AssertInvalidSupportedArchitectures(request);
     }
@@ -46,7 +47,11 @@ public class RepositoryModelTests
     [Test]
     public void Request_SupportingAnyAlongsideARealArchitecture_IsInvalid()
     {
-        var request = new WriteRepositoryRequest { Name = "custom", SupportedArchitectures = ["x86_64", "any"] };
+        var request = new WriteRepositoryRequest
+        {
+            Name = "custom",
+            SupportedArchitectures = [Architectures.X86_64, Architectures.Any],
+        };
 
         AssertInvalidSupportedArchitectures(request);
     }
@@ -90,14 +95,14 @@ public class RepositoryModelTests
     [Test]
     public void AllowedSet_DoesNotContainAny()
     {
-        Assert.That(PacmanRepositoryValidationConstants.SupportedArchitectures, Does.Not.Contain("any"));
+        Assert.That(PacmanRepositoryValidationConstants.SupportedArchitectures, Does.Not.Contain(Architectures.Any));
     }
 
     [Test]
-    public void AllowedSet_ContainsTheDefault()
+    public void DefaultArchitecture_IsEveryAllowedArchitecture()
     {
-        Assert.That(PacmanRepositoryValidationConstants.SupportedArchitectures,
-            Does.Contain(PacmanRepositoryValidationConstants.DefaultArchitecture));
+        Assert.That(PacmanRepositoryValidationConstants.DefaultArchitecture,
+            Is.EqualTo(PacmanRepositoryValidationConstants.SupportedArchitectures));
     }
 
     [Test]
@@ -109,10 +114,10 @@ public class RepositoryModelTests
     [Test]
     public void Filter_WithASupportedArchitecture_IsValid()
     {
-        Assert.That(Validate(new RepositoryFilter { Architecture = "x86_64" }), Is.Empty);
+        Assert.That(Validate(new RepositoryFilter { Architecture = Architectures.X86_64 }), Is.Empty);
     }
 
-    [TestCase("any")]
+    [TestCase(Architectures.Any)]
     [TestCase("sparc64")]
     public void Filter_WithAnArchitectureNoRepositoryMaySupport_IsInvalid(string architecture)
     {

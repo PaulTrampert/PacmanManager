@@ -22,13 +22,16 @@ public static class PacmanRepositoryValidationConstants
     public const int ArchitectureMaxLength = 255;
 
     /// <summary>
-    /// The architecture a repository supports when a request does not say.
+    /// The machine architectures a repository may support. <see cref="Architectures.Any"/> is
+    /// deliberately absent: it describes a package, never a repository.
     /// </summary>
-    public const string DefaultArchitecture = "x86_64";
+    public static readonly IEnumerable<string> SupportedArchitectures =
+        Architectures.All.Except([Architectures.Any]);
 
     /// <summary>
-    /// The machine architectures a repository may support. <c>any</c> is deliberately absent: it
-    /// describes a package, never a repository.
+    /// The architectures a repository supports when a request does not say. Every allowed
+    /// architecture, rather than a single one, so that an omitted request does not silently narrow
+    /// to whichever architecture happened to be the default when it was added.
     /// </summary>
-    public static readonly IReadOnlyCollection<string> SupportedArchitectures = [DefaultArchitecture];
+    public static readonly IEnumerable<string> DefaultArchitecture = SupportedArchitectures;
 }

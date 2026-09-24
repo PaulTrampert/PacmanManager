@@ -19,15 +19,17 @@ public record WriteRepositoryRequest
     public required string Name { get; init; }
     
     /// <summary>
-    /// The machine architectures the repository publishes a database for. Defaults to
-    /// <c>["x86_64"]</c>. Must be non-empty, and each element must be one a repository may support;
-    /// <c>any</c> is never one, since it describes a package rather than a repository. A package
-    /// built for <c>any</c> is published into every one of these architectures' databases.
+    /// The machine architectures the repository publishes a database for. Defaults to every
+    /// architecture a repository may support. Must be non-empty, and each element must be one a
+    /// repository may support; <c>any</c> is never one, since it describes a package rather than a
+    /// repository. A package built for <c>any</c> is published into every one of these
+    /// architectures' databases.
     /// </summary>
     [Required]
+    [NotEmpty]
     [SupportedArchitecture]
     public IEnumerable<string> SupportedArchitectures { get; init; } =
-        [PacmanRepositoryValidationConstants.DefaultArchitecture];
+        PacmanRepositoryValidationConstants.DefaultArchitecture;
 
     /// <summary>
     /// Whether the repository is public.

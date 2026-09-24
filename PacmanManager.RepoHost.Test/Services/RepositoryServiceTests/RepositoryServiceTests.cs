@@ -13,7 +13,7 @@ using PacmanManager.TestUtils;
 using NUnit.Framework;
 using PacmanManager.RepoHost.Exceptions;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 
 [TestFixture]
 public class RepositoryServiceTests
@@ -98,11 +98,11 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("new-repo"));
-            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { "x86_64" }));
+            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
             Assert.That(result.IsPublic, Is.True);
 
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Name == "new-repo");
-            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { "x86_64" }));
+            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
         });
     }
 
@@ -112,7 +112,7 @@ public class RepositoryServiceTests
         // repo-add writes one database per architecture, so a repository supporting two needs two.
         // The wire model only admits x86_64 today; the service does not assume that.
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "two-arch", SupportedArchitectures = ["x86_64", "aarch64"] };
+        var request = new WriteRepositoryRequest { Name = "two-arch", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
         _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
@@ -120,8 +120,8 @@ public class RepositoryServiceTests
         var result = await _service.CreateRepositoryAsync(request);
 
         // Assert
-        Assert.That(result.SupportedArchitectures, Is.EquivalentTo(new[] { "x86_64", "aarch64" }));
-        foreach (var architecture in new[] { "x86_64", "aarch64" })
+        Assert.That(result.SupportedArchitectures, Is.EquivalentTo(new[] { Architectures.X86_64, "aarch64" }));
+        foreach (var architecture in new[] { Architectures.X86_64, "aarch64" })
         {
             var directory = $"/tmp/pacman/libalpm/sync/{architecture}";
             _mockFileSystem.Verify(f => f.CreateDirectory(directory), Times.Once);
@@ -139,7 +139,7 @@ public class RepositoryServiceTests
     public async Task CreateRepositoryAsync_RollsBackEveryArchitecturesDatabase_OnFailure()
     {
         // Arrange
-        var request = new WriteRepositoryRequest { Name = "two-arch-fail", SupportedArchitectures = ["x86_64", "aarch64"] };
+        var request = new WriteRepositoryRequest { Name = "two-arch-fail", SupportedArchitectures = [Architectures.X86_64, "aarch64"] };
         _mockCliRunner
             .Setup(c => c.RunToolAsync(It.Is<RepoAdd>(t => t.WorkingDirectory.EndsWith("/aarch64")),
                 It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
@@ -287,7 +287,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync("theirs-private-file", "x86_64");
+        var result = await _service.GetRepositoryFileByNameAsync("theirs-private-file", Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Null);
@@ -305,7 +305,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName, "x86_64");
+        var result = await _service.GetRepositoryFileByNameAsync(repoName, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -340,7 +340,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(repoFileName)).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByIdAsync(repoId, "x86_64");
+        var result = await _service.GetRepositoryFileByIdAsync(repoId, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -351,7 +351,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        await GivenRepositoryAsync(id: repoId, name: "two-arch-file", architectures: ["x86_64", "aarch64"]);
+        await GivenRepositoryAsync(id: repoId, name: "two-arch-file", architectures: [Architectures.X86_64, "aarch64"]);
         _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
 
         // Act
@@ -387,7 +387,7 @@ public class RepositoryServiceTests
         var repoName = "non-existent-repo";
 
         // Act
-        var result = await _service.GetRepositoryFileByNameAsync(repoName, "x86_64");
+        var result = await _service.GetRepositoryFileByNameAsync(repoName, Architectures.X86_64);
 
         // Assert
         Assert.That(result, Is.Null);
@@ -402,7 +402,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.OpenRead(It.IsAny<string>())).Returns(new MemoryStream());
 
         // Act
-        var result = await _service.GetRepositoryFileByIdAsync(repoId, "x86_64");
+        var result = await _service.GetRepositoryFileByIdAsync(repoId, Architectures.X86_64);
 
         // Assert
         Assert.Multiple(() =>
@@ -624,7 +624,7 @@ public class RepositoryServiceTests
         var updateRequest = new WriteRepositoryRequest
         {
             Name = "updated-name",
-            SupportedArchitectures = ["x86_64", "aarch64"],
+            SupportedArchitectures = [Architectures.X86_64, "aarch64"],
             IsPublic = true
         };
 
@@ -636,12 +636,12 @@ public class RepositoryServiceTests
         {
             Assert.That(result, Is.Not.Null);
             Assert.That(result!.Name, Is.EqualTo("updated-name"));
-            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { "x86_64", "aarch64" }));
+            Assert.That(result.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(result.IsPublic, Is.True);
 
             var dbRepo = await _dbContext.PacmanRepositories.SingleAsync(r => r.Id == repoId);
             Assert.That(dbRepo.Name, Is.EqualTo("updated-name"));
-            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { "x86_64", "aarch64" }));
+            Assert.That(dbRepo.SupportedArchitectures, Is.EqualTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(dbRepo.IsPublic, Is.True);
         });
     }
@@ -689,7 +689,7 @@ public class RepositoryServiceTests
     {
         // Arrange
         var repoId = Guid.NewGuid();
-        await GivenRepositoryAsync(id: repoId, name: "doomed-two-arch", architectures: ["x86_64", "aarch64"]);
+        await GivenRepositoryAsync(id: repoId, name: "doomed-two-arch", architectures: [Architectures.X86_64, "aarch64"]);
         _mockFileSystem.Setup(f => f.Exists(It.IsAny<string>())).Returns(true);
 
         // Act
@@ -899,14 +899,14 @@ public class RepositoryServiceTests
         // architecture rather than whether its architecture equals it: a repository supporting two
         // matches either.
         // Arrange
-        await GivenRepositoryAsync(name: "x86-repo", architectures: ["x86_64"]);
+        await GivenRepositoryAsync(name: "x86-repo", architectures: [Architectures.X86_64]);
         await GivenRepositoryAsync(name: "arm-repo", architectures: ["aarch64"]);
-        await GivenRepositoryAsync(name: "both-repo", architectures: ["aarch64", "x86_64"]);
+        await GivenRepositoryAsync(name: "both-repo", architectures: ["aarch64", Architectures.X86_64]);
 
         // Act
         var result = await _service.GetRepositoriesAsync(
             new PaginationParams { PageSize = 50 },
-            new RepositoryFilter { Architecture = "x86_64" });
+            new RepositoryFilter { Architecture = Architectures.X86_64 });
 
         // Assert
         Assert.Multiple(() =>
@@ -920,7 +920,7 @@ public class RepositoryServiceTests
     public async Task GetRepositoriesAsync_UnsetArchitectureFilter_ContributesNothing()
     {
         // Arrange
-        await GivenRepositoryAsync(name: "x86-repo", architectures: ["x86_64"]);
+        await GivenRepositoryAsync(name: "x86-repo", architectures: [Architectures.X86_64]);
         await GivenRepositoryAsync(name: "arm-repo", architectures: ["aarch64"]);
 
         // Act
@@ -1130,7 +1130,7 @@ public class RepositoryServiceTests
         {
             Id = id ?? Guid.NewGuid(),
             Name = name,
-            SupportedArchitectures = architectures?.ToList() ?? ["x86_64"],
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner ?? _existingUser,
             CreatedAt = timestamp,

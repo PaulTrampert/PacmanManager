@@ -1,3 +1,4 @@
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.CliTools;
 
 namespace PacmanManager.RepoHost.Test.CliTools;
@@ -6,7 +7,7 @@ public class RepoRemoveTests
 {
     private const string RepositoryId = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
     private const string RepoHome = "/data/libalpm";
-    private const string Architecture = "x86_64";
+    private const string Architecture = Architectures.X86_64;
 
     [Test]
     public void Executable_IsRepoRemove()

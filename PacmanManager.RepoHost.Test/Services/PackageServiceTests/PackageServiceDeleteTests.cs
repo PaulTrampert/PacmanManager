@@ -12,7 +12,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
 /// <summary>
 /// Tests for <c>PackageService</c>'s delete path.
@@ -449,7 +449,7 @@ public class PackageServiceDeleteTests
 
         // Assert
         Assert.That(deleted, Is.True);
-        VerifyRepoRemoveFrom("x86_64", PackageName, Times.Once());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageName, Times.Once());
         VerifyRepoRemoveFrom("aarch64", PackageName, Times.Once());
     }
 
@@ -464,7 +464,7 @@ public class PackageServiceDeleteTests
         await _service.DeletePackageAsync(package.Id);
 
         // Assert
-        VerifyRepoRemoveFrom("x86_64", PackageName, Times.Once());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageName, Times.Once());
         VerifyRepoRemoveFrom("aarch64", PackageName, Times.Never());
     }
 
@@ -513,7 +513,7 @@ public class PackageServiceDeleteTests
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            SupportedArchitectures = architectures?.ToList() ?? ["x86_64"],
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner,
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1),
@@ -525,7 +525,7 @@ public class PackageServiceDeleteTests
     /// </summary>
     private PacmanRepository GivenMultiArchitectureRepository()
     {
-        var repository = GivenRepository("multi", _owner, isPublic: false, ["x86_64", "aarch64"]);
+        var repository = GivenRepository("multi", _owner, isPublic: false, [Architectures.X86_64, "aarch64"]);
         _dbContext.SaveChanges();
         return repository;
     }
@@ -537,7 +537,7 @@ public class PackageServiceDeleteTests
         PacmanRepository repository,
         User publisher,
         string? name = null,
-        string architecture = "x86_64")
+        string architecture = Architectures.X86_64)
     {
         var packageName = name ?? PackageName;
         var fileName = $"{packageName}-1.2.3-1-{architecture}.pkg.tar.zst";

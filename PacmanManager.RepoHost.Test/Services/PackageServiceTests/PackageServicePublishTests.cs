@@ -14,7 +14,7 @@ using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 
-namespace PacmanManager.RepoHost.Test.Services;
+namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
 /// <summary>
 /// Tests for <c>PackageService</c>'s publish path.
@@ -363,7 +363,7 @@ public class PackageServicePublishTests
 
         // Assert
         var storedPath = _pathResolver.GetPackageFilePath(repository.Id, result!.Package.FileName);
-        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, storedPath, Times.Once());
         VerifyRepoAddInto("aarch64", storedPath, Times.Never());
     }
 
@@ -379,7 +379,7 @@ public class PackageServicePublishTests
 
         // Assert
         var storedPath = _pathResolver.GetPackageFilePath(repository.Id, result!.Package.FileName);
-        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, storedPath, Times.Once());
         VerifyRepoAddInto("aarch64", storedPath, Times.Once());
         Assert.Multiple(() =>
         {
@@ -409,14 +409,14 @@ public class PackageServicePublishTests
         {
             Assert.That(second!.Created, Is.True, "A build for another architecture is a new package.");
             Assert.That(second.Package.Id, Is.Not.EqualTo(first!.Package.Id));
-            Assert.That(stored.Select(p => p.Architecture), Is.EquivalentTo(new[] { "x86_64", "aarch64" }));
+            Assert.That(stored.Select(p => p.Architecture), Is.EquivalentTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(stored.Select(p => p.Version).Distinct(),
                 Is.EqualTo(new[] { PackageFixtures.MinimalPackageVersion }));
         });
 
         var secondPath = _pathResolver.GetPackageFilePath(repository.Id, second!.Package.FileName);
         VerifyRepoAddInto("aarch64", secondPath, Times.Once());
-        VerifyRepoAddInto("x86_64", secondPath, Times.Never());
+        VerifyRepoAddInto(Architectures.X86_64, secondPath, Times.Never());
     }
 
     [Test]
@@ -449,9 +449,9 @@ public class PackageServicePublishTests
 
         // repo-add replaces an entry of the same name, and the any build goes into both databases,
         // so neither needs an explicit repo-remove.
-        VerifyRepoAddInto("x86_64", anyPath, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, anyPath, Times.Once());
         VerifyRepoAddInto("aarch64", anyPath, Times.Once());
-        VerifyRepoRemoveFrom("x86_64", PackageFixtures.MinimalPackageName, Times.Never());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Never());
         VerifyRepoRemoveFrom("aarch64", PackageFixtures.MinimalPackageName, Times.Never());
     }
 
@@ -463,7 +463,7 @@ public class PackageServicePublishTests
         _packageArchitecture = "any";
         var any = await PublishAsync(repository.Id);
         _cliRunner.Invocations.Clear();
-        _packageArchitecture = "x86_64";
+        _packageArchitecture = Architectures.X86_64;
         _packageVersion = PackageFixtures.UpgradePackageVersion;
 
         // Act
@@ -475,22 +475,22 @@ public class PackageServicePublishTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Created, Is.True, "A build for a new architecture is a new package row.");
-            Assert.That(stored.Select(p => p.Architecture), Is.EqualTo(new[] { "x86_64" }),
+            Assert.That(stored.Select(p => p.Architecture), Is.EqualTo(new[] { Architectures.X86_64 }),
                 "Only the new architecture specific build is left.");
             Assert.That(File.Exists(_pathResolver.GetPackageFilePath(repository.Id, any!.Package.FileName)), Is.False,
                 "The any build's file is gone.");
             Assert.That(File.Exists(x86Path), Is.True);
         });
 
-        VerifyRepoAddInto("x86_64", x86Path, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, x86Path, Times.Once());
         VerifyRepoAddInto("aarch64", x86Path, Times.Never());
         VerifyRepoRemoveFrom("aarch64", PackageFixtures.MinimalPackageName, Times.Once(),
             "The any build leaves the architecture the new build is not listed in.");
-        VerifyRepoRemoveFrom("x86_64", PackageFixtures.MinimalPackageName, Times.Never());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Never());
     }
 
-    [TestCase("any", "x86_64")]
-    [TestCase("x86_64", "any")]
+    [TestCase("any", Architectures.X86_64)]
+    [TestCase(Architectures.X86_64, "any")]
     public async Task PublishPackageAsync_ReplacingAcrossArchitectures_StillHasToMoveTheVersionForward(
         string published, string offered)
     {
@@ -523,7 +523,7 @@ public class PackageServicePublishTests
         var any = PublishAsync(repository.Id).GetAwaiter().GetResult();
         var anyPath = _pathResolver.GetPackageFilePath(repository.Id, any!.Package.FileName);
         _cliRunner.Invocations.Clear();
-        _packageArchitecture = "x86_64";
+        _packageArchitecture = Architectures.X86_64;
         _packageVersion = PackageFixtures.UpgradePackageVersion;
         _dbContext.FailNextCommit = true;
 
@@ -536,8 +536,8 @@ public class PackageServicePublishTests
             Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)),
                 Is.EqualTo(new[] { anyPath }), "The any file stays and the new file goes.");
         });
-        VerifyRepoRemoveFrom("x86_64", PackageFixtures.MinimalPackageName, Times.Once());
-        VerifyRepoAddInto("x86_64", anyPath, Times.Once());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, anyPath, Times.Once());
         VerifyRepoAddInto("aarch64", anyPath, Times.Once());
     }
 
@@ -562,14 +562,14 @@ public class PackageServicePublishTests
         Assert.Multiple(() =>
         {
             Assert.That(_dbContext.PacmanPackages.Select(p => p.Architecture),
-                Is.EquivalentTo(new[] { "x86_64", "aarch64" }));
+                Is.EquivalentTo(new[] { Architectures.X86_64, "aarch64" }));
             Assert.That(Directory.GetFiles(_pathResolver.GetRepositoryDirectory(repository.Id)),
                 Is.EquivalentTo(new[] { x86Path, armPath }));
         });
-        VerifyRepoAddInto("x86_64", x86Path, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, x86Path, Times.Once());
         VerifyRepoAddInto("aarch64", armPath, Times.Once());
         VerifyRepoAddInto("aarch64", x86Path, Times.Never());
-        VerifyRepoAddInto("x86_64", armPath, Times.Never());
+        VerifyRepoAddInto(Architectures.X86_64, armPath, Times.Never());
     }
 
     [Test]
@@ -592,7 +592,7 @@ public class PackageServicePublishTests
             Assert.That(second.Created, Is.False);
             Assert.That(second.Package.Id, Is.EqualTo(first!.Package.Id));
         });
-        VerifyRepoAddInto("x86_64", storedPath, Times.Once());
+        VerifyRepoAddInto(Architectures.X86_64, storedPath, Times.Once());
         VerifyRepoAddInto("aarch64", storedPath, Times.Once());
     }
 
@@ -614,7 +614,7 @@ public class PackageServicePublishTests
         // Act & Assert
         Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync(repository.Id));
 
-        VerifyRepoRemoveFrom("x86_64", PackageFixtures.MinimalPackageName, Times.Once());
+        VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Once());
         VerifyRepoRemoveFrom("aarch64", PackageFixtures.MinimalPackageName, Times.Never());
         Assert.Multiple(() =>
         {
@@ -639,7 +639,7 @@ public class PackageServicePublishTests
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.PackageArchitecture, Is.EqualTo("aarch64"));
-            Assert.That(thrown.RepositoryArchitectures, Is.EqualTo(new[] { "x86_64" }));
+            Assert.That(thrown.RepositoryArchitectures, Is.EqualTo(new[] { Architectures.X86_64 }));
             Assert.That(_dbContext.PacmanPackages.Any(), Is.False, "Nothing is stored for a rejected upload.");
             Assert.That(Directory.Exists(_pathResolver.GetRepositoryDirectory(_repository.Id)), Is.False);
         });
@@ -912,7 +912,7 @@ public class PackageServicePublishTests
         _dbContext.Add(new PacmanRepository
         {
             Name = name,
-            SupportedArchitectures = architectures?.ToList() ?? ["x86_64"],
+            SupportedArchitectures = architectures?.ToList() ?? [Architectures.X86_64],
             IsPublic = isPublic,
             Owner = owner,
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1),
@@ -924,7 +924,7 @@ public class PackageServicePublishTests
     /// </summary>
     private PacmanRepository GivenMultiArchitectureRepository()
     {
-        var repository = GivenRepository("multi", _owner, isPublic: false, ["x86_64", "aarch64"]);
+        var repository = GivenRepository("multi", _owner, isPublic: false, [Architectures.X86_64, "aarch64"]);
         _dbContext.SaveChanges();
         return repository;
     }

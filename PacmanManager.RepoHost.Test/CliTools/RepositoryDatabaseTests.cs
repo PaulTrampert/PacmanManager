@@ -1,3 +1,4 @@
+using PacmanManager.Entities;
 using PacmanManager.RepoHost.CliTools;
 
 namespace PacmanManager.RepoHost.Test.CliTools;
@@ -10,7 +11,7 @@ public class RepositoryDatabaseTests
     [Test]
     public void FileName_IsTheNameWithTheDatabaseExtension()
     {
-        var subject = new RepositoryDatabase(RepositoryId, RepoHome, "x86_64");
+        var subject = new RepositoryDatabase(RepositoryId, RepoHome, Architectures.X86_64);
 
         Assert.That(subject.FileName, Is.EqualTo($"{RepositoryId}.db.tar.gz"));
     }
@@ -18,7 +19,7 @@ public class RepositoryDatabaseTests
     [Test]
     public void SyncDirectory_IsTheArchitecturesDirectoryUnderTheSyncSubdirectoryOfTheDatabaseHome()
     {
-        var subject = new RepositoryDatabase(RepositoryId, RepoHome, "x86_64");
+        var subject = new RepositoryDatabase(RepositoryId, RepoHome, Architectures.X86_64);
 
         Assert.That(subject.SyncDirectory, Is.EqualTo("/data/libalpm/sync/x86_64"));
     }
@@ -26,7 +27,7 @@ public class RepositoryDatabaseTests
     [Test]
     public void FilePath_IsTheFileNameInsideTheSyncDirectory()
     {
-        var subject = new RepositoryDatabase(RepositoryId, RepoHome, "x86_64");
+        var subject = new RepositoryDatabase(RepositoryId, RepoHome, Architectures.X86_64);
 
         Assert.That(subject.FilePath, Is.EqualTo($"/data/libalpm/sync/x86_64/{RepositoryId}.db.tar.gz"));
     }
@@ -34,7 +35,7 @@ public class RepositoryDatabaseTests
     [Test]
     public void EachArchitecture_HasItsOwnDatabase_UnderTheSameFileName()
     {
-        var x86 = new RepositoryDatabase(RepositoryId, RepoHome, "x86_64");
+        var x86 = new RepositoryDatabase(RepositoryId, RepoHome, Architectures.X86_64);
         var arm = new RepositoryDatabase(RepositoryId, RepoHome, "aarch64");
 
         Assert.Multiple(() =>
