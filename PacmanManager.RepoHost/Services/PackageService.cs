@@ -40,7 +40,6 @@ namespace PacmanManager.RepoHost.Services;
 internal class PackageService(
     PacmanManagerDbContext dbContext,
     IActorAccessor actorAccessor,
-    RepositoryAccessPolicy accessPolicy,
     PackageAccessPolicy packagePolicy,
     ICliToolRunner cliRunner,
     IFileSystem fileSystem,
@@ -60,13 +59,13 @@ internal class PackageService(
     private readonly PacmanConfigSettings _pacmanConfig = pacmanSettings.Value;
 
     /// <summary>
-    /// The repositories the current actor is allowed to see. The only definition of repository
-    /// visibility this class has.
+    /// The repositories whose packages the current actor is allowed to see. The only definition of
+    /// package visibility this class has.
     /// </summary>
     private async ValueTask<IQueryable<PacmanRepository>> VisibleRepositoriesAsync(CancellationToken cancellationToken)
     {
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
-        return dbContext.PacmanRepositories.Where(accessPolicy.VisibleTo(actor));
+        return dbContext.PacmanRepositories.Where(packagePolicy.VisibleTo(actor));
     }
 
     /// <summary>
@@ -75,7 +74,8 @@ internal class PackageService(
     /// </summary>
     /// <remarks>
     /// Package visibility is repository visibility, so this composes
-    /// <see cref="RepositoryAccessPolicy.VisibleTo"/> as a semi-join rather than restating it as a
+    /// <see cref="PackageAccessPolicy.VisibleTo"/>, which is built on
+    /// <see cref="RepositoryAccessPolicy.VisibleTo"/>, as a semi-join rather than restating it as a
     /// predicate over the package. Rewriting it — <c>p.Repository.IsPublic || p.Repository.OwnerId
     /// == userId</c> — would be a second copy of the rule to keep in step with the first, which is
     /// the thing this design goes out of its way to avoid.

@@ -36,7 +36,7 @@ public class UserManagementServiceTests
     public async Task GetCurrentUserAsync_WithCurrentUser_ReturnsItProjectedToCurrentUser()
     {
         var user = new User { DisplayName = "Alex", NormalizedDisplayName = "alex", Email = "alex@example.com" };
-        _actorAccessor.Actor = Actor.For(user);
+        _actorAccessor.Actor = Actor.For(user, ActorScope.Unrestricted);
 
         var result = await _subject.GetCurrentUserAsync();
 
@@ -72,7 +72,7 @@ public class UserManagementServiceTests
         var actorAccessor = new Mock<IActorAccessor>(MockBehavior.Strict);
         actorAccessor
             .Setup(a => a.GetActorAsync(cts.Token))
-            .ReturnsAsync(Actor.For(user));
+            .ReturnsAsync(Actor.For(user, ActorScope.Unrestricted));
         var subject = new UserManagementService(actorAccessor.Object, _dbContext);
 
         await subject.GetCurrentUserAsync(cts.Token);

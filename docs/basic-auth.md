@@ -865,7 +865,11 @@ Also in this issue:
   `PackageService.VisibleRepositoriesAsync` switches to, as described under
   [A credential that cannot read reads as anonymous](#a-credential-that-cannot-read-reads-as-anonymous).
 * `InsufficientScopeException`, naming the entity and action refused, and an arm in
-  `AuthorizationExceptionHandler` mapping it to `403`. Nothing in this issue throws it. It is the
+  `AuthorizationExceptionHandler` mapping it to `403`. In this issue only
+  `RepositoryService.CreateRepositoryAsync` throws it, as
+  `InsufficientScopeException("repositories", "create")` when `CheckCreate` is `Forbidden`; no user
+  is still `NoCurrentUserException` (`401`). A refused change to an existing repository or package
+  keeps throwing `RepositoryForbiddenException` or `PackageForbiddenException`. It is also the
   groundwork [issues 11](#11-useraccesspolicy--minor) and
   [12](#12-accesstokenaccesspolicy--minor) both need, and it lands here so that neither of them adds
   it.
@@ -924,6 +928,7 @@ E2E tests with tokens from `pacman-manager-scoped`:
 * [a credential that cannot read reads as anonymous](#why-a-credential-that-cannot-read-reads-as-anonymous)
 * [a credential with none of our values keeps its user](#why-a-credential-with-none-of-our-values-keeps-its-user)
 * [not a claim read by each service, or a scheme check, or a filter](#why-not-a-claim-read-by-each-service-or-a-scheme-check-or-a-filter)
+* [a scope-refused create throws `InsufficientScopeException`](#why-a-scope-refused-create-throws-insufficientscopeexception)
 
 ### 4. The `Basic` scheme and its handler — `MINOR`
 
@@ -1462,6 +1467,24 @@ equivalent in what the caller may do, but it throws away *who* the caller is. An
 the user, such as the logs today and rate limiting later, must still recognise them when they have
 been granted nothing more. So the actor keeps its user, and only the permissions are absent. That
 also makes a refused change a `403` rather than a `401`, since the caller is known.
+
+### Why a scope-refused create throws `InsufficientScopeException`
+
+*Added during implementation of issue 3, with the project owner's sign-off.* The plan said nothing in
+issue 3 throws `InsufficientScopeException`. But `CreateRepositoryAsync` turned every verdict other
+than `Allowed` into `NoCurrentUserException`, so once `CheckCreate` could answer `Forbidden`, a
+known caller whose scope refused a create would have been challenged with a `401` rather than
+refused with the `403` [the design requires](#how-the-actor-enforces-it). Something had to carry
+that `403`.
+
+A scope refusal of a create is exactly what `InsufficientScopeException` reports: an entity and an
+action the credential may not perform. So `CreateRepositoryAsync` throws it, naming
+`repositories` and `create`.
+
+*Rejected:* a dedicated `RepositoryCreationForbiddenException`. It would have been a second type
+meaning the same thing as `InsufficientScopeException`, with a mapping of its own to keep in step.
+*Rejected:* reusing `RepositoryForbiddenException`, which names the repository refused and says the
+caller does not own it. A create has no repository to name, and ownership is not why it was refused.
 
 ### Why users and tokens get access policies
 

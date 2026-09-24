@@ -215,6 +215,14 @@ run starts fresh and reads the PR for its context; this file is its `CLAUDE.md`,
 bind it too. Mentions from anyone else are ignored, and so are Claude's own replies, which are
 posted as `claude[bot]`.
 
+A review is answered as a whole. Submitting one fires an event per inline comment and one for the
+review itself, and runs on a PR are serialized with only one allowed to wait, so a run per comment
+would see all but two cancelled unanswered. A small `review` job therefore counts the review's
+`@claude` comments first. A review with a single request, such as a lone comment or a reply in a
+thread, is answered from its comment event, so the reply lands in that thread. A review with several
+requests, or with `@claude` in its body, is answered by one run from the review event, which is
+handed every request as its `prompt` and reports on each in one progress comment on the PR.
+
 It needs two things set up once, which every Claude workflow here shares:
 
 * the [Claude GitHub App](https://github.com/apps/claude) installed on the repository. The action

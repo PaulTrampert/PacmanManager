@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using PacmanManager.CliTools;
@@ -54,7 +55,7 @@ public class RepositoryServiceTests
         _mockCliRunner = new Mock<ICliToolRunner>();
         // Most tests care about what the owner of a repository can do, so that is the default
         // actor. Tests that exercise the authorization rules override it.
-        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_existingUser, ActorScope.Unrestricted) };
         _logger = new TestOutputLogger<RepositoryService>();
         _mockFileSystem = new Mock<IFileSystem>();
 
@@ -482,6 +483,24 @@ public class RepositoryServiceTests
 
         // Act & Assert
         Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_WhenTheScopeDoesNotPermitIt_IsForbiddenAndCreatesNothing()
+    {
+        // The caller is known, so this is a refusal rather than a challenge.
+        // Arrange
+        _actors.Actor = Actor.For(_existingUser, ActorScope.Parse("pacman-manager:*:read", NullLogger.Instance));
+        var request = new WriteRepositoryRequest { Name = "read-only-repo", Architecture = "x86_64" };
+
+        // Act & Assert
+        var thrown = Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown!.Entity, Is.EqualTo(ScopeValues.EntityNames.Repositories));
+            Assert.That(thrown.Action, Is.EqualTo(ScopeValues.ActionNames.Create));
+        });
+        Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Name == "read-only-repo"), Is.False);
     }
 
     [Test]

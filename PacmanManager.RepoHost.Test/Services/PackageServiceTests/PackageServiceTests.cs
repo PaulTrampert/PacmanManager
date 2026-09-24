@@ -66,7 +66,7 @@ public class PackageServiceTests
 
         // Most tests care about what an identified caller can see, so that is the default actor.
         // Tests that exercise the visibility rules override it.
-        _actors = new TestActorAccessor { Actor = Actor.For(_caller) };
+        _actors = new TestActorAccessor { Actor = Actor.For(_caller, ActorScope.Unrestricted) };
         // The read paths reach none of the publishing collaborators, so they are supplied as bare
         // doubles here; PackageServicePublishTests wires up the real ones. libalpm's factory throws
         // rather than returning a double, so that a read path which forced it fails loudly here
@@ -80,8 +80,7 @@ public class PackageServiceTests
         _service = new PackageService(
             _dbContext,
             _actors,
-            new RepositoryAccessPolicy(),
-            new PackageAccessPolicy(),
+            new PackageAccessPolicy(new RepositoryAccessPolicy()),
             Mock.Of<ICliToolRunner>(),
             _fileSystem.Object,
             _pathResolver.Object,
