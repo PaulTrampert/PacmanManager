@@ -11,31 +11,84 @@ on:
   pull_request_review:
     types: [submitted]
 
-# One run per PR at a time. A second request queues behind the first rather than cancelling it,
-# since cancelling could strand a half-pushed change.
-concurrency:
-  group: claude-pr-${{ github.event.issue.number || github.event.pull_request.number }}
-  cancel-in-progress: false
-
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: 1
 
 jobs:
-  claude:
-    # Only the owner: the action would otherwise accept anyone with write access. Claude's own
-    # replies are posted as claude[bot], so they never match and cannot re-trigger it.
+  # Submitting a review fires one pull_request_review_comment event per inline comment, plus one
+  # pull_request_review event. A review with a single request -- a lone comment, or a reply in a
+  # thread -- is answered from its comment event, so the reply lands in that thread. A review with
+  # several requests is answered from its review event, in one run that sees all of them: one run
+  # per comment would race to push, and the concurrency group below keeps only one run waiting, so
+  # all but two would be cancelled unanswered.
+  review:
     if: >-
-      (github.event_name == 'issue_comment'
-        && github.event.issue.pull_request
-        && github.event.comment.user.login == github.repository_owner
-        && contains(github.event.comment.body, '@claude'))
-      || (github.event_name == 'pull_request_review_comment'
+      (github.event_name == 'pull_request_review_comment'
         && github.event.comment.user.login == github.repository_owner
         && contains(github.event.comment.body, '@claude'))
       || (github.event_name == 'pull_request_review'
-        && github.event.review.user.login == github.repository_owner
-        && contains(github.event.review.body, '@claude'))
+        && github.event.review.user.login == github.repository_owner)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      run: ${{ steps.requests.outputs.run }}
+      prompt: ${{ steps.requests.outputs.prompt }}
+    steps:
+      - id: requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id || github.event.comment.pull_request_review_id }}
+        run: |
+          reviews="repos/$GITHUB_REPOSITORY/pulls/$PR/reviews/$REVIEW_ID"
+          body_mentions=$(gh api "$reviews" --jq '.body // "" | contains("@claude")')
+          requests=$(gh api --paginate "$reviews/comments" \
+            | jq -s 'add | map(select(.body | contains("@claude")))')
+          count=$(jq length <<< "$requests")
+
+          if [[ $body_mentions == true || $count -gt 1 ]]; then batched=true; else batched=false; fi
+          if [[ $GITHUB_EVENT_NAME == pull_request_review ]]; then run=$batched
+          elif [[ $batched == true ]]; then run=false
+          else run=true
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+          if [[ $GITHUB_EVENT_NAME == pull_request_review && $run == true ]]; then
+            delimiter="EOF_$(openssl rand -hex 16)"
+            {
+              echo "prompt<<$delimiter"
+              echo "This run was started by a whole review rather than by one comment. Every inline"
+              echo "comment below is a request from the review's author, as is the review body in"
+              echo "<trigger_comment> when there is one. Address all of them in this run, and give each"
+              echo "its own checklist item in your comment, linking the inline comment it answers. If"
+              echo "one needs a decision you cannot make, finish the others and say what is needed."
+              jq -r '.[] | "\n### [\(.path)](\(.html_url))\n\n\(.body)"' <<< "$requests"
+              echo "$delimiter"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  claude:
+    needs: review
+    # Only the owner: the action would otherwise accept anyone with write access. Claude's own
+    # replies are posted as claude[bot], so they never match and cannot re-trigger it. Review
+    # events are filtered by the review job above; `!cancelled()` lets PR comments, which skip
+    # that job, through.
+    if: >-
+      !cancelled()
+      && ((github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.login == github.repository_owner
+          && contains(github.event.comment.body, '@claude'))
+        || needs.review.outputs.run == 'true')
+    # One run per PR at a time. A second request queues behind the first rather than cancelling it,
+    # since cancelling could strand a half-pushed change. It is on the job, not the workflow, so
+    # that runs which turn out to have nothing to do -- Claude's own replies among them -- never
+    # take the one waiting slot and cancel a real request.
+    concurrency:
+      group: claude-pr-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -55,12 +108,16 @@ jobs:
       - name: Set up the build toolchain
         uses: ./.github/actions/setup-toolchain
 
-      # No `prompt`, so the action runs in its @claude mode: it checks out the PR branch, reads the
-      # PR and the triggering comment, and replies in a progress comment. No `github_token`, so it
-      # uses the Claude GitHub App's. AGENTS.md is the repository's CLAUDE.md and is read as usual.
+      # The action runs in its @claude (tag) mode: it checks out the PR branch, reads the PR and the
+      # triggering comment, and replies in a progress comment. For a batched review, `prompt` lists
+      # the review's requests; `track_progress` keeps the action in tag mode when a prompt is given,
+      # where it would otherwise switch to its unattended agent mode. No `github_token`, so it uses
+      # the Claude GitHub App's. AGENTS.md is the repository's CLAUDE.md and is read as usual.
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ needs.review.outputs.prompt }}
+          track_progress: true
           claude_args: >-
             --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"
