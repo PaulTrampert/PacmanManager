@@ -25,4 +25,14 @@ public class ControllerConstants
     /// </remarks>
     public const string RepositoryScopedPackagesRoute =
         "/api/v{version:apiVersion}/repositories/{repositoryId:guid}/packages";
+
+    /// <summary>
+    /// The route the calling user's own access tokens are addressed under.
+    /// </summary>
+    /// <remarks>
+    /// Absolute for the same reason as <see cref="RepositoryScopedPackagesRoute"/>: the path hangs off
+    /// the user resource, while the actions serving it belong to the access tokens controller.
+    /// <c>me</c> is the only subject, so no route can name another user's tokens.
+    /// </remarks>
+    public const string CurrentUserAccessTokensRoute = "/api/v{version:apiVersion}/users/me/tokens";
 }
