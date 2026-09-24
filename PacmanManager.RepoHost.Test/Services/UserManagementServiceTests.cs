@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using PacmanManager.Entities;
@@ -105,5 +106,139 @@ public class UserManagementServiceTests
         var result = await _subject.GetUserByIdAsync(Guid.CreateVersion7());
 
         Assert.That(result, Is.Null);
+    }
+
+    private User GivenUser(string displayName, string? email = null)
+    {
+        var user = _dbContext.Users.Add(new User
+        {
+            DisplayName = displayName,
+            NormalizedDisplayName = displayName.ToLowerInvariant(),
+            Email = email ?? $"{Guid.NewGuid():N}@example.com",
+        }).Entity;
+        _dbContext.SaveChanges();
+        return user;
+    }
+
+    [Test]
+    public async Task ListUsersAsync_Unsorted_IsAlphabeticalByDisplayNameIgnoringCase()
+    {
+        var charlie = GivenUser("charlie");
+        var alex = GivenUser("Alex");
+        var bea = GivenUser("bea");
+
+        var page = await _subject.ListUsersAsync(new PaginationParams());
+
+        Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { alex.Id, bea.Id, charlie.Id }));
+    }
+
+    [Test]
+    public async Task ListUsersAsync_SortedByDisplayNameDescending_RunsZToA()
+    {
+        var alex = GivenUser("Alex");
+        var charlie = GivenUser("charlie");
+        var bea = GivenUser("Bea");
+
+        var page = await _subject.ListUsersAsync(
+            new PaginationParams(),
+            sort: new SortOptions<UserSortField>
+            {
+                SortBy = UserSortField.DisplayName,
+                Direction = SortDirection.Descending,
+            });
+
+        Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { charlie.Id, bea.Id, alex.Id }));
+    }
+
+    [Test]
+    public async Task ListUsersAsync_Pages()
+    {
+        var users = Enumerable.Range(0, 5).Select(i => GivenUser($"user-{i}")).ToList();
+
+        var page = await _subject.ListUsersAsync(new PaginationParams { Offset = 1, PageSize = 2 });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { users[1].Id, users[2].Id }));
+            Assert.That(page.Offset, Is.EqualTo(1));
+            Assert.That(page.Total, Is.EqualTo(5));
+        });
+    }
+
+    [Test]
+    public async Task ListUsersAsync_WithDisplayNameContains_ReturnsOnlyMatchingUsers()
+    {
+        var alex = GivenUser("Alex");
+        var alexandra = GivenUser("Alexandra");
+        GivenUser("Sam");
+
+        var page = await _subject.ListUsersAsync(
+            new PaginationParams(),
+            new UserFilter { DisplayNameContains = "alex" });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { alex.Id, alexandra.Id }));
+            Assert.That(page.Total, Is.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public async Task ListUsersAsync_WithDisplayNameContains_IgnoresCase()
+    {
+        // Neither side's case matches the other's, so a naive DisplayName.Contains(term) finds nothing
+        // under either the in-memory provider or Npgsql.
+        var alex = GivenUser("Alex");
+        GivenUser("Sam");
+
+        var page = await _subject.ListUsersAsync(
+            new PaginationParams(),
+            new UserFilter { DisplayNameContains = "aLEX" });
+
+        Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { alex.Id }));
+    }
+
+    [Test]
+    public async Task ListUsersAsync_WithNoMatches_ReturnsAnEmptyPage()
+    {
+        GivenUser("Alex");
+
+        var page = await _subject.ListUsersAsync(
+            new PaginationParams(),
+            new UserFilter { DisplayNameContains = "zzz" });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Results, Is.Empty);
+            Assert.That(page.Total, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task ListUsersAsync_WhenAnonymous_ListsEveryUser()
+    {
+        _actorAccessor.Actor = Actor.Anonymous;
+        var alex = GivenUser("Alex");
+        var sam = GivenUser("Sam");
+
+        var page = await _subject.ListUsersAsync(new PaginationParams());
+
+        Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { alex.Id, sam.Id }));
+    }
+
+    [Test]
+    public async Task ListUsersAsync_ProjectsToPublicUserInfo_WithNoEmail()
+    {
+        var alex = GivenUser("Alex", "alex@example.com");
+
+        var page = await _subject.ListUsersAsync(new PaginationParams());
+
+        var json = JsonSerializer.Serialize(page);
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Results.Single(), Is.EqualTo(new PublicUserInfo { Id = alex.Id, DisplayName = "Alex" }));
+            Assert.That(json, Does.Not.Contain("alex@example.com"));
+            Assert.That(json, Does.Not.Contain("Email").IgnoreCase);
+        });
     }
 }
