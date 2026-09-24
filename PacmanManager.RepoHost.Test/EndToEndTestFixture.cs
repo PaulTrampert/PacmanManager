@@ -161,6 +161,23 @@ public class EndToEndTestFixture : IAsyncDisposable
     }
 
     /// <summary>
+    /// Reads everything the API container has written to standard output and standard error so far,
+    /// which is where its logs, the request log included, are written.
+    /// </summary>
+    /// <returns>Standard output and standard error, concatenated.</returns>
+    /// <exception cref="InvalidOperationException">The container has not been started.</exception>
+    public async Task<string> GetApiLogsAsync()
+    {
+        if (_apiContainer is null)
+        {
+            throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+        }
+
+        var (stdout, stderr) = await _apiContainer.GetLogsAsync();
+        return stdout + stderr;
+    }
+
+    /// <summary>
     /// Stops the container and disposes resources.
     /// </summary>
     public async ValueTask DisposeAsync()
