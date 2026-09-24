@@ -491,7 +491,7 @@ public class RepositoryServiceTests
         // The caller is known, so this is a refusal rather than a challenge.
         // Arrange
         _actors.Actor = Actor.For(_existingUser, ActorScope.Parse("pacman-manager:*:read", NullLogger.Instance));
-        var request = new WriteRepositoryRequest { Name = "read-only-repo", Architecture = "x86_64" };
+        var request = new WriteRepositoryRequest { Name = "read-only-repo", SupportedArchitectures = [Architectures.X86_64] };
 
         // Act & Assert
         var thrown = Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));

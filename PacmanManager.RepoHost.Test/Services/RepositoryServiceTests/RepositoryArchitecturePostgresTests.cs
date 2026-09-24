@@ -66,7 +66,7 @@ public class RepositoryArchitecturePostgresTests
         _service = new RepositoryService(
             _dbContext,
             new Mock<ICliToolRunner>().Object,
-            new TestActorAccessor { Actor = Actor.For(_user) },
+            new TestActorAccessor { Actor = Actor.For(_user, ActorScope.Unrestricted) },
             new RepositoryAccessPolicy(),
             pacmanSettings.Object,
             new TestOutputLogger<RepositoryService>(),
