@@ -1,5 +1,5 @@
 ---
-description: Assign every unblocked, unassigned issue to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
+description: Assign every unblocked, unassigned issue not awaiting a decision to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
 allowed-tools: Bash(gh:*), Bash(git:*), Agent
 ---
@@ -46,7 +46,9 @@ Stop and tell the user how to fix it if this fails. Do not work around a failure
 
 An issue qualifies when it is **open**, has **no assignees**, and has **no open blocking issue**
 (GitHub issue dependencies — a blocker that is closed no longer blocks). Also skip any issue that
-already has an open pull request that will close it, since someone is already on it.
+already has an open pull request that will close it, since someone is already on it, and any issue
+labelled **`needs decision`**, which is not yet defined well enough to implement. Naming such an
+issue in the arguments does not bring it back; it needs the decision, and the label removed, first.
 
 ```bash
 gh api graphql --paginate -f query='
@@ -66,6 +68,7 @@ query($endCursor: String) {
   }
 }' --jq '.data.repository.issues.nodes[]
   | select(.assignees.totalCount == 0)
+  | select([.labels.nodes[].name] | index("needs decision") | not)
   | select([.blockedBy.nodes[] | select(.state == "OPEN")] | length == 0)
   | select([.closedByPullRequestsReferences.nodes[] | select(.state == "OPEN")] | length == 0)
   | {number, title, labels: [.labels.nodes[].name]}'
