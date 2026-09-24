@@ -5,7 +5,6 @@ using Asp.Versioning.Conventions;
 using LibAlpmSharp;
 using LibAlpmSharp.Config;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -101,8 +100,9 @@ try
         });
 
     JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer();
+    // The Authorization header's prefix picks the handler: Basic for an access token, Bearer for
+    // everything else. Swagger is deliberately left describing Bearer only.
+    builder.Services.AddPacmanAuthentication();
     builder.Services.AddScoped<IClaimsTransformation, ClaimsTransformer>();
     builder.Services.AddAuthorization();
 
@@ -164,6 +164,9 @@ try
     }
 
     app.UseAuthentication();
+    // Before authorization, so that an [AllowAnonymous] route cannot swallow a refused Basic
+    // credential and answer as if none had been offered.
+    app.UseRejectInvalidBasicCredentials();
     app.UseAuthorization();
     app.MapControllers();
 
