@@ -16,8 +16,8 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// <c>me</c> segment wins over the <c>{userId:guid}</c> constraint in route matching, so the two
 /// routes do not conflict.
 /// <para>
-/// The only write route is <c>PATCH me</c>. There is deliberately no <c>PATCH {userId}</c>, at any id,
-/// so no route exists by which one user could change another.
+/// The only write routes are <c>PATCH me</c> and <c>POST me</c>. There is deliberately no write route by
+/// id, at any id, so no route exists by which one user could change another.
 /// </para>
 /// </remarks>
 [ApiController]
@@ -112,6 +112,28 @@ public class UsersController(IUserManagementService userManagementService, ILogg
         // new instance, and the service receives a complete, validated model.
         var current = await userManagementService.GetCurrentUserAsync(ct);
         var request = patch.Patch(WriteUserRequest.FromCurrentUser(current));
+
+        var updated = await userManagementService.UpdateCurrentUserAsync(request, ct);
+        return Ok(updated);
+    }
+
+    /// <summary>
+    /// Replace the writable surface of the caller's own user record. Every property is required; use
+    /// <c>PATCH me</c> to change only some of them.
+    /// </summary>
+    /// <param name="request">The complete writable surface.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns>The updated user.</returns>
+    [HttpPost("me")]
+    [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [Authorize]
+    public async Task<ActionResult<CurrentUser>> PostCurrentUser(
+        [FromBody] WriteUserRequest request,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("Replacing the current user");
 
         var updated = await userManagementService.UpdateCurrentUserAsync(request, ct);
         return Ok(updated);

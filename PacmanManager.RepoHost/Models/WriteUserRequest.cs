@@ -4,13 +4,14 @@ using PacmanManager.Entities;
 namespace PacmanManager.RepoHost.Models;
 
 /// <summary>
-/// The writable surface of the caller's own user record. <c>PATCH /api/v1/users/me</c> takes it as an
+/// The writable surface of the caller's own user record. <c>POST /api/v1/users/me</c> takes it as it is,
+/// replacing every property. <c>PATCH /api/v1/users/me</c> takes it as an
 /// <c>IPatchObject&lt;WriteUserRequest&gt;</c>, so every property is optional on the wire.
 /// </summary>
 /// <remarks>
-/// The validation attributes survive onto the generated patch object and apply only to a property the
-/// body names: an omitted <see cref="DisplayName"/> leaves the name as it is, while an explicit
-/// <c>null</c> fails <see cref="RequiredAttribute"/> rather than clearing it.
+/// On the patch, the validation attributes survive onto the generated patch object and apply only to a
+/// property the body names: an omitted <see cref="DisplayName"/> leaves the name as it is, while an
+/// explicit <c>null</c> fails <see cref="RequiredAttribute"/> rather than clearing it.
 /// </remarks>
 public record WriteUserRequest
 {

@@ -9,7 +9,7 @@ using PacmanManager.RepoHost.Models;
 namespace PacmanManager.RepoHost.Test;
 
 /// <summary>
-/// End-to-end tests for the Users API: its read routes, and the caller's own write route.
+/// End-to-end tests for the Users API: its read routes, and the caller's own write routes.
 /// These tests run the application in a Docker container and make real HTTP requests.
 /// </summary>
 /// <remarks>
@@ -280,6 +280,151 @@ public class UsersControllerTests
         client.PatchAsync("/api/v1/users/me", JsonBody(json));
 
     private static StringContent JsonBody(string json) => new(json, Encoding.UTF8, "application/json");
+
+    #endregion
+
+    #region PostMe
+
+    [Test]
+    public async Task PostMe_WithDisplayName_ChangesIt_VisiblyFromGetById()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var newName = $"Posted {Guid.NewGuid():N}";
+
+        // Act
+        var response = await PostMeAsync(_client, $$"""{"displayName": "{{newName}}"}""");
+        var posted = await response.Content.ReadFromJsonAsync<CurrentUser>();
+        var publicView = await _anonymousClient.GetFromJsonAsync<PublicUserInfo>($"/api/v1/users/{before!.Id}");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(posted, Is.EqualTo(before with { DisplayName = newName }),
+                "only the display name changes");
+            Assert.That(publicView!.DisplayName, Is.EqualTo(newName));
+        });
+    }
+
+    [Test]
+    public async Task PostMe_WithDisplayName_IsFoundByTheCaseInsensitiveFilter()
+    {
+        // Arrange
+        var marker = $"PostFindable{Guid.NewGuid():N}";
+
+        // Act
+        var response = await PostMeAsync(_client, $$"""{"displayName": "{{marker}}"}""");
+        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+            $"/api/v1/users?displayNameContains={marker.ToUpperInvariant()}");
+
+        // Assert: the normalized copy was written alongside the display name.
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(page!.Results.Select(u => u.DisplayName), Is.EqualTo(new[] { marker }));
+        });
+    }
+
+    [TestCase("{}", TestName = "PostMe_WithEmptyBody_ReturnsBadRequestAndKeepsTheName")]
+    [TestCase("""{"displayName": null}""", TestName = "PostMe_WithExplicitNullDisplayName_ReturnsBadRequestAndKeepsTheName")]
+    public async Task PostMe_WithoutADisplayName_ReturnsBadRequestAndKeepsTheName(string json)
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Act: unlike PATCH, POST replaces the whole writable surface, so an omitted property is missing.
+        var response = await PostMeAsync(_client, json);
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(after, Is.EqualTo(before));
+        });
+    }
+
+    [Test]
+    public async Task PostMe_WithOverLongDisplayName_ReturnsBadRequestAndKeepsTheName()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var tooLong = new string('a', UserValidationConstants.DisplayNameMaxLength + 1);
+
+        // Act
+        var response = await PostMeAsync(_client, $$"""{"displayName": "{{tooLong}}"}""");
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(after, Is.EqualTo(before));
+        });
+    }
+
+    [Test]
+    public async Task PostMe_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        // Act
+        var response = await PostMeAsync(_anonymousClient, """{"displayName": "Anonymous"}""");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task PostById_IsNotARoute_EvenForTheCallersOwnId()
+    {
+        // Arrange
+        var me = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var other = await _otherUsersClient.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Act
+        var otherResponse = await _client.PostAsync($"/api/v1/users/{other!.Id}", JsonBody("""{"displayName": "Hijacked"}"""));
+        var otherBody = await otherResponse.Content.ReadAsStringAsync();
+        var ownResponse = await _client.PostAsync($"/api/v1/users/{me!.Id}", JsonBody("""{"displayName": "Hijacked"}"""));
+        var ownBody = await ownResponse.Content.ReadAsStringAsync();
+        var otherAfter = await _otherUsersClient.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert: as for PATCH, routing answers 405 without reaching an action.
+        Assert.Multiple(() =>
+        {
+            Assert.That(otherResponse.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
+            Assert.That(otherBody, Is.Empty, "not handled by an action");
+            Assert.That(ownResponse.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
+            Assert.That(ownBody, Is.Empty, "not handled by an action");
+            Assert.That(otherAfter, Is.EqualTo(other));
+        });
+    }
+
+    [Test]
+    public async Task Swagger_DocumentsPostMeBodyWithARequiredDisplayName()
+    {
+        // Act
+        var document = await _anonymousClient.GetFromJsonAsync<JsonObject>("/swagger/v1/swagger.json");
+
+        // Assert
+        var paths = document!["paths"]!.AsObject();
+        var schema = paths["/api/v1/users/me"]!["post"]!["requestBody"]!["content"]!["application/json"]!["schema"]!;
+        if (schema["$ref"] is { } reference)
+        {
+            var id = reference.GetValue<string>().Split('/').Last();
+            schema = document["components"]!["schemas"]![id]!;
+        }
+
+        var required = schema["required"]?.AsArray().Select(n => n!.GetValue<string>()) ?? [];
+        Assert.Multiple(() =>
+        {
+            Assert.That(schema["properties"]?.AsObject().Select(p => p.Key), Does.Contain("displayName"));
+            Assert.That(required, Does.Contain("displayName"), "a POST body replaces every property");
+            Assert.That(paths["/api/v1/users/{userId}"]?["post"], Is.Null, "there is no POST by id");
+        });
+    }
+
+    private static Task<HttpResponseMessage> PostMeAsync(HttpClient client, string json) =>
+        client.PostAsync("/api/v1/users/me", JsonBody(json));
 
     #endregion
 

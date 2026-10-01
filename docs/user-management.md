@@ -67,11 +67,15 @@ Recorded here so the issues stay bounded; each has a follow-up in
 | `GET` | `/api/v1/users/{userId}` | Anonymous | `200` user | `404` |
 | `GET` | `/api/v1/users/me` | Required | `200` current user | `401` |
 | `PATCH` | `/api/v1/users/me` | Required | `200` updated | `400`, `401` |
+| `POST` | `/api/v1/users/me` | Required | `200` updated | `400`, `401` |
 
 * `me` is a literal alias on the read route. A literal segment beats the `{userId:guid}` constraint
   in route matching, so the two do not conflict.
-* The write route accepts **`me` and nothing else**. `PATCH /api/v1/users/{userId}` does not exist at
-  any id, including the caller's own, and must be answered `405` by routing rather than be handled.
+* The write routes accept **`me` and nothing else**. Neither `PATCH` nor `POST`
+  `/api/v1/users/{userId}` exists at any id, including the caller's own, and each must be answered
+  `405` by routing rather than be handled.
+* `POST me` replaces the whole writable surface with a `WriteUserRequest`, and `PATCH me` changes
+  only the properties its body names. Both call the same `UpdateCurrentUserAsync`.
 * There is no visibility predicate on the user query. Every user is readable by everyone; only `me`
   is writable. The `me` methods ask a `UserAccessPolicy` whether the credential's scope permits them,
   which [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds; the anonymous routes ask
@@ -84,6 +88,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 
 * [`me` is the only way to reach the write route](#me-is-the-only-way-to-reach-the-write-route)
 * [`PATCH` by id is a `405`, not a `404`](#why-patch-by-id-is-a-405-not-a-404)
+* [`POST me` sits alongside `PATCH me`](#why-post-me-sits-alongside-patch-me)
 * [there is no `IUserAccessPolicy`](#there-is-no-iuseraccesspolicy)
 
 ### Models
@@ -180,6 +185,9 @@ Required behaviour:
   `ConfigureSwaggerGenOptions` fix belonging to the same issue.
 * Display names are not unique and nothing addresses a user by one, so there is no `409` on this
   route.
+* `POST /api/v1/users/me` takes a `WriteUserRequest` itself rather than a patch, and hands it to the
+  same `UpdateCurrentUserAsync`. Every property is required there: `{}` and `{"displayName": null}`
+  are both `400`s.
 
 `PUT /api/v1/repositories/{id}` is untouched. It replaces the whole writable surface, so the
 omitted-versus-null question does not arise; if it ever becomes a `PATCH`, it gains the same
@@ -188,6 +196,7 @@ treatment.
 **Why:**
 
 * [`PATCH`, and `PTrampert.SimplePatch`](#why-patch-and-why-ptrampertsimplepatch)
+* [`POST me` sits alongside `PATCH me`](#why-post-me-sits-alongside-patch-me)
 
 ### The service
 
@@ -345,6 +354,11 @@ an over-long name is a `400`; the route is a `401` unauthenticated; and there is
 one user can change another's, asserted by `PATCH /api/v1/users/{someOtherId}` returning `405` from
 routing rather than being handled.
 
+The same issue adds `POST /api/v1/users/me`, taking a `WriteUserRequest`, with matching E2E tests: the
+change takes effect; `{}`, an explicit `null` and an over-long name are `400`s; the route is a `401`
+unauthenticated; `POST /api/v1/users/{someOtherId}` is a `405`; and its Swagger schema shows a
+required `displayName`.
+
 The patch semantics get their own tests, because they are the reason the library is here: an empty
 body `{}` leaves the display name untouched and is a `200` rather than a `400`; a body naming only
 `displayName` changes only it; and an explicit `{"displayName": null}` is a `400` from the `Required`
@@ -358,6 +372,7 @@ still shows an optional `displayName`, since the patch type is generated rather 
 * [`PATCH`, and `PTrampert.SimplePatch`](#why-patch-and-why-ptrampertsimplepatch)
 * [`me` is the only way to reach the write route](#me-is-the-only-way-to-reach-the-write-route)
 * [`PATCH` by id is a `405`, not a `404`](#why-patch-by-id-is-a-405-not-a-404)
+* [`POST me` sits alongside `PATCH me`](#why-post-me-sits-alongside-patch-me)
 
 ---
 
@@ -455,6 +470,17 @@ which one user can change another. The status code was the only thing at stake.
 Rejected: converting `405` to `404` globally so that the original wording held. It would change the
 response for every route in the API whose path matches under another method, to make one assertion
 read differently.
+
+### Why `POST me` sits alongside `PATCH me`
+
+Added during [6](#6-patch-apiv1usersme--minor) at a project owner's request. It costs one thin action:
+`UpdateCurrentUserAsync` already takes a complete `WriteUserRequest`, which is exactly a `POST` body,
+so the route needs no new service method and no new model. Callers who hold the whole record, or who
+would rather not deal with the omitted-versus-null distinction, can send it as it is.
+
+It does not undo [why `PATCH`](#why-patch-and-why-ptrampertsimplepatch): a route that grows a second
+writable field still has a `PATCH` that does not force callers to resend the first. `POST` is the
+full-replacement form, and like `PATCH` it is reachable only through `me`.
 
 ### There is no `IUserAccessPolicy`
 
