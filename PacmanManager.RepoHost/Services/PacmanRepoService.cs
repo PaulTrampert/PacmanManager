@@ -32,16 +32,21 @@ internal class PacmanRepoService(
     };
 
     /// <inheritdoc/>
-    public async Task<RepositoryFile?> ResolveAsync(
+    public async Task<PacmanResolution> ResolveAsync(
         string repoName,
         string repoArch,
         string fileName,
         CancellationToken cancellationToken = default)
     {
         var repository = await repositories.GetRepositoryByNameAsync(repoName, cancellationToken);
-        if (repository is null || !repository.SupportedArchitectures.Contains(repoArch, StringComparer.Ordinal))
+        if (repository is null)
         {
-            return null;
+            return PacmanResolution.RepositoryNotFound;
+        }
+
+        if (!repository.SupportedArchitectures.Contains(repoArch, StringComparer.Ordinal))
+        {
+            return PacmanResolution.FileNotFound;
         }
 
         // A database is the repository's own name plus one of the database extensions; a database
@@ -49,11 +54,11 @@ internal class PacmanRepoService(
         if (fileName.StartsWith(repository.Name, StringComparison.Ordinal)
             && DatabaseExtensions.TryGetValue(fileName[repository.Name.Length..], out var kind))
         {
-            return await repositories.GetRepositoryDatabaseByIdAsync(
-                repository.Id, repoArch, kind, cancellationToken);
+            return PacmanResolution.Of(await repositories.GetRepositoryDatabaseByIdAsync(
+                repository.Id, repoArch, kind, cancellationToken));
         }
 
-        return OpenPackageFile(repository.Id, fileName);
+        return PacmanResolution.Of(OpenPackageFile(repository.Id, fileName));
     }
 
     /// <summary>

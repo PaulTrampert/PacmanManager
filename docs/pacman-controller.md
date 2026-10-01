@@ -38,7 +38,9 @@ basename `repo-add` recorded. There is no such URL today.
 * A **public** repository works for an unauthenticated client, with no credentials configured at
   all.
 * A **private** repository works for its owner, and is indistinguishable from a repository that does
-  not exist to everybody else.
+  not exist to everybody else. An anonymous request for either is
+  [challenged for credentials](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged),
+  since that is the only way `pacman` will send them.
 * The routes behave well as HTTP: a `pacman -Sy` that changes nothing transfers nothing, and an
   interrupted package download resumes.
 
@@ -103,10 +105,17 @@ and sends as an `Authorization: Basic` header. The username is
 Server = https://pmt_0199…:pms_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
+**`pacman` does not send those credentials until it is challenged.** Its first request for each file
+is anonymous, and only a `401` carrying `WWW-Authenticate: Basic` makes it repeat the request with
+the `Authorization` header. The routes therefore
+[challenge an anonymous request for a repository it cannot see](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged)
+rather than answering it `404`.
+
 **Why:**
 
 * [the route root is outside `/api` and unversioned](#why-the-route-root-is-outside-api-and-unversioned)
 * [the root names the client, not the resource](#why-the-root-names-the-client-not-the-resource)
+* [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
 
 ---
 
@@ -138,7 +147,9 @@ Two requirements bound it:
   disclosed.
 * **Nothing else changes.** The collision response is the only new signal.
   `GET /api/v1/repositories` still shows only what the caller may see, and a private repository is
-  still a `404` by id and by name.
+  still a `404` by id and by name. Under `/pacman` an anonymous request for a private repository is
+  [a `401` challenge](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged) rather than
+  a `404`, but so is one for a name nobody holds, so it is not a signal either.
 
 The property a user must be told, and which
 [issue 5](#5-document-consuming-a-hosted-repository--patch) must state plainly, is: **a private
@@ -248,14 +259,22 @@ The `/pacman` routes are served by a new `IPacmanRepoService`. It resolves a pat
 **owns no database access of its own**. Resolution composes the existing chokepoints:
 
 1. **Repository** via `IRepositoryService.GetRepositoryByNameAsync(repoName)`, which already applies
-   `VisibleTo`. A private repository belonging to somebody else is absent here, so it is a `404`
-   without any code in the new service deciding that.
+   `VisibleTo`. A private repository belonging to somebody else is absent here, exactly as a name
+   nobody holds is, without any code in the new service deciding that. The result says the
+   repository was not found, which the route answers with
+   [a challenge or a `404`](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged)
+   depending on whether the caller authenticated.
 2. **Architecture**, by asking the repository that came back whether `repoArch` is among its
    [`SupportedArchitectures`](#a-repository-supports-architectures-a-package-has-one). This is the
    one check the new service makes itself.
 3. **File** — a database file via `IRepositoryService`, or a package file
    [read straight from the repository's directory](#what-file-names-are-served) once its name has
    been validated.
+
+The result is a `PacmanResolution`: the file, or one of two misses. **Repository not found** covers a
+name nobody holds and a repository the caller may not see, and the two are the same value. **File
+not found** covers everything after step 1 — an unsupported architecture, a name the repository does
+not serve, a file absent from disk — and is always a `404`.
 
 **There is no `PacmanRepoAccessPolicy`, and there must not be one.** `IUserService` is not involved
 at all, and an unknown owner is not a case that exists.
@@ -269,7 +288,8 @@ at all, and an unknown owner is not a case that exists.
 The repository name is matched **exactly as stored**, which is what `GetRepositoryByNameAsync`
 already does and what the database's unique index enforces, and the architecture segment is compared
 to `SupportedArchitectures` the same way. A request for `/pacman/MyRepo/x86_64/…` against a
-repository named `myrepo` is a `404`.
+repository named `myrepo` finds no repository, as for any other name nobody holds: a `401` challenge
+anonymously, and a `404` for an authenticated caller.
 
 **Why:**
 
@@ -492,6 +512,41 @@ it expected a `200` unless it accounts for that.
 * [there is no `Cache-Control`](#why-there-is-no-cache-control)
 * [`Vary: Authorization` stays](#why-vary-authorization-stays)
 
+### An anonymous request for a repository it cannot see is challenged
+
+When [resolution](#resolution) finds no repository the caller may see, and the request carried no
+credentials, the response is **`401` with `WWW-Authenticate: Basic realm="pacman"`** — the same
+challenge the Basic scheme issues for
+[a credential it refuses](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
+That is what makes `pacman` send the credentials in its `Server` URL.
+
+| Request | Response |
+| :--- | :--- |
+| Anonymous, private repository | `401`, Basic challenge |
+| Anonymous, no repository of that name | `401`, Basic challenge — identical, so a private repository still cannot be told from a missing one |
+| Anonymous, public repository, anything missing in it (an unsupported architecture, a `.sig`, a package not on disk) | `404` |
+| Authenticated, repository it may not see, or no such repository | `404` |
+| Authenticated, visible repository, anything missing in it | `404` |
+| A Basic credential that was offered and refused, on any of the above | `401`, Basic challenge, [before the route runs](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong) |
+
+* **Only the repository decides it.** Once a repository is visible, nothing missing inside it is
+  challenged: a credential could not make it appear, and challenging would only make `pacman` repeat a
+  request that cannot succeed.
+* **An authenticated caller is never challenged.** It has presented its credential already — a
+  `Bearer` token, or a Basic token with or without the read scope — and presenting it again would not
+  change the answer.
+* **"Authenticated" means the request authenticated**, not that the actor may read: a credential
+  [that cannot read reads as anonymous](basic-auth.md#a-credential-that-cannot-read-reads-as-anonymous)
+  for visibility, but it is still not challenged.
+* The decision is the controller's, from the resolution and the request's authentication result. It
+  adds no visibility rule: which repositories the caller may see is still decided by
+  `IRepositoryService` alone.
+* The `/api` routes are unaffected; a repository the caller may not see is still a `404` there.
+
+**Why:**
+
+* [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
+
 ### Signature levels
 
 Arch's stock `/etc/pacman.conf` sets `SigLevel = Required DatabaseOptional` globally. Because this
@@ -656,7 +711,9 @@ package files with it.
 Path resolution as described: the name lookup through `IRepositoryService`, the architecture check
 against `SupportedArchitectures`, file-kind classification, and a return type carrying the stream and
 its [modification time](#http-behaviour). A file that is not there resolves to nothing, so the route
-answers `404`.
+answers `404`. The return type also says whether the repository itself was found, which
+[the challenge](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged) needs; that was
+added after this issue shipped, by #172.
 
 `IFileSystem` gains a **last-write-time** member, and that is the only change it needs.
 `IRepositoryService`'s existing `GetRepositoryFileByIdAsync` returns a bare `Stream?`, which cannot
@@ -699,7 +756,12 @@ are `[AllowAnonymous]`; they name no scheme, because
 before any endpoint metadata is consulted.
 
 *Acceptance:* E2E tests fetching the database, the files database and a package from a public
-repository anonymously; the same against a private repository with a token, and `404` without one;
+repository anonymously; the same against a private repository with a token, and a `401` with
+`WWW-Authenticate: Basic` without one; the same `401` for a repository name nobody holds; a `404`
+for another user's private repository with a valid token, and for anything missing from a public
+repository anonymously
+([the challenge](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged) was added
+after this issue shipped, by #172, which updated these tests);
 a mistyped token producing `401` rather than `404` — the
 [`[AllowAnonymous]` trap](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong),
 which this is the first real endpoint able to test; a conditional request returning `304`; a `Range`
@@ -715,6 +777,7 @@ document, which `[ApiExplorerSettings(IgnoreApi = true)]` gives and `[ApiVersion
 * [there is no `Cache-Control`](#why-there-is-no-cache-control)
 * [`Vary: Authorization` stays](#why-vary-authorization-stays)
 * [the route root is outside `/api` and unversioned](#why-the-route-root-is-outside-api-and-unversioned)
+* [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
 
 ### 5. Document consuming a hosted repository — `PATCH`
 
@@ -723,6 +786,13 @@ A `docs/consuming-a-repository.md` with the `pacman.conf` snippet, the `$repo`/`
 credentials in the `Server` line, and — stated plainly —
 [that a repository name is public even when the repository is private](#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not).
 Linked from `README.md` and from this document.
+
+It also has to say what a client sees when the credentials are wrong or missing, in the terms
+`pacman` prints them: `The requested URL returned error: 401` means the `Server` line carries no
+credentials, or credentials that are wrong, for a repository that is private **or does not exist** —
+[the two are deliberately the same](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged),
+so a typo in the repository name of an anonymous `Server` line is a `401`, not a `404`. A `404` with
+working credentials means the token's owner cannot see a repository of that name.
 
 It also has to say [what a rename does to a configured client](#renaming-a-repository): that the old
 URL keeps working for 30 days, silently, and then starts failing the whole `pacman -Syu` with a
@@ -738,6 +808,7 @@ person configuring a machine will read.
 
 * [`SigLevel = Optional TrustAll` is required](#why-siglevel--optional-trustall-is-required)
 * [a public name is an acceptable trade](#why-a-public-name-is-an-acceptable-trade)
+* [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
 
 ### 6. End-to-end: a real `pacman` client installs a package — `MINOR`
 
@@ -747,7 +818,11 @@ The test that proves the feature. A Testcontainers `archlinux/archlinux` contain
 
 Run it against a public repository anonymously and against a private one with Basic credentials, and
 use the `$repo`/`$arch` form rather than a hardcoded URL, so that the test exercises the substitution
-the documentation tells users to rely on. Assert that a second `pacman -Sy` with no intervening
+the documentation tells users to rely on. The credentials go in the `Server` line's userinfo, as the
+documentation says, so the private case is also the test that `pacman` answers
+[the challenge](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged): it sends them
+only after a `401`. Assert too that the same private repository with no credentials in the `Server`
+line fails `pacman -Sy` with a `401`. Assert that a second `pacman -Sy` with no intervening
 publish reports the database as up to date, which is the only test that actually proves the
 conditional-GET path end to end.
 
@@ -760,7 +835,11 @@ container, so the image and the toolchain are precedented.
 every other test across them asserts a part, and this one asserts that the parts add up to something
 `pacman` can use.
 
-*Depends on:* 4.
+*Depends on:* 4, and #172 for the challenge.
+
+**Why:**
+
+* [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
 
 ### 7. Renaming a repository — `MINOR`
 
@@ -1159,8 +1238,43 @@ hypothetical — the headers come back as a considered decision rather than a de
 ### Why `Vary: Authorization` stays
 
 It survives the absence of `Cache-Control` because it is not a caching policy but a correctness fact
-about the resource: the same URL produces a `404` for an anonymous caller and a `200` for an
-authenticated one, and anything that does cache must not confuse the two.
+about the resource: the same URL produces a `401` for an anonymous caller and a `200` for an
+authenticated one — and a `404` for a different authenticated one — and anything that does cache must
+not confuse them.
+
+### Why an anonymous request for an unseen repository is challenged
+
+The plan first said a private repository was a `404` to everybody but its owner, anonymous callers
+included, on the assumption that a `Server` URL's credentials are sent with the first request. That
+is what the `curl` command line does, which is why the assumption looked right. It is not what
+`pacman` does. Implementing [issue 6](#6-end-to-end-a-real-pacman-client-installs-a-package--minor)
+(#106) found that pacman 7.1.0 with libalpm 16.0.1 sends the userinfo's credentials only after a
+`401` carrying `WWW-Authenticate: Basic`. With a `404` there is no challenge, so pacman never offered
+the token and **a private repository could not be used from a real client at all.** The change was
+made in #172, with project-owner sign-off.
+
+**Rejected: keeping the `404`.** It is the one answer that hides nothing and leaks nothing, and it
+makes the feature's central case — a private repository, from `pacman` — impossible.
+
+**Rejected: challenging a private repository, but answering `404` for a name nobody holds.** A
+`401` versus a `404` would then tell an anonymous caller, for free and without an account, which
+names belong to private repositories. [Names are already public](#why-a-public-name-is-an-acceptable-trade),
+but only through a create that collides, one authenticated guess at a time; this would make it a
+plain `GET`, and would contradict the [goal](#goals) that a private repository is indistinguishable
+from a missing one. Challenging both keeps that goal exactly as it was.
+
+**Rejected: challenging authenticated callers too.** An authenticated caller has presented its
+credential; a challenge would make `pacman` send the same one again and get the same answer.
+Answering `404` keeps the response honest about where the problem is.
+
+**Rejected: challenging anything missing, in a visible repository too.** A `.sig` probe, an
+unsupported architecture or a missing package cannot be fixed by credentials, and the public case is
+the one that must work with none. `pacman` probes for `{repo}.db.sig` on every sync, so a challenge
+there would turn an expected miss into an authentication failure that no credential can satisfy.
+
+The cost is a less precise error for one mistake: an anonymous `Server` line whose repository name
+is mistyped reports `401` rather than `404`.
+[Issue 5](#5-document-consuming-a-hosted-repository--patch) documents what each status means.
 
 ### Why `SigLevel = Optional TrustAll` is required
 

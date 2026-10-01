@@ -633,6 +633,12 @@ endpoint cannot swallow it. The implementing issue owns the test that pins it.
 A well-formed request from a correctly authenticated caller for a repository they may not see is
 still a `404`. Only bad credentials are answered honestly.
 
+The *absence* of credentials is challenged in one place too: under `/pacman`, an anonymous request
+for a repository the caller cannot see, or one that does not exist, is a `401` with the same
+`WWW-Authenticate: Basic realm="pacman"`, because `pacman` sends the credentials in its `Server` URL
+only once challenged. That is the route's decision, not this middleware's; see
+[Pacman Controller](pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged).
+
 **Why:**
 
 * [a present-but-invalid credential must not fall through](#why-a-present-but-invalid-credential-must-not-fall-through)
@@ -1807,7 +1813,11 @@ The routes this scheme serves are `[AllowAnonymous]`, because a public repositor
 unauthenticated client. **ASP.NET Core's default behaviour on an `[AllowAnonymous]` endpoint is to
 ignore a failed authentication result and continue as anonymous.** A user who mistypes their token
 would then get a `404` on their private repository — indistinguishable from the repository not
-existing, and the single most confusing failure this feature could produce.
+existing, and the single most confusing failure this feature could produce. (The pacman routes have
+since come to [challenge an anonymous request](pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged)
+for a repository it cannot see, so there the fall-through would be a `401` as well; but a mistyped
+token on a public repository would still be served silently as anonymous, and every other
+`[AllowAnonymous]` route would still swallow it.)
 
 [The forwarding scheme](#the-authorization-prefix-picks-the-handler) gets the handler invoked, which
 is half of it. The other half is that a failed authentication result on an `[AllowAnonymous]`
