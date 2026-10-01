@@ -13,8 +13,19 @@ namespace PacmanManager.RepoHost.Test;
 /// End-to-end test fixture that runs the PacmanManager.RepoHost application in a Docker container.
 /// Uses Testcontainers to build and start the actual Docker image, providing true E2E testing.
 /// </summary>
-public class EndToEndTestFixture : IAsyncDisposable
+/// <param name="environment">
+/// Configuration to give the API container on top of the fixture's own, as environment variables, for
+/// a test that needs a setting the shared configuration cannot have, such as a window short enough to
+/// wait out.
+/// </param>
+public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environment = null) : IAsyncDisposable
 {
+    /// <summary>
+    /// The name the API container answers to on the test network, for another container on that
+    /// network to reach it by, on port 8080.
+    /// </summary>
+    public const string ApiHostname = "repohost";
+
     private INetwork? _testNetwork;
     private DatabaseContainer? _dbContainer;
     public KeycloakContainer? AuthContainer { get; private set; }
@@ -61,6 +72,13 @@ public class EndToEndTestFixture : IAsyncDisposable
     }
 
     /// <summary>
+    /// The network the containers run on, for a test that starts a container of its own beside them.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The containers have not been started.</exception>
+    public INetwork Network => _testNetwork
+        ?? throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+
+    /// <summary>
     /// Gets the base URL of the containerized API.
     /// </summary>
     public string BaseUrl => $"http://{_apiContainer!.Hostname}:{_apiContainer.GetMappedPublicPort(8080)}";
@@ -90,12 +108,14 @@ public class EndToEndTestFixture : IAsyncDisposable
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
+                .WithNetworkAliases(ApiHostname)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
                 .WithEnvironment("Auth__Authority", AuthContainer.Authority)
                 // Well above the fixture package and low enough that a test can exceed it, which is
                 // the point of the limit being configuration rather than a constant.
                 .WithEnvironment("PackagePublishing__MaxUploadBytes", MaxUploadBytes.ToString())
+                .WithEnvironment(environment ?? new Dictionary<string, string>())
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
