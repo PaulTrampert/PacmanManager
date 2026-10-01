@@ -663,7 +663,7 @@ database it cannot currently name at all.
 A package file is [read straight from the repository's directory](#what-file-names-are-served), by
 name and without being parsed, so this issue adds no database access for packages at all.
 
-*Constraints:* the service must name neither `DbContext` `DbSet`, and there must be no
+*Constraints:* the service must name neither `DbContext` nor `DbSet`, and there must be no
 `PacmanRepoAccessPolicy`. Both are asserted rather than assumed.
 
 *Acceptance:* unit tests for every row of the file-name table, including an unrecognised name, a
@@ -674,8 +674,8 @@ control character, `%2F`). A test that the modification time reaches the return 
 conditional-GET path. Tests that a name which is not a plain basename is rejected before any file
 system call, asserted by the file system mock never being touched, and that a package resolves under
 every architecture the repository supports. Tests that a private repository resolves for its owner
-and not for anyone else, and that the name and architecture segments are case-sensitive. An enforcement test asserts the service names
-neither `DbContext` `DbSet`.
+and not for anyone else, and that the name and architecture segments are case-sensitive. An
+enforcement test asserts the service names neither `DbContext` nor `DbSet`.
 
 *Depends on:* 1b, 1d, 2.
 
@@ -1044,7 +1044,10 @@ architecture's URL is a file of a repository the caller can already see.
 What stays is the plain-basename check in `GetPackageFilePath`, reported as a `404`. The route
 already keeps a `/` out of `{fileName}`; the check covers `..`, a backslash and control characters.
 A `.sig` or a stray backup placed in the directory by some future feature would be served, so a
-feature that puts anything but packages there has to revisit this.
+feature that puts anything but packages there has to revisit this. For the same reason the server's
+generated `pacman.conf` no longer carries an `Include` of `{DATA_DIR}/repositories/*/*.conf`: that
+reserved the directory for per-repository pacman configuration, a feature with no design yet, and
+would have served it to anyone who can see the repository.
 
 The trade is worth it: a hot path with no query, one less index and one less migration, and an
 invariant a reader can check by listing a directory.
