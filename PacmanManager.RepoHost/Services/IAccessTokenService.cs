@@ -28,6 +28,7 @@ public interface IAccessTokenService
     /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>A page of the actor's tokens.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user whose tokens to list.</exception>
+    /// <exception cref="InsufficientScopeException">Thrown when the actor's credential does not carry <c>tokens:read</c>.</exception>
     Task<PaginatedResponse<AccessToken>> GetAccessTokensAsync(
         PaginationParams paginationParams,
         AccessTokenFilter? filter = null,
@@ -47,6 +48,7 @@ public interface IAccessTokenService
     /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>The minted token, carrying its secret. This is the only time the secret is returned.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user to own the token.</exception>
+    /// <exception cref="InsufficientScopeException">Thrown when the actor's credential does not carry <c>tokens:create</c> together with <c>tokens:read</c>.</exception>
     /// <exception cref="ItemExistsException">Thrown when the user already has a token of that name, compared without regard to case.</exception>
     Task<CreatedAccessToken> CreateAccessTokenAsync(CreateAccessTokenRequest request, CancellationToken ct = default);
 
@@ -60,5 +62,6 @@ public interface IAccessTokenService
     /// which includes a token that belongs to somebody else.
     /// </returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user whose token to delete.</exception>
+    /// <exception cref="InsufficientScopeException">Thrown when the actor's credential does not carry <c>tokens:delete</c> together with <c>tokens:read</c>.</exception>
     Task<bool> DeleteAccessTokenAsync(Guid tokenId, CancellationToken ct = default);
 }
