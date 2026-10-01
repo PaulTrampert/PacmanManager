@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -13,6 +14,7 @@ namespace PacmanManager.RepoHost.Test.Services;
 public class UserManagementServiceTests
 {
     private TestActorAccessor _actorAccessor;
+    private DbContextOptions<PacmanManagerDbContext> _dbContextOptions;
     private PacmanManagerDbContext _dbContext;
     private UserManagementService _subject;
 
@@ -20,9 +22,10 @@ public class UserManagementServiceTests
     public void SetUp()
     {
         _actorAccessor = new TestActorAccessor();
-        _dbContext = new PacmanManagerDbContext(new DbContextOptionsBuilder<PacmanManagerDbContext>()
+        _dbContextOptions = new DbContextOptionsBuilder<PacmanManagerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options);
+            .Options;
+        _dbContext = new PacmanManagerDbContext(_dbContextOptions);
         _subject = new UserManagementService(_actorAccessor, _dbContext);
     }
 
@@ -241,4 +244,122 @@ public class UserManagementServiceTests
             Assert.That(json, Does.Not.Contain("Email").IgnoreCase);
         });
     }
+
+    #region UpdateCurrentUserAsync
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_ChangesTheCurrentUsersDisplayNameAndReturnsIt()
+    {
+        var user = GivenUser("Alex", "alex@example.com");
+        _actorAccessor.Actor = Actor.For(user, ActorScope.Unrestricted);
+
+        var result = await _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" });
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.EqualTo(new CurrentUser
+            {
+                Id = user.Id,
+                DisplayName = "Alexandra",
+                Email = "alex@example.com",
+            }));
+            Assert.That(stored.DisplayName, Is.EqualTo("Alexandra"));
+            Assert.That(stored.NormalizedDisplayName, Is.EqualTo("alexandra"));
+            Assert.That(stored.Email, Is.EqualTo("alex@example.com"));
+        });
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_LeavesOtherUsersUntouched()
+    {
+        var user = GivenUser("Alex");
+        var other = GivenUser("Sam");
+        _actorAccessor.Actor = Actor.For(user, ActorScope.Unrestricted);
+
+        await _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" });
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == other.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored.DisplayName, Is.EqualTo("Sam"));
+            Assert.That(stored.NormalizedDisplayName, Is.EqualTo("sam"));
+        });
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_WithAnActorUserThisContextDoesNotTrack_UpdatesTheStoredUser()
+    {
+        var user = GivenUser("Alex");
+        // A copy, as a tool or another context would supply: not the instance this context tracks.
+        var untracked = user with { };
+        _actorAccessor.Actor = Actor.For(untracked, ActorScope.Unrestricted);
+
+        await _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" });
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.That(stored.DisplayName, Is.EqualTo("Alexandra"));
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_NormalizesDisplayNameIndependentlyOfCurrentCulture()
+    {
+        // Under tr-TR, "I" lowers to the dotless "ı", so culture-sensitive lowering would store "ıris".
+        var turkish = CultureInfo.GetCultureInfo("tr-TR");
+        Assume.That("Iris".ToLower(turkish), Is.Not.EqualTo("iris"),
+            "tr-TR lowers the same as the invariant culture here, so this test cannot tell them apart");
+
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = Actor.For(user, ActorScope.Unrestricted);
+
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = turkish;
+
+            await _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Iris" });
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.That(stored.NormalizedDisplayName, Is.EqualTo("iris"));
+    }
+
+    [Test]
+    public void UpdateCurrentUserAsync_WithNoCurrentUser_ThrowsNoCurrentUserException()
+    {
+        _actorAccessor.Actor = Actor.Anonymous;
+
+        Assert.ThrowsAsync<NoCurrentUserException>(
+            () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+    }
+
+    [Test]
+    public void UpdateCurrentUserAsync_AsSystemWithNoUser_ThrowsNoCurrentUserException()
+    {
+        GivenUser("Alex");
+        _actorAccessor.Actor = Actor.System;
+
+        Assert.ThrowsAsync<NoCurrentUserException>(
+            () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+    }
+
+    [Test]
+    public void UpdateCurrentUserAsync_WhenTheCurrentUserIsNotStored_ThrowsNoCurrentUserException()
+    {
+        var unstored = new User { DisplayName = "Ghost", NormalizedDisplayName = "ghost", Email = "ghost@example.com" };
+        _actorAccessor.Actor = Actor.For(unstored, ActorScope.Unrestricted);
+
+        Assert.ThrowsAsync<NoCurrentUserException>(
+            () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+    }
+
+    #endregion
 }
