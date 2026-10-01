@@ -20,14 +20,16 @@ internal class PacmanRepoService(
     IFileSystem fileSystem) : IPacmanRepoService
 {
     /// <summary>
-    /// The extensions a sync database is requested by, <c>.db</c> being the name pacman uses.
+    /// The extensions a database is requested by, <c>.db</c> and <c>.files</c> being the names pacman
+    /// uses, and the kind of database each names.
     /// </summary>
-    private static readonly string[] SyncDatabaseExtensions = [".db", RepositoryDatabase.FileExtension];
-
-    /// <summary>
-    /// The extensions a files database is requested by, <c>.files</c> being the name pacman uses.
-    /// </summary>
-    private static readonly string[] FilesDatabaseExtensions = [".files", RepositoryDatabase.FilesFileExtension];
+    private static readonly Dictionary<string, RepositoryDatabaseKind> DatabaseExtensions = new(StringComparer.Ordinal)
+    {
+        [".db"] = RepositoryDatabaseKind.Sync,
+        [RepositoryDatabase.FileExtension] = RepositoryDatabaseKind.Sync,
+        [".files"] = RepositoryDatabaseKind.Files,
+        [RepositoryDatabase.FilesFileExtension] = RepositoryDatabaseKind.Files,
+    };
 
     /// <inheritdoc/>
     public async Task<RepositoryFile?> ResolveAsync(
@@ -42,28 +44,17 @@ internal class PacmanRepoService(
             return null;
         }
 
-        if (IsDatabaseName(fileName, repository.Name, SyncDatabaseExtensions))
+        // A database is the repository's own name plus one of the database extensions; a database
+        // requested under any other name is not this repository's.
+        if (fileName.StartsWith(repository.Name, StringComparison.Ordinal)
+            && DatabaseExtensions.TryGetValue(fileName[repository.Name.Length..], out var kind))
         {
             return await repositories.GetRepositoryDatabaseByIdAsync(
-                repository.Id, repoArch, RepositoryDatabaseKind.Sync, cancellationToken);
-        }
-
-        if (IsDatabaseName(fileName, repository.Name, FilesDatabaseExtensions))
-        {
-            return await repositories.GetRepositoryDatabaseByIdAsync(
-                repository.Id, repoArch, RepositoryDatabaseKind.Files, cancellationToken);
+                repository.Id, repoArch, kind, cancellationToken);
         }
 
         return OpenPackageFile(repository.Id, repoArch, fileName);
     }
-
-    /// <summary>
-    /// Whether <paramref name="fileName"/> names the repository's database under one of
-    /// <paramref name="extensions"/>. A database requested under any other repository's name is not
-    /// this repository's.
-    /// </summary>
-    private static bool IsDatabaseName(string fileName, string repositoryName, IEnumerable<string> extensions) =>
-        extensions.Any(extension => string.Equals(fileName, repositoryName + extension, StringComparison.Ordinal));
 
     /// <summary>
     /// Opens a package file straight from the repository's directory, once its name has been
