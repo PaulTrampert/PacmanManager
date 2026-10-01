@@ -1,10 +1,12 @@
 using System.Reflection;
+using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Controllers;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
@@ -28,6 +30,7 @@ public class PacmanControllerTests
     public void SetUp()
     {
         _service = new Mock<IPacmanRepoService>();
+        GivenAResolution(PacmanResolution.FileNotFound);
         _subject = new PacmanController(_service.Object, NullLogger<PacmanController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
@@ -35,8 +38,41 @@ public class PacmanControllerTests
     }
 
     [Test]
-    public async Task Get_ReturnsNotFound_WhenNothingResolves()
+    public async Task Get_ReturnsNotFound_ForAMissingFileInAVisibleRepository_EvenAnonymously()
     {
+        var result = await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(result, Is.InstanceOf<NotFoundResult>());
+    }
+
+    /// <summary>
+    /// pacman sends the credentials in its <c>Server</c> URL only once challenged, so an anonymous
+    /// request for a repository it cannot see — private or missing, which resolve alike — has to be
+    /// a Basic challenge rather than a <c>404</c>.
+    /// </summary>
+    [Test]
+    public async Task Get_ChallengesWithBasic_WhenAnAnonymousCallerCannotSeeTheRepository()
+    {
+        GivenAResolution(PacmanResolution.RepositoryNotFound);
+
+        var result = await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(result, Is.InstanceOf<ChallengeResult>());
+        Assert.That(((ChallengeResult)result).AuthenticationSchemes, Is.EqualTo(new[] { AuthnConstants.BasicScheme }));
+    }
+
+    /// <summary>
+    /// A caller that has already authenticated has nothing more to offer, so a repository it may not
+    /// see stays a <c>404</c>.
+    /// </summary>
+    [TestCase(AuthnConstants.BasicScheme)]
+    [TestCase("Bearer")]
+    public async Task Get_ReturnsNotFound_WhenAnAuthenticatedCallerCannotSeeTheRepository(string scheme)
+    {
+        GivenAResolution(PacmanResolution.RepositoryNotFound);
+        _subject.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(AuthnConstants.AppUserIdClaimType, Guid.NewGuid().ToString())], scheme));
+
         var result = await _subject.Get("repo", "x86_64", "repo.db");
 
         Assert.That(result, Is.InstanceOf<NotFoundResult>());
@@ -45,6 +81,16 @@ public class PacmanControllerTests
     [Test]
     public async Task Get_SetsVaryAuthorization_OnANotFound()
     {
+        await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
+    }
+
+    [Test]
+    public async Task Get_SetsVaryAuthorization_OnAChallenge()
+    {
+        GivenAResolution(PacmanResolution.RepositoryNotFound);
+
         await _subject.Get("repo", "x86_64", "repo.db");
 
         Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
@@ -156,9 +202,12 @@ public class PacmanControllerTests
     private Stream GivenAFile(byte[] bytes)
     {
         var content = new MemoryStream(bytes);
-        _service
-            .Setup(s => s.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RepositoryFile(content, LastModified));
+        GivenAResolution(PacmanResolution.Of(new RepositoryFile(content, LastModified)));
         return content;
     }
+
+    private void GivenAResolution(PacmanResolution resolution) =>
+        _service
+            .Setup(s => s.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resolution);
 }
