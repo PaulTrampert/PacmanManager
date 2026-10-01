@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.RepoHost.Test.Containers;
 
 namespace PacmanManager.RepoHost.Test;
 
@@ -543,6 +544,76 @@ public class UsersControllerTests
             Assert.That(second.Offset, Is.EqualTo(2));
             Assert.That(second.Results.Select(u => u.DisplayName), Is.EqualTo(SeededNamesAscending.Skip(2)));
         });
+    }
+
+    #endregion
+
+    #region Scope
+
+    [Test]
+    public async Task RepositoriesScope_MeIsForbidden_AndTheAnonymousRoutesAreNot()
+    {
+        // Arrange
+        var me = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var refusedName = $"Refused {Guid.NewGuid():N}";
+        using var scoped = await ScopedClientAsync("pacman-manager:repositories:*");
+
+        // Act
+        var getMe = await scoped.GetAsync("/api/v1/users/me");
+        var patchMe = await PatchMeAsync(scoped, $$"""{"displayName": "{{refusedName}}"}""");
+        var list = await scoped.GetAsync("/api/v1/users");
+        var byId = await scoped.GetAsync($"/api/v1/users/{me!.Id}");
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(getMe.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "GET me");
+            Assert.That(patchMe.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "PATCH me");
+            Assert.That(after!.DisplayName, Is.Not.EqualTo(refusedName), "the refused PATCH changed nothing");
+            Assert.That(list.StatusCode, Is.EqualTo(HttpStatusCode.OK), "listing");
+            Assert.That(byId.StatusCode, Is.EqualTo(HttpStatusCode.OK), "by id");
+        });
+    }
+
+    [Test]
+    public async Task UsersReadScope_GetsMe_AndPatchingMeIsForbidden()
+    {
+        // Arrange
+        var me = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var refusedName = $"Refused {Guid.NewGuid():N}";
+        using var scoped = await ScopedClientAsync("pacman-manager:users:read");
+
+        // Act
+        var getMe = await scoped.GetAsync("/api/v1/users/me");
+        var scopedMe = await getMe.Content.ReadFromJsonAsync<CurrentUser>();
+        var patchMe = await PatchMeAsync(scoped, $$"""{"displayName": "{{refusedName}}"}""");
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(getMe.StatusCode, Is.EqualTo(HttpStatusCode.OK), "GET me");
+            Assert.That(scopedMe!.Id, Is.EqualTo(me!.Id), "the same user");
+            Assert.That(patchMe.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "PATCH me");
+            Assert.That(after!.DisplayName, Is.Not.EqualTo(refusedName), "the refused PATCH changed nothing");
+        });
+    }
+
+    /// <summary>
+    /// A client carrying a token from <c>pacman-manager-scoped</c> for the default user, issued the
+    /// given values of ours and nothing else of ours.
+    /// </summary>
+    private async Task<HttpClient> ScopedClientAsync(string values)
+    {
+        var token = await _fixture.AuthContainer!.GetBearerTokenAsync(
+            _fixture.AuthContainer.DefaultCredentials,
+            KeycloakContainer.ScopedClientId,
+            $"openid {values}");
+
+        var client = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
     #endregion

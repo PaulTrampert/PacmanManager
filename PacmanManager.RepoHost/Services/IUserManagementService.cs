@@ -19,6 +19,7 @@ public interface IUserManagementService
     /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>The current user, projected to <see cref="CurrentUser"/>.</returns>
     /// <exception cref="NoCurrentUserException">Thrown if there is no current user.</exception>
+    /// <exception cref="InsufficientScopeException">Thrown if the caller's credential may not read users.</exception>
     Task<CurrentUser> GetCurrentUserAsync(CancellationToken ct = default);
 
     /// <summary>
@@ -55,5 +56,6 @@ public interface IUserManagementService
     /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>The updated user, projected to <see cref="CurrentUser"/>.</returns>
     /// <exception cref="NoCurrentUserException">Thrown if there is no current user.</exception>
+    /// <exception cref="InsufficientScopeException">Thrown if the caller's credential may not read and update users.</exception>
     Task<CurrentUser> UpdateCurrentUserAsync(WriteUserRequest request, CancellationToken ct = default);
 }

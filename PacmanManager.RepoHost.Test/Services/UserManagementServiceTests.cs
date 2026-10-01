@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
@@ -26,7 +27,7 @@ public class UserManagementServiceTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _dbContext = new PacmanManagerDbContext(_dbContextOptions);
-        _subject = new UserManagementService(_actorAccessor, _dbContext);
+        _subject = new UserManagementService(_actorAccessor, new UserAccessPolicy(), _dbContext);
     }
 
     [TearDown]
@@ -77,7 +78,7 @@ public class UserManagementServiceTests
         actorAccessor
             .Setup(a => a.GetActorAsync(cts.Token))
             .ReturnsAsync(Actor.For(user, ActorScope.Unrestricted));
-        var subject = new UserManagementService(actorAccessor.Object, _dbContext);
+        var subject = new UserManagementService(actorAccessor.Object, new UserAccessPolicy(), _dbContext);
 
         await subject.GetCurrentUserAsync(cts.Token);
 
@@ -359,6 +360,121 @@ public class UserManagementServiceTests
 
         await Assert.ThrowsAsync<NoCurrentUserException>(
             () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+    }
+
+    #endregion
+
+    #region Scope
+
+    // UserAccessPolicyTests covers every row of the verdicts; these show that each me method asks its
+    // own verdict before doing anything, and turns Forbidden into InsufficientScopeException.
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenTheVerdictIsForbidden_ThrowsInsufficientScope()
+    {
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(user, "pacman-manager:repositories:*");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _subject.GetCurrentUserAsync());
+
+        AssertRefused(e, ScopeValues.ActionNames.Read);
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WithNoneOfOurValues_ThrowsInsufficientScope()
+    {
+        // Its user is known, so it is refused rather than challenged.
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = Actor.For(user, ActorScope.Empty);
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _subject.GetCurrentUserAsync());
+
+        AssertRefused(e, ScopeValues.ActionNames.Read);
+    }
+
+    [Test]
+    public async Task GetCurrentUserAsync_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(user, "pacman-manager:users:read");
+
+        var result = await _subject.GetCurrentUserAsync();
+
+        Assert.That(result.Id, Is.EqualTo(user.Id));
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndChangesNothing()
+    {
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(user, "pacman-manager:users:read");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(
+            () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+
+        AssertRefused(e, ScopeValues.ActionNames.Update);
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.That(stored.DisplayName, Is.EqualTo("Alex"), "unchanged");
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_WithUpdateButNotRead_ThrowsInsufficientScope()
+    {
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(user, "pacman-manager:users:update");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(
+            () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
+
+        AssertRefused(e, ScopeValues.ActionNames.Update);
+    }
+
+    [Test]
+    public async Task UpdateCurrentUserAsync_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var user = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(user, "pacman-manager:users:update pacman-manager:users:read");
+
+        var result = await _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" });
+
+        Assert.That(result.DisplayName, Is.EqualTo("Alexandra"));
+    }
+
+    [Test]
+    public async Task ListUsersAsync_WithoutUsersRead_ListsEveryUser()
+    {
+        // An anonymous route: a credential that may not read users reads it as a stranger does.
+        var alex = GivenUser("Alex");
+        var sam = GivenUser("Sam");
+        _actorAccessor.Actor = ScopedActor(alex, "pacman-manager:repositories:*");
+
+        var page = await _subject.ListUsersAsync(new PaginationParams());
+
+        Assert.That(page.Results.Select(u => u.Id), Is.EqualTo(new[] { alex.Id, sam.Id }));
+    }
+
+    [Test]
+    public async Task GetUserByIdAsync_WithoutUsersRead_ReturnsTheUser()
+    {
+        var alex = GivenUser("Alex");
+        _actorAccessor.Actor = ScopedActor(alex, "pacman-manager:repositories:*");
+
+        var result = await _subject.GetUserByIdAsync(alex.Id);
+
+        Assert.That(result?.Id, Is.EqualTo(alex.Id));
+    }
+
+    private static Actor ScopedActor(User user, string claim) =>
+        Actor.For(user, ActorScope.Parse(claim, NullLogger.Instance));
+
+    private static void AssertRefused(InsufficientScopeException? e, string action)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(e!.Entity, Is.EqualTo(ScopeValues.EntityNames.Users));
+            Assert.That(e.Action, Is.EqualTo(action));
+        });
     }
 
     #endregion
