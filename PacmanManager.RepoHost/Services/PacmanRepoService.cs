@@ -32,28 +32,82 @@ internal class PacmanRepoService(
     };
 
     /// <inheritdoc/>
-    public async Task<RepositoryFile?> ResolveAsync(
+    public async Task<PacmanResolution?> ResolveAsync(
         string repoName,
         string repoArch,
         string fileName,
         CancellationToken cancellationToken = default)
     {
         var repository = await repositories.GetRepositoryByNameAsync(repoName, cancellationToken);
-        if (repository is null || !repository.SupportedArchitectures.Contains(repoArch, StringComparer.Ordinal))
+        if (repository is null)
+        {
+            // Live names and retired names are one namespace, so a name no live repository holds is
+            // the only one worth looking for among the retired.
+            return await ResolveRetiredAsync(repoName, repoArch, fileName, cancellationToken);
+        }
+
+        if (!Supports(repository, repoArch))
         {
             return null;
         }
 
-        // A database is the repository's own name plus one of the database extensions; a database
-        // requested under any other name is not this repository's.
-        if (fileName.StartsWith(repository.Name, StringComparison.Ordinal)
-            && DatabaseExtensions.TryGetValue(fileName[repository.Name.Length..], out var kind))
+        var file = IsDatabaseName(repository.Name, fileName, out var kind)
+            ? await repositories.GetRepositoryDatabaseByIdAsync(repository.Id, repoArch, kind, cancellationToken)
+            : OpenPackageFile(repository.Id, fileName);
+
+        return file is null ? null : PacmanResolution.Serve(file);
+    }
+
+    /// <summary>
+    /// Resolves a path naming a repository by a name it was renamed away from: a redirect to the same
+    /// file under the repository's current name while the redirect window lasts, and gone after it.
+    /// </summary>
+    /// <remarks>
+    /// The redirect is to the name the repository has now, so a repository renamed twice is reached
+    /// from either old name in one hop. Nothing about the file is checked here; the target answers
+    /// for itself.
+    /// </remarks>
+    private async Task<PacmanResolution?> ResolveRetiredAsync(
+        string repoName,
+        string repoArch,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        var retired = await repositories.GetRetiredRepositoryNameAsync(repoName, cancellationToken);
+        if (retired is null || !Supports(retired.Repository, repoArch))
         {
-            return await repositories.GetRepositoryDatabaseByIdAsync(
-                repository.Id, repoArch, kind, cancellationToken);
+            return null;
         }
 
-        return OpenPackageFile(repository.Id, fileName);
+        if (!retired.IsRedirecting)
+        {
+            return PacmanResolution.Gone;
+        }
+
+        var currentName = retired.Repository.Name;
+        var targetFileName = IsDatabaseName(repoName, fileName, out _)
+            ? currentName + fileName[repoName.Length..]
+            : fileName;
+
+        return PacmanResolution.RedirectTo(new PacmanRedirect(currentName, targetFileName));
+    }
+
+    /// <summary>
+    /// Whether a repository publishes a database for <paramref name="repoArch"/>, matched exactly.
+    /// </summary>
+    private static bool Supports(Repository repository, string repoArch) =>
+        repository.SupportedArchitectures.Contains(repoArch, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether <paramref name="fileName"/> names one of the databases of a repository called
+    /// <paramref name="repoName"/>: the name itself plus one of the database extensions. A database
+    /// requested under any other name is not that repository's.
+    /// </summary>
+    private static bool IsDatabaseName(string repoName, string fileName, out RepositoryDatabaseKind kind)
+    {
+        kind = default;
+        return fileName.StartsWith(repoName, StringComparison.Ordinal)
+               && DatabaseExtensions.TryGetValue(fileName[repoName.Length..], out kind);
     }
 
     /// <summary>

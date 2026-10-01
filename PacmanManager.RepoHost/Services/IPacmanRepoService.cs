@@ -21,6 +21,11 @@ namespace PacmanManager.RepoHost.Services;
 /// repository's directory without being parsed. A name that is not a plain basename resolves to
 /// nothing without the disk being touched.
 /// </para>
+/// <para>
+/// A repository name that no live repository holds may be one a repository was renamed away from,
+/// which is looked up through <see cref="IRepositoryService.GetRetiredRepositoryNameAsync"/>, under
+/// the same visibility rule as a live name.
+/// </para>
 /// </remarks>
 public interface IPacmanRepoService
 {
@@ -32,11 +37,23 @@ public interface IPacmanRepoService
     /// <param name="fileName">The requested file name, a single path segment.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// The open file and its modification time, or null when the repository is absent as far as the
-    /// current actor is concerned, does not support <paramref name="repoArch"/>, the file name is not
-    /// one the repository serves, or the file is not on disk.
+    /// <para>
+    /// The open file and its modification time, when <paramref name="repoName"/> is a live
+    /// repository's name.
+    /// </para>
+    /// <para>
+    /// When it is a name a repository was renamed away from: a redirect to the same file under the
+    /// repository's current name while the redirect window lasts, and <see cref="PacmanResolution.Gone"/>
+    /// after it. A database requested by the old name is redirected to the database named for the new
+    /// one.
+    /// </para>
+    /// <para>
+    /// Null when the repository is absent as far as the current actor is concerned, does not support
+    /// <paramref name="repoArch"/>, the file name is not one the repository serves, or the file is
+    /// not on disk.
+    /// </para>
     /// </returns>
-    Task<RepositoryFile?> ResolveAsync(
+    Task<PacmanResolution?> ResolveAsync(
         string repoName,
         string repoArch,
         string fileName,

@@ -44,6 +44,23 @@ public interface IRepositoryService
     Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Looks up a name a repository was renamed away from, and records that it was asked for.
+    /// </summary>
+    /// <param name="name">The retired name, matched exactly as stored.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The repository that gave the name up, under its current name, and whether the name still
+    /// redirects there; or null when no repository gave the name up, or the one that did is not
+    /// visible to the current actor.
+    /// </returns>
+    /// <remarks>
+    /// A request is what keeps a retired name reserved, so a resolved lookup writes the time and the
+    /// requesting user onto the retirement, coarsely: at most once per configured resolution. A
+    /// lookup that resolves to nothing records nothing.
+    /// </remarks>
+    Task<RetiredNameResolution?> GetRetiredRepositoryNameAsync(string name, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves the database file stream for one of a repository's architectures by its ID.
     /// </summary>
     /// <param name="id">The ID of the repository.</param>
@@ -106,7 +123,10 @@ public interface IRepositoryService
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The newly created repository.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user to own the repository.</exception>
-    /// <exception cref="ItemExistsException">Thrown when the user already owns a repository with the same name and architecture.</exception>
+    /// <exception cref="ItemExistsException">
+    /// Thrown when the name is held, by another repository or by a name another repository was
+    /// renamed away from. The two are deliberately indistinguishable.
+    /// </exception>
     Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -118,7 +138,15 @@ public interface IRepositoryService
     /// <returns>The updated repository, or null if it does not exist or is not visible to the current actor.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when the operation requires an identity and there is none.</exception>
     /// <exception cref="RepositoryForbiddenException">Thrown when the actor may see the repository but does not own it.</exception>
-    /// <exception cref="ItemExistsException">Thrown when the owner already has another repository with the new name and architecture.</exception>
+    /// <exception cref="ItemExistsException">
+    /// Thrown when the new name is held, by another repository or by a name another repository was
+    /// renamed away from. A repository may always take back a name it was renamed away from itself.
+    /// </exception>
+    /// <remarks>
+    /// Renaming reserves the old name for this repository: it redirects to the repository's current
+    /// name for the configured redirect window, and nobody else may claim it until that has passed
+    /// and nothing has asked for it for the configured hold window.
+    /// </remarks>
     Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -129,6 +129,71 @@ public class PacmanControllerTests
     }
 
     [Test]
+    public async Task Get_RedirectsTemporarilyToTheSameActionUnderTheResolvedName()
+    {
+        GivenAResolution(PacmanResolution.RedirectTo(new PacmanRedirect("new-name", "new-name.db")));
+
+        var result = await _subject.Get("old-name", "x86_64", "old-name.db");
+
+        Assert.That(result, Is.InstanceOf<RedirectToActionResult>());
+        var redirect = (RedirectToActionResult)result;
+        Assert.Multiple(() =>
+        {
+            // PreserveMethod without Permanent is a 307.
+            Assert.That(redirect.PreserveMethod, Is.True);
+            Assert.That(redirect.Permanent, Is.False);
+            Assert.That(redirect.ActionName, Is.EqualTo(nameof(PacmanController.Get)));
+            Assert.That(redirect.ControllerName, Is.Null);
+            Assert.That(redirect.RouteValues, Is.EquivalentTo(new Dictionary<string, object?>
+            {
+                ["repoName"] = "new-name",
+                ["repoArch"] = "x86_64",
+                ["fileName"] = "new-name.db",
+            }));
+        });
+    }
+
+    [Test]
+    public async Task Get_ForbidsStoringARedirect_AndStillVariesOnAuthorization()
+    {
+        GivenAResolution(PacmanResolution.RedirectTo(new PacmanRedirect("new-name", "new-name.db")));
+
+        await _subject.Get("old-name", "x86_64", "old-name.db");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_subject.Response.Headers.CacheControl.ToString(), Is.EqualTo("no-store"));
+            Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
+        });
+    }
+
+    [Test]
+    public async Task Get_IsGone_ForANameWhoseRedirectHasLapsed()
+    {
+        GivenAResolution(PacmanResolution.Gone);
+
+        var result = await _subject.Get("old-name", "x86_64", "old-name.db");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.InstanceOf<StatusCodeResult>());
+            Assert.That(((StatusCodeResult)result).StatusCode, Is.EqualTo(StatusCodes.Status410Gone));
+            Assert.That(_subject.Response.Headers.CacheControl.ToString(), Is.Empty);
+            Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
+        });
+    }
+
+    [Test]
+    public async Task Get_SetsNoCacheControl_OnAFile()
+    {
+        GivenAFile(new byte[] { 1, 2, 3 });
+
+        await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(_subject.Response.Headers.CacheControl.ToString(), Is.Empty);
+    }
+
+    [Test]
     public void Controller_IsVersionNeutral_AndIgnoredByTheApiExplorer()
     {
         var type = typeof(PacmanController);
@@ -153,12 +218,17 @@ public class PacmanControllerTests
         });
     }
 
+    private void GivenAResolution(PacmanResolution resolution) =>
+        _service
+            .Setup(s => s.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resolution);
+
     private Stream GivenAFile(byte[] bytes)
     {
         var content = new MemoryStream(bytes);
         _service
             .Setup(s => s.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RepositoryFile(content, LastModified));
+            .ReturnsAsync(PacmanResolution.Serve(new RepositoryFile(content, LastModified)));
         return content;
     }
 }
