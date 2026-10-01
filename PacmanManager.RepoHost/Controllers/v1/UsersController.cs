@@ -78,6 +78,7 @@ public class UsersController(IUserManagementService userManagementService, ILogg
     [HttpGet("me")]
     [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Authorize]
     public async Task<ActionResult<CurrentUser>> GetCurrentUser(CancellationToken ct = default)
     {
@@ -101,6 +102,7 @@ public class UsersController(IUserManagementService userManagementService, ILogg
     [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Authorize]
     public async Task<ActionResult<CurrentUser>> PatchCurrentUser(
         [FromBody] IPatchObject<WriteUserRequest> patch,
@@ -128,6 +130,7 @@ public class UsersController(IUserManagementService userManagementService, ILogg
     [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Authorize]
     public async Task<ActionResult<CurrentUser>> PostCurrentUser(
         [FromBody] WriteUserRequest request,

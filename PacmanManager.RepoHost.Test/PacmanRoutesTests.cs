@@ -27,6 +27,7 @@ public class PacmanRoutesTests
 {
     private const string PublicRepo = "pacman-routes-public";
     private const string PrivateRepo = "pacman-routes-private";
+    private const string MissingRepo = "pacman-routes-missing";
     private const string Arch = PackageFixtures.MinimalPackageArchitecture;
 
     private EndToEndTestFixture _fixture = null!;
@@ -34,6 +35,8 @@ public class PacmanRoutesTests
     private HttpClient _anonymousClient = null!;
     private HttpClient _basicClient = null!;
     private HttpClient _mistypedBasicClient = null!;
+    private HttpClient _otherUsersBearerClient = null!;
+    private HttpClient _otherUsersBasicClient = null!;
 
     private byte[] _packageBytes = null!;
     private Repository _publicRepository = null!;
@@ -69,14 +72,16 @@ public class PacmanRoutesTests
         _publicRepository = await GivenAPublishedRepositoryAsync(PublicRepo, isPublic: true);
         _privateRepository = await GivenAPublishedRepositoryAsync(PrivateRepo, isPublic: false);
 
-        var mint = await _ownerClient.PostAsJsonAsync("/api/v1/users/me/tokens",
-            new CreateAccessTokenRequest { Name = "pacman-routes" });
-        var mintBody = await mint.Content.ReadAsStringAsync();
-        Assert.That(mint.StatusCode, Is.EqualTo(HttpStatusCode.Created), mintBody);
-        var token = JsonSerializer.Deserialize<CreatedAccessToken>(mintBody, JsonSerializerOptions.Web)!;
-
+        var token = await MintTokenAsync(_ownerClient);
         _basicClient = BasicClient(token.Username, token.Secret);
         _mistypedBasicClient = BasicClient(token.Username, AccessTokenFormat.GenerateSecret());
+
+        _otherUsersBearerClient = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
+        _otherUsersBearerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            await _fixture.AuthContainer.GetBearerTokenAsync(_fixture.AuthContainer.SecondaryCredentials));
+        var otherToken = await MintTokenAsync(_otherUsersBearerClient);
+        _otherUsersBasicClient = BasicClient(otherToken.Username, otherToken.Secret);
     }
 
     [OneTimeTearDown]
@@ -85,6 +90,8 @@ public class PacmanRoutesTests
         _anonymousClient.Dispose();
         _basicClient.Dispose();
         _mistypedBasicClient.Dispose();
+        _otherUsersBearerClient.Dispose();
+        _otherUsersBasicClient.Dispose();
         await _fixture.DisposeAsync();
     }
 
@@ -108,13 +115,92 @@ public class PacmanRoutesTests
         AssertPacmanHeaders(response);
     }
 
+    /// <summary>
+    /// pacman sends the credentials in its <c>Server</c> URL only once challenged, so an anonymous
+    /// request for a private repository has to be a Basic challenge, or the token is never offered.
+    /// </summary>
     [TestCaseSource(nameof(FileNameTemplates))]
-    public async Task PrivateRepository_IsNotFound_WithoutAToken(string template)
+    public async Task PrivateRepository_IsChallenged_WithoutAToken(string template)
     {
         var response = await _anonymousClient.GetAsync(Url(PrivateRepo, template));
 
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        AssertBasicChallenge(response);
         AssertPacmanHeaders(response);
+    }
+
+    /// <summary>
+    /// A name nobody holds is challenged exactly as a private one is, so the challenge says nothing
+    /// about whether the repository exists.
+    /// </summary>
+    [TestCaseSource(nameof(FileNameTemplates))]
+    public async Task MissingRepository_IsChallenged_WithoutAToken(string template)
+    {
+        var response = await _anonymousClient.GetAsync(Url(MissingRepo, template));
+
+        AssertBasicChallenge(response);
+        AssertPacmanHeaders(response);
+    }
+
+    [Test]
+    public async Task PrivateRepository_IsIndistinguishableFromAMissingOne_WithoutAToken()
+    {
+        var @private = await _anonymousClient.GetAsync(Url(PrivateRepo, "{0}.db"));
+        var missing = await _anonymousClient.GetAsync(Url(MissingRepo, "{0}.db"));
+        var privateBody = await @private.Content.ReadAsByteArrayAsync();
+        var missingBody = await missing.Content.ReadAsByteArrayAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(@private.StatusCode, Is.EqualTo(missing.StatusCode));
+            Assert.That(@private.Headers.WwwAuthenticate.ToString(), Is.EqualTo(missing.Headers.WwwAuthenticate.ToString()));
+            Assert.That(privateBody, Is.EqualTo(missingBody));
+        });
+    }
+
+    /// <summary>
+    /// A caller that has authenticated has nothing more to offer, so somebody else's private
+    /// repository stays a <c>404</c> for it, whichever scheme it used.
+    /// </summary>
+    [Test]
+    public async Task OtherUsersPrivateRepository_IsNotFound_WithAValidToken()
+    {
+        var basic = await _otherUsersBasicClient.GetAsync(Url(PrivateRepo, "{0}.db"));
+        var bearer = await _otherUsersBearerClient.GetAsync(Url(PrivateRepo, "{0}.db"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(basic.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), "Basic");
+            Assert.That(bearer.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), "Bearer");
+        });
+        AssertPacmanHeaders(basic);
+    }
+
+    [Test]
+    public async Task MissingRepository_IsNotFound_WithAValidToken()
+    {
+        var response = await _basicClient.GetAsync(Url(MissingRepo, "{0}.db"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    /// <summary>
+    /// Only a repository the caller cannot see is challenged. Anything missing from one it can see is
+    /// still a <c>404</c>, since a credential could not make it appear.
+    /// </summary>
+    [Test]
+    public async Task PublicRepository_IsNotFound_ForAnUnsupportedArchitecture_WithoutAToken()
+    {
+        var response = await _anonymousClient.GetAsync($"/pacman/{PublicRepo}/aarch64/{PublicRepo}.db");
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task PublicRepository_IsNotFound_ForAMissingPackage_WithoutAToken()
+    {
+        var response = await _anonymousClient.GetAsync(Url(PublicRepo, "missing-1.0-1-any.pkg.tar.zst"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     /// <summary>
@@ -324,8 +410,17 @@ public class PacmanRoutesTests
     private static string Url(string repoName, string template) =>
         $"/pacman/{repoName}/{Arch}/{string.Format(template, repoName)}";
 
+    private static void AssertBasicChallenge(HttpResponseMessage response)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(response.Headers.WwwAuthenticate.ToString(), Is.EqualTo("Basic realm=\"pacman\""));
+        });
+    }
+
     /// <summary>
-    /// <c>Vary: Authorization</c> on every response, since the same URL is a <c>404</c> anonymously and
+    /// <c>Vary: Authorization</c> on every response, since the same URL is a <c>401</c> anonymously and
     /// a <c>200</c> for its owner; and no <c>Cache-Control</c>, by decision rather than by omission.
     /// </summary>
     private static void AssertPacmanHeaders(HttpResponseMessage response)
@@ -335,6 +430,15 @@ public class PacmanRoutesTests
             Assert.That(response.Headers.Vary, Does.Contain("Authorization"), "Vary");
             Assert.That(response.Headers.CacheControl, Is.Null, "Cache-Control");
         });
+    }
+
+    private static async Task<CreatedAccessToken> MintTokenAsync(HttpClient client)
+    {
+        var mint = await client.PostAsJsonAsync("/api/v1/users/me/tokens",
+            new CreateAccessTokenRequest { Name = "pacman-routes" });
+        var mintBody = await mint.Content.ReadAsStringAsync();
+        Assert.That(mint.StatusCode, Is.EqualTo(HttpStatusCode.Created), mintBody);
+        return JsonSerializer.Deserialize<CreatedAccessToken>(mintBody, JsonSerializerOptions.Web)!;
     }
 
     private HttpClient BasicClient(string username, string password)

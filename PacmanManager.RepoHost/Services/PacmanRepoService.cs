@@ -32,7 +32,7 @@ internal class PacmanRepoService(
     };
 
     /// <inheritdoc/>
-    public async Task<PacmanResolution?> ResolveAsync(
+    public async Task<PacmanResolution> ResolveAsync(
         string repoName,
         string repoArch,
         string fileName,
@@ -48,14 +48,14 @@ internal class PacmanRepoService(
 
         if (!Supports(repository, repoArch))
         {
-            return null;
+            return PacmanResolution.FileNotFound;
         }
 
         var file = IsDatabaseName(repository.Name, fileName, out var kind)
             ? await repositories.GetRepositoryDatabaseByIdAsync(repository.Id, repoArch, kind, cancellationToken)
             : OpenPackageFile(repository.Id, fileName);
 
-        return file is null ? null : PacmanResolution.Serve(file);
+        return PacmanResolution.Of(file);
     }
 
     /// <summary>
@@ -67,16 +67,21 @@ internal class PacmanRepoService(
     /// from either old name in one hop. Nothing about the file is checked here; the target answers
     /// for itself.
     /// </remarks>
-    private async Task<PacmanResolution?> ResolveRetiredAsync(
+    private async Task<PacmanResolution> ResolveRetiredAsync(
         string repoName,
         string repoArch,
         string fileName,
         CancellationToken cancellationToken)
     {
         var retired = await repositories.GetRetiredRepositoryNameAsync(repoName, cancellationToken);
-        if (retired is null || !Supports(retired.Repository, repoArch))
+        if (retired is null)
         {
-            return null;
+            return PacmanResolution.RepositoryNotFound;
+        }
+
+        if (!Supports(retired.Repository, repoArch))
+        {
+            return PacmanResolution.FileNotFound;
         }
 
         if (!retired.IsRedirecting)

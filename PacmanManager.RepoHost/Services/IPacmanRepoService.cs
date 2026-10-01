@@ -48,12 +48,13 @@ public interface IPacmanRepoService
     /// one.
     /// </para>
     /// <para>
-    /// Null when the repository is absent as far as the current actor is concerned, does not support
-    /// <paramref name="repoArch"/>, the file name is not one the repository serves, or the file is
-    /// not on disk.
+    /// <see cref="PacmanResolution.RepositoryNotFound"/> when the repository is absent as far as the
+    /// current actor is concerned, whether it does not exist or is private to somebody else; or
+    /// <see cref="PacmanResolution.FileNotFound"/> when the repository is visible but does not support
+    /// <paramref name="repoArch"/>, the file name is not one it serves, or the file is not on disk.
     /// </para>
     /// </returns>
-    Task<PacmanResolution?> ResolveAsync(
+    Task<PacmanResolution> ResolveAsync(
         string repoName,
         string repoArch,
         string fileName,

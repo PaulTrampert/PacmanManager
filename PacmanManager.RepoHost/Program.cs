@@ -77,6 +77,7 @@ try
     builder.Services.AddSingleton<RepositoryAccessPolicy>();
     builder.Services.AddSingleton<PackageAccessPolicy>();
     builder.Services.AddSingleton<AccessTokenAccessPolicy>();
+    builder.Services.AddSingleton<UserAccessPolicy>();
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();

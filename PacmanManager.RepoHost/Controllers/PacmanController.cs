@@ -4,6 +4,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
 
@@ -27,9 +28,17 @@ namespace PacmanManager.RepoHost.Controllers;
 /// consulted. A credential that was offered and refused is a <c>401</c> before this controller runs.
 /// </para>
 /// <para>
+/// An anonymous request for a repository it cannot see — private, or not there at all — is
+/// challenged with a <c>401</c> and <c>WWW-Authenticate: Basic</c> rather than answered <c>404</c>.
+/// pacman sends the credentials in its <c>Server</c> URL only after such a challenge, so without it a
+/// private repository could never be reached. The two cases get the same challenge, so a private
+/// repository is still indistinguishable from a missing one. An authenticated caller is not
+/// challenged: it has already presented its credential, and gets the <c>404</c>.
+/// </para>
+/// <para>
 /// There is deliberately no <c>Cache-Control</c>; libalpm's <c>If-Modified-Since</c> answered with a
 /// <c>304</c> is what keeps a sync cheap. <c>Vary: Authorization</c> is sent on every response,
-/// since the same URL is a <c>404</c> anonymously and a <c>200</c> for the owner.
+/// since the same URL is a <c>401</c> anonymously and a <c>200</c> for the owner.
 /// </para>
 /// <para>
 /// A repository's old name, after a rename, is a <c>307</c> to the same file under its current name
@@ -63,9 +72,10 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
     /// <param name="ct">Cancellation Token</param>
     /// <returns>
     /// The file as <c>application/octet-stream</c>, a <c>304</c> or <c>206</c> where the request's
-    /// preconditions or range call for one, or <c>404</c> when there is no such file the caller may
-    /// see. For a name the repository was renamed away from, a <c>307</c> to the same file under its
-    /// current name while the redirect lasts, and <c>410</c> once it has lapsed.
+    /// preconditions or range call for one; a <c>401</c> Basic challenge when an anonymous caller asks
+    /// for a repository it cannot see; or <c>404</c> when there is otherwise no such file the caller
+    /// may see. For a name the repository was renamed away from, a <c>307</c> to the same file under
+    /// its current name while the redirect lasts, and <c>410</c> once it has lapsed.
     /// </returns>
     [HttpGet]
     [HttpHead]
@@ -74,15 +84,10 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
     {
         logger.LogInformation("Resolving {FileName} in {RepoName}/{RepoArch}", fileName, repoName, repoArch);
 
-        // Set before anything can answer, so that the 404 carries it as well as the file.
+        // Set before anything can answer, so that the 401 and the 404 carry it as well as the file.
         Response.Headers.Append(HeaderNames.Vary, HeaderNames.Authorization);
 
         var resolution = await pacmanRepoService.ResolveAsync(repoName, repoArch, fileName, ct);
-        if (resolution is null)
-        {
-            return NotFound();
-        }
-
         if (resolution.Redirect is { } redirect)
         {
             // Temporary, and not to be remembered: the redirect lapses at the end of its window, and
@@ -100,7 +105,17 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
             return StatusCode(StatusCodes.Status410Gone);
         }
 
-        var file = resolution.File!;
+        if (resolution.File is not { } file)
+        {
+            if (!resolution.RepositoryFound && User.Identity?.IsAuthenticated != true)
+            {
+                // pacman offers the credentials in its Server URL only when challenged.
+                logger.LogInformation("Challenging an anonymous request for {RepoName}", repoName);
+                return Challenge(AuthnConstants.BasicScheme);
+            }
+
+            return NotFound();
+        }
 
         // The requested name goes out as Content-Disposition. pacman ignores it and names the file
         // from the URL, and a browser saves the file under that name.

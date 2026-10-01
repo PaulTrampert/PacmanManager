@@ -100,10 +100,10 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        Assert.That(result?.File, Is.EqualTo(new RepositoryFile(content, LastModified)));
+        Assert.That(result, Is.EqualTo(PacmanResolution.Of(new RepositoryFile(content, LastModified))));
     }
 
-    [TestCase($"{RepoName}.files", TestName = "repo.files is the files database")]
+    [TestCase($"{RepoName}.files",TestName = "repo.files is the files database")]
     [TestCase($"{RepoName}.files.tar.gz", TestName = "repo.files.tar.gz is the files database")]
     public async Task ResolveAsync_ServesTheFilesDatabase(string fileName)
     {
@@ -112,7 +112,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        Assert.That(result?.File, Is.EqualTo(new RepositoryFile(content, LastModified)));
+        Assert.That(result, Is.EqualTo(PacmanResolution.Of(new RepositoryFile(content, LastModified))));
     }
 
     [Test]
@@ -123,7 +123,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, "aarch64", $"{RepoName}.db");
 
-        Assert.That(result?.File?.Content, Is.SameAs(content));
+        Assert.That(result.File?.Content, Is.SameAs(content));
     }
 
     [Test]
@@ -134,7 +134,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, PackageFileName);
 
-        Assert.That(result?.File, Is.EqualTo(new RepositoryFile(content, LastModified)));
+        Assert.That(result, Is.EqualTo(PacmanResolution.Of(new RepositoryFile(content, LastModified))));
     }
 
     [TestCase("readme.txt", TestName = "an unrecognised name")]
@@ -158,7 +158,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.EqualTo(PacmanResolution.FileNotFound));
     }
 
     #endregion
@@ -174,7 +174,8 @@ public class PacmanRepoServiceTests
 
         foreach (var fileName in new[] { $"{RepoName}.db", $"{RepoName}.files", PackageFileName, AnyPackageFileName })
         {
-            Assert.That(await _subject.ResolveAsync(RepoName, repoArch, fileName), Is.Null, fileName);
+            Assert.That(await _subject.ResolveAsync(RepoName, repoArch, fileName),
+                Is.EqualTo(PacmanResolution.FileNotFound), fileName);
         }
 
         _fileSystem.VerifyNoOtherCalls();
@@ -189,7 +190,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, repoArch, AnyPackageFileName);
 
-        Assert.That(result?.File?.Content, Is.SameAs(content));
+        Assert.That(result.File?.Content, Is.SameAs(content));
     }
 
     #endregion
@@ -210,7 +211,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        AssertUnresolvedWithoutTouchingTheDisk(result, PacmanResolution.FileNotFound);
     }
 
     [TestCase("..%2F..%2F..%2Fetc%2Fpasswd", TestName = "an encoded traversal")]
@@ -226,7 +227,7 @@ public class PacmanRepoServiceTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result, Is.Null);
+            Assert.That(result, Is.EqualTo(PacmanResolution.FileNotFound));
             _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
             _fileSystem.Verify(
                 f => f.Exists(It.Is<string>(path => !path.StartsWith($"{RepoDir}/", StringComparison.Ordinal))),
@@ -250,7 +251,7 @@ public class PacmanRepoServiceTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result, Is.Null);
+            Assert.That(result, Is.EqualTo(PacmanResolution.FileNotFound));
             _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
         });
     }
@@ -265,7 +266,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, PackageFileName);
 
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.EqualTo(PacmanResolution.FileNotFound));
     }
 
     #endregion
@@ -287,7 +288,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        Assert.That(result?.File?.LastModified, Is.EqualTo(distinctive));
+        Assert.That(result.File?.LastModified, Is.EqualTo(distinctive));
     }
 
     #endregion
@@ -302,7 +303,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
 
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result.File, Is.Not.Null);
     }
 
     [Test]
@@ -313,7 +314,8 @@ public class PacmanRepoServiceTests
 
         foreach (var fileName in new[] { $"{RepoName}.db", $"{RepoName}.files", PackageFileName })
         {
-            Assert.That(await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName), Is.Null, fileName);
+            Assert.That(await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName),
+                Is.EqualTo(PacmanResolution.RepositoryNotFound), fileName);
         }
 
         _fileSystem.VerifyNoOtherCalls();
@@ -327,7 +329,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, PackageFileName);
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        AssertUnresolvedWithoutTouchingTheDisk(result, PacmanResolution.RepositoryNotFound);
     }
 
     [Test]
@@ -339,7 +341,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, PackageFileName);
 
-        Assert.That(result?.File?.Content, Is.SameAs(content));
+        Assert.That(result.File?.Content, Is.SameAs(content));
     }
 
     [TestCase("MyRepo")]
@@ -350,7 +352,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(repoName, Architectures.X86_64, $"{repoName}.db");
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        AssertUnresolvedWithoutTouchingTheDisk(result, PacmanResolution.RepositoryNotFound);
     }
 
     [Test]
@@ -358,7 +360,23 @@ public class PacmanRepoServiceTests
     {
         var result = await _subject.ResolveAsync("missing", Architectures.X86_64, "missing.db");
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        AssertUnresolvedWithoutTouchingTheDisk(result, PacmanResolution.RepositoryNotFound);
+    }
+
+    /// <summary>
+    /// A private repository and a missing one must be the same outcome, which is what lets the route
+    /// answer both with the same challenge and so keep the one indistinguishable from the other.
+    /// </summary>
+    [Test]
+    public async Task ResolveAsync_ResolvesAnInvisibleRepositoryExactlyAsAMissingOne()
+    {
+        await GivenRepositoryAsync(isPublic: false);
+        _actors.Actor = Actor.Anonymous;
+
+        var invisible = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+        var missing = await _subject.ResolveAsync("missing", Architectures.X86_64, "missing.db");
+
+        Assert.That(invisible, Is.EqualTo(missing));
     }
 
     #endregion
@@ -459,7 +477,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, "aarch64", $"{RepoName}.db");
 
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.SameAs(PacmanResolution.FileNotFound));
     }
 
     [TestCase(false)]
@@ -478,7 +496,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
 
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound));
     }
 
     [Test]
@@ -500,7 +518,7 @@ public class PacmanRepoServiceTests
 
         var result = await _subject.ResolveAsync("MyRepo", Architectures.X86_64, "MyRepo.db");
 
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound));
     }
 
     #endregion
@@ -516,9 +534,9 @@ public class PacmanRepoServiceTests
         });
     }
 
-    private void AssertUnresolvedWithoutTouchingTheDisk(PacmanResolution? result)
+    private void AssertUnresolvedWithoutTouchingTheDisk(PacmanResolution result, PacmanResolution expected)
     {
-        Assert.That(result, Is.Null);
+        Assert.That(result, Is.EqualTo(expected));
         _fileSystem.VerifyNoOtherCalls();
     }
 
