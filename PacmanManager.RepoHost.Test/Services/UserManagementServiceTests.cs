@@ -50,19 +50,19 @@ public class UserManagementServiceTests
     }
 
     [Test]
-    public void GetCurrentUserAsync_WithNoCurrentUser_ThrowsNoCurrentUserException()
+    public async Task GetCurrentUserAsync_WithNoCurrentUser_ThrowsNoCurrentUserException()
     {
         _actorAccessor.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _subject.GetCurrentUserAsync());
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _subject.GetCurrentUserAsync());
     }
 
     [Test]
-    public void GetCurrentUserAsync_AsSystemWithNoUser_ThrowsNoCurrentUserException()
+    public async Task GetCurrentUserAsync_AsSystemWithNoUser_ThrowsNoCurrentUserException()
     {
         _actorAccessor.Actor = Actor.System;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _subject.GetCurrentUserAsync());
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _subject.GetCurrentUserAsync());
     }
 
     [Test]

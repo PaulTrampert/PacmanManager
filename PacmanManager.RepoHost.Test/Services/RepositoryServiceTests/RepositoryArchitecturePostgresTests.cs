@@ -141,7 +141,7 @@ public class RepositoryArchitecturePostgresTests
         _dbContext.Add(NewPackage(repository, "foo", Architectures.X86_64));
 
         // Act
-        var thrown = Assert.ThrowsAsync<DbUpdateException>(async () => await _dbContext.SaveChangesAsync());
+        var thrown = await Assert.ThrowsAsync<DbUpdateException>(async () => await _dbContext.SaveChangesAsync());
 
         // Assert
         var index = _dbContext.Model.FindEntityType(typeof(PacmanPackage))!.GetIndexes().Single(i => i.IsUnique);

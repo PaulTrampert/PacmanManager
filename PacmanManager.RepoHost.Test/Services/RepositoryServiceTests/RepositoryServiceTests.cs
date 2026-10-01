@@ -154,7 +154,7 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns(true);
 
         // Act
-        Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.CreateRepositoryAsync(request));
 
         // Assert
         // Both architectures' databases live under the one directory, so the x86_64 database that
@@ -520,7 +520,7 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public void CreateRepositoryAsync_RollsBack_OnFailure()
+    public async Task CreateRepositoryAsync_RollsBack_OnFailure()
     {
         // Arrange
         var request = new WriteRepositoryRequest { Name = "fail-repo" };
@@ -530,9 +530,9 @@ public class RepositoryServiceTests
         _mockFileSystem.Setup(f => f.DirectoryExists(It.Is<string>(s => IsARepositoryDirectory(s)))).Returns(true);
 
         // Act & Assert
-        Assert.Multiple(() =>
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
+            await Assert.ThrowsAsync<Exception>(async () => await _service.CreateRepositoryAsync(request));
             _mockFileSystem.Verify(f => f.DeleteDirectory(It.Is<string>(s => IsARepositoryDirectory(s))), Times.Once);
         });
     }
@@ -561,7 +561,7 @@ public class RepositoryServiceTests
             .Returns(true);
 
         // Act
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.CreateRepositoryAsync(request));
 
         // Assert
@@ -578,14 +578,14 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public void CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
+    public async Task CreateRepositoryAsync_WhenThereIsNoCurrentUser_Fails()
     {
         // Arrange
         _actors.Actor = Actor.Anonymous;
         var request = new WriteRepositoryRequest { Name = "fail-repo" };
 
         // Act & Assert
-        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
     }
 
     [Test]
@@ -597,7 +597,7 @@ public class RepositoryServiceTests
         var request = new WriteRepositoryRequest { Name = "read-only-repo", SupportedArchitectures = [Architectures.X86_64] };
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));
+        var thrown = await Assert.ThrowsAsync<InsufficientScopeException>(async () => await _service.CreateRepositoryAsync(request));
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.Entity, Is.EqualTo(ScopeValues.EntityNames.Repositories));
@@ -607,7 +607,7 @@ public class RepositoryServiceTests
     }
 
     [Test]
-    public void CreateRepositoryAsync_WhenActorIsSystemWithNoUser_Fails()
+    public async Task CreateRepositoryAsync_WhenActorIsSystemWithNoUser_Fails()
     {
         // A system actor bypasses authorization, but a repository still needs an owner.
         // Arrange
@@ -615,7 +615,7 @@ public class RepositoryServiceTests
         var request = new WriteRepositoryRequest { Name = "ownerless-repo" };
 
         // Act & Assert
-        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.CreateRepositoryAsync(request));
     }
 
     [Test]
@@ -1219,7 +1219,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryForbiddenException>(
+        await Assert.ThrowsAsync<RepositoryForbiddenException>(
             async () => await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "hijacked" }));
     }
 
@@ -1232,7 +1232,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
 
         // Act & Assert
-        Assert.ThrowsAsync<NoCurrentUserException>(
+        await Assert.ThrowsAsync<NoCurrentUserException>(
             async () => await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "hijacked" }));
     }
 
@@ -1278,7 +1278,7 @@ public class RepositoryServiceTests
         await GivenRepositoryAsync(id: repoId, name: "theirs-public", owner: _otherUser, isPublic: true);
 
         // Act & Assert
-        Assert.ThrowsAsync<RepositoryForbiddenException>(async () => await _service.DeleteRepositoryAsync(repoId));
+        await Assert.ThrowsAsync<RepositoryForbiddenException>(async () => await _service.DeleteRepositoryAsync(repoId));
         Assert.That(await _dbContext.PacmanRepositories.AnyAsync(r => r.Id == repoId), Is.True);
     }
 

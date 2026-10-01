@@ -102,7 +102,7 @@ public class RepositoryServiceCollisionTests
         var request = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
 
         await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
         Assert.That(await fresh.PacmanRepositories.CountAsync(r => r.Name == "taken"), Is.EqualTo(1));
@@ -121,7 +121,7 @@ public class RepositoryServiceCollisionTests
         var request = new WriteRepositoryRequest { Name = "taken" };
 
         // Act
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
 
         // Assert
         _mockFileSystem.Verify(f => f.DeleteDirectory(It.IsAny<string>()), Times.Once);
@@ -138,7 +138,7 @@ public class RepositoryServiceCollisionTests
         var request = new WriteRepositoryRequest { Name = "multi-arch" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
     }
 
     [TestCase(true)]
@@ -152,7 +152,7 @@ public class RepositoryServiceCollisionTests
         var request = new WriteRepositoryRequest { Name = "custom" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.CreateRepositoryAsync(request));
 
         await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
         var holders = await fresh.PacmanRepositories.Where(r => r.Name == "custom").ToListAsync();
@@ -168,7 +168,7 @@ public class RepositoryServiceCollisionTests
         var update = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
 
         await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
         var stored = await fresh.PacmanRepositories.SingleAsync(r => r.Id == renamed.Id);
@@ -185,7 +185,7 @@ public class RepositoryServiceCollisionTests
         var update = new WriteRepositoryRequest { Name = "theirs" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(mine.Id, update));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(mine.Id, update));
 
         await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
         var stored = await fresh.PacmanRepositories.SingleAsync(r => r.Id == mine.Id);
@@ -231,7 +231,7 @@ public class RepositoryServiceCollisionTests
         var update = new WriteRepositoryRequest { Name = "taken" };
 
         // Act & Assert
-        Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
     }
 
     private async Task<PacmanRepository> GivenRepositoryAsync(

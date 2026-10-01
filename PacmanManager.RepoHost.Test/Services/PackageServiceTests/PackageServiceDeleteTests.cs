@@ -211,7 +211,7 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_Throws_ForAPackageInSomebodyElsesPublicRepository()
+    public async Task DeletePackageAsync_Throws_ForAPackageInSomebodyElsesPublicRepository()
     {
         // The repository is public, so its existence is already known and refusing the delete leaks
         // nothing.
@@ -220,7 +220,7 @@ public class PackageServiceDeleteTests
         var filePath = _pathResolver.GetPackageFilePath(_othersPublicRepository.Id, package.FileName);
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageForbiddenException>(
+        var thrown = await Assert.ThrowsAsync<PackageForbiddenException>(
             async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
@@ -255,14 +255,14 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_Throws_WhenThereIsNoCurrentUser()
+    public async Task DeletePackageAsync_Throws_WhenThereIsNoCurrentUser()
     {
         // Arrange
         var package = GivenPublishedPackage(_othersPublicRepository, publisher: _other);
         _actors.Actor = Actor.Anonymous;
 
         // Act & Assert
-        Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.DeletePackageAsync(package.Id));
+        await Assert.ThrowsAsync<NoCurrentUserException>(async () => await _service.DeletePackageAsync(package.Id));
         Assert.That(_dbContext.PacmanPackages.Any(), Is.True);
     }
 
@@ -315,7 +315,7 @@ public class PackageServiceDeleteTests
     #region Failure and compensation
 
     [Test]
-    public void DeletePackageAsync_RepoRemoveFailure_LeavesTheRowAndTheFileIntact()
+    public async Task DeletePackageAsync_RepoRemoveFailure_LeavesTheRowAndTheFileIntact()
     {
         // The side effect comes first precisely so that this is the failure: the package is still
         // listed and still installable, which is the recoverable state. Committing first would
@@ -326,7 +326,7 @@ public class PackageServiceDeleteTests
         GivenRepoRemoveFails(stdErr: "==> ERROR: could not rewrite the database");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
@@ -338,7 +338,7 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_ALockFileFailure_IsReportedLikeEveryOtherToolFailure()
+    public async Task DeletePackageAsync_ALockFileFailure_IsReportedLikeEveryOtherToolFailure()
     {
         // The tools distinguish their reasons only in prose and there is no exit code for a lock
         // file, so reading a reason out of the message would be wrong often enough to matter. Every
@@ -348,7 +348,7 @@ public class PackageServiceDeleteTests
         GivenRepoRemoveFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
@@ -361,7 +361,7 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_CommitFailureAfterRepoRemove_RunsTheCompensatingRepoAdd()
+    public async Task DeletePackageAsync_CommitFailureAfterRepoRemove_RunsTheCompensatingRepoAdd()
     {
         // The database file no longer advertises a package the rows still describe, and nothing else
         // would ever notice, so deleting has to undo it explicitly.
@@ -371,7 +371,7 @@ public class PackageServiceDeleteTests
         _dbContext.FailNextCommit = true;
 
         // Act & Assert
-        Assert.ThrowsAsync<CommitFailedException>(async () => await _service.DeletePackageAsync(package.Id));
+        await Assert.ThrowsAsync<CommitFailedException>(async () => await _service.DeletePackageAsync(package.Id));
 
         VerifyRepoRemove(PackageName, Times.Once());
         VerifyRepoAdd(filePath, Times.Once());
@@ -384,7 +384,7 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_CommitCancelledAfterRepoRemove_StillCompensates()
+    public async Task DeletePackageAsync_CommitCancelledAfterRepoRemove_StillCompensates()
     {
         // A client that disconnects mid-commit cancels the token the delete is running under, and
         // that is one of the ordinary ways to reach the compensation at all. Compensation that
@@ -396,7 +396,7 @@ public class PackageServiceDeleteTests
         _dbContext.CancelOnCommit = cancellation;
 
         // Act & Assert
-        Assert.ThrowsAsync<OperationCanceledException>(
+        await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await _service.DeletePackageAsync(package.Id, cancellation.Token));
 
         _cliRunner.Verify(
@@ -468,7 +468,7 @@ public class PackageServiceDeleteTests
     }
 
     [Test]
-    public void DeletePackageAsync_RepoRemoveFailureForALaterArchitecture_RestoresTheEarlierOnes()
+    public async Task DeletePackageAsync_RepoRemoveFailureForALaterArchitecture_RestoresTheEarlierOnes()
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
@@ -482,7 +482,7 @@ public class PackageServiceDeleteTests
             .ReturnsAsync(1);
 
         // Act & Assert
-        Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.DeletePackageAsync(package.Id));
+        await Assert.ThrowsAsync<CliToolFailedException>(async () => await _service.DeletePackageAsync(package.Id));
 
         Assert.Multiple(() =>
         {

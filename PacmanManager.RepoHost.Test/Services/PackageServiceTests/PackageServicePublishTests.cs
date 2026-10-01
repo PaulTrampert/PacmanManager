@@ -294,7 +294,7 @@ public class PackageServicePublishTests
         _cliRunner.Invocations.Clear();
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
+        var thrown = await Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
 
         var storedPath = _pathResolver.GetPackageFilePath(_repository.Id, first!.Package.FileName);
         Assert.Multiple(() =>
@@ -319,7 +319,7 @@ public class PackageServicePublishTests
         _packageVersion = "1.2.3-3";
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
+        var thrown = await Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync());
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.OfferedVersion, Is.EqualTo("1.2.3-3"));
@@ -503,7 +503,7 @@ public class PackageServicePublishTests
         _packageVersion = PackageFixtures.MinimalPackageVersion;
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync(repository.Id));
+        var thrown = await Assert.ThrowsAsync<PackageNotNewerException>(async () => await PublishAsync(repository.Id));
 
         Assert.Multiple(() =>
         {
@@ -514,7 +514,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_CommitFailure_WhenASpecificBuildReplacesAnAnyBuild_RestoresTheAnyBuildEverywhere()
+    public async Task PublishPackageAsync_CommitFailure_WhenASpecificBuildReplacesAnAnyBuild_RestoresTheAnyBuildEverywhere()
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
@@ -527,7 +527,7 @@ public class PackageServicePublishTests
         _dbContext.FailNextCommit = true;
 
         // Act & Assert
-        Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync(repository.Id));
+        await Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync(repository.Id));
 
         Assert.Multiple(() =>
         {
@@ -541,7 +541,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_CommitFailure_WhenAnAnyBuildReplacesSpecificBuilds_RestoresEachOne()
+    public async Task PublishPackageAsync_CommitFailure_WhenAnAnyBuildReplacesSpecificBuilds_RestoresEachOne()
     {
         // Arrange
         var repository = GivenMultiArchitectureRepository();
@@ -556,7 +556,7 @@ public class PackageServicePublishTests
         _dbContext.FailNextCommit = true;
 
         // Act & Assert
-        Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync(repository.Id));
+        await Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync(repository.Id));
 
         Assert.Multiple(() =>
         {
@@ -596,7 +596,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_RepoAddFailureForALaterArchitecture_UndoesTheEarlierOnes()
+    public async Task PublishPackageAsync_RepoAddFailureForALaterArchitecture_UndoesTheEarlierOnes()
     {
         // An any package goes into each database in turn. If the second refuses it, the first
         // already names a file the failed publish is about to delete, so its entry has to go too.
@@ -611,7 +611,7 @@ public class PackageServicePublishTests
             .ReturnsAsync(1);
 
         // Act & Assert
-        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync(repository.Id));
+        await Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync(repository.Id));
 
         VerifyRepoRemoveFrom(Architectures.X86_64, PackageFixtures.MinimalPackageName, Times.Once());
         VerifyRepoRemoveFrom("aarch64", PackageFixtures.MinimalPackageName, Times.Never());
@@ -628,13 +628,13 @@ public class PackageServicePublishTests
     #region Validation
 
     [Test]
-    public void PublishPackageAsync_RejectsAPackageBuiltForAnotherArchitecture()
+    public async Task PublishPackageAsync_RejectsAPackageBuiltForAnotherArchitecture()
     {
         // Arrange
         _packageArchitecture = "aarch64";
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageArchitectureMismatchException>(async () => await PublishAsync());
+        var thrown = await Assert.ThrowsAsync<PackageArchitectureMismatchException>(async () => await PublishAsync());
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.PackageArchitecture, Is.EqualTo("aarch64"));
@@ -661,24 +661,24 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_RejectsAFileThatIsNotInASupportedCompressionFormat()
+    public async Task PublishPackageAsync_RejectsAFileThatIsNotInASupportedCompressionFormat()
     {
         // The stored file's extension comes from the sniffed compression, so a file with no
         // recognised magic has no name to be stored under.
         // Act & Assert
-        Assert.ThrowsAsync<UnsupportedPackageCompressionException>(
+        await Assert.ThrowsAsync<UnsupportedPackageCompressionException>(
             async () => await PublishAsync(content: "not a package at all"u8.ToArray()));
         Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
     }
 
     [Test]
-    public void PublishPackageAsync_RejectsMetadataThatCouldNotNameAFile()
+    public async Task PublishPackageAsync_RejectsMetadataThatCouldNotNameAFile()
     {
         // Arrange
         _packageName = "../../etc/passwd";
 
         // Act & Assert
-        Assert.ThrowsAsync<InvalidPackageMetadataException>(async () => await PublishAsync());
+        await Assert.ThrowsAsync<InvalidPackageMetadataException>(async () => await PublishAsync());
         Assert.That(_dbContext.PacmanPackages.Any(), Is.False);
     }
 
@@ -704,13 +704,13 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_Throws_ForSomebodyElsesPublicRepository_WithoutReadingTheBody()
+    public async Task PublishPackageAsync_Throws_ForSomebodyElsesPublicRepository_WithoutReadingTheBody()
     {
         // Arrange
         using var body = new MemoryStream(_fixtureBytes);
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<PackageForbiddenException>(
+        var thrown = await Assert.ThrowsAsync<PackageForbiddenException>(
             async () => await _service.PublishPackageAsync(_othersPublicRepository.Id, body));
 
         Assert.Multiple(() =>
@@ -721,14 +721,14 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_Throws_WhenThereIsNoCurrentUser()
+    public async Task PublishPackageAsync_Throws_WhenThereIsNoCurrentUser()
     {
         // Arrange
         _actors.Actor = Actor.Anonymous;
         using var body = new MemoryStream(_fixtureBytes);
 
         // Act & Assert
-        Assert.ThrowsAsync<NoCurrentUserException>(
+        await Assert.ThrowsAsync<NoCurrentUserException>(
             async () => await _service.PublishPackageAsync(_othersPublicRepository.Id, body));
     }
 
@@ -747,13 +747,13 @@ public class PackageServicePublishTests
     #region Failure and compensation
 
     [Test]
-    public void PublishPackageAsync_RepoAddFailure_LeavesNoRowAndNoNewFile()
+    public async Task PublishPackageAsync_RepoAddFailure_LeavesNoRowAndNoNewFile()
     {
         // Arrange
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
+        await Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
         Assert.Multiple(() =>
@@ -764,7 +764,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_RepoAddFailure_OnAReplacement_LeavesThePreviousVersionInPlace()
+    public async Task PublishPackageAsync_RepoAddFailure_OnAReplacement_LeavesThePreviousVersionInPlace()
     {
         // Arrange
         var first = PublishAsync().GetAwaiter().GetResult();
@@ -774,7 +774,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: could not read the package");
 
         // Act & Assert
-        Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
+        await Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
 
         var stored = _dbContext.PacmanPackages.Single();
         Assert.Multiple(() =>
@@ -786,7 +786,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_ALockFileFailure_IsReportedLikeEveryOtherToolFailure()
+    public async Task PublishPackageAsync_ALockFileFailure_IsReportedLikeEveryOtherToolFailure()
     {
         // The tools distinguish their reasons only in prose, and a package name may contain the
         // word 'lock', so reading a reason out of the message would be wrong often enough to
@@ -795,7 +795,7 @@ public class PackageServicePublishTests
         GivenRepoAddFails(stdErr: "==> ERROR: Failed to acquire lockfile: db.lck.");
 
         // Act & Assert
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(async () => await PublishAsync());
         Assert.Multiple(() =>
         {
             Assert.That(thrown!.Tool, Is.EqualTo("repo-add"));
@@ -806,7 +806,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_CommitFailureAfterRepoAdd_RunsTheCompensatingRepoRemove()
+    public async Task PublishPackageAsync_CommitFailureAfterRepoAdd_RunsTheCompensatingRepoRemove()
     {
         // The database file now advertises a package the rows do not know about, and nothing else
         // would ever notice, so publishing has to undo it explicitly.
@@ -814,7 +814,7 @@ public class PackageServicePublishTests
         _dbContext.FailNextCommit = true;
 
         // Act & Assert
-        Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync());
+        await Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync());
 
         var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
         VerifyRepoRemove(PackageFixtures.MinimalPackageName, Times.Once());
@@ -826,7 +826,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_CommitFailureAfterRepoAdd_OnAReplacement_RestoresThePreviousFile()
+    public async Task PublishPackageAsync_CommitFailureAfterRepoAdd_OnAReplacement_RestoresThePreviousFile()
     {
         // Arrange
         var first = PublishAsync().GetAwaiter().GetResult();
@@ -836,7 +836,7 @@ public class PackageServicePublishTests
         _dbContext.FailNextCommit = true;
 
         // Act & Assert
-        Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync());
+        await Assert.ThrowsAsync<CommitFailedException>(async () => await PublishAsync());
 
         var stored = _dbContext.PacmanPackages.Single();
         var orphanPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.UpgradePackageFileName);
@@ -855,7 +855,7 @@ public class PackageServicePublishTests
     }
 
     [Test]
-    public void PublishPackageAsync_CommitCancelledAfterRepoAdd_StillCompensates()
+    public async Task PublishPackageAsync_CommitCancelledAfterRepoAdd_StillCompensates()
     {
         // A client that disconnects mid-commit cancels the token the publish is running under, and
         // that is one of the ordinary ways to reach the compensation at all. Compensation that
@@ -866,7 +866,7 @@ public class PackageServicePublishTests
         _dbContext.CancelOnCommit = cancellation;
 
         // Act & Assert
-        Assert.ThrowsAsync<OperationCanceledException>(
+        await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await PublishAsync(cancellationToken: cancellation.Token));
 
         var expectedPath = _pathResolver.GetPackageFilePath(_repository.Id, PackageFixtures.MinimalPackageFileName);
