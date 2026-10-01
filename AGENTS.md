@@ -355,9 +355,9 @@ ones.
   implement it as written. Deviating from one during implementation needs sign-off from a project
   owner, and the same change must update the plan, add an Appendix entry saying why, and update
   every dependent issue.
-* `.github/dependabot.yml` batches daily version updates for every ecosystem (NuGet, Docker,
-  Compose, GitHub Actions) into a single pull request, and leaves security updates ungrouped so
-  each arrives as its own PR. Its PR titles carry the `(PATCH) ` prefix the title check requires.
+* `.github/dependabot.yml` checks each ecosystem (NuGet, Docker, Compose, GitHub Actions) daily
+  and batches its version updates into one pull request per ecosystem, and leaves security updates
+  ungrouped so each arrives as its own PR. Its PR titles carry the `(PATCH) ` prefix the title check requires.
 * `.run/` holds Rider run configurations.
 * `test-fixtures/` holds binary fixtures shared by more than one test project — currently the
   minimal pacman package under `test-fixtures/packages` and the same package one version on, both
