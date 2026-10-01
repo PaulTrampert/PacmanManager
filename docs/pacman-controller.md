@@ -75,9 +75,11 @@ Recorded here so the issues stay bounded; each has a follow-up in
   required, none is reported, and the route template carries no version segment.
   `SubstituteApiVersionInUrl` is inert here, since it rewrites a `{version:apiVersion}` token the
   template does not contain. It stays on for everything under `/api`.
-* **Swagger does not document these routes.** `ConfigureSwaggerGenOptions` already creates a document
-  per API version `Where(desc => desc.ApiVersion != ApiVersion.Neutral)`, so a neutral controller
-  belongs to no document. That is the intended outcome rather than an accident of configuration, so
+* **Swagger does not document these routes.** `[ApiVersionNeutral]` alone does not achieve that:
+  the versioned API Explorer describes a version-neutral action in *every* version's group, so it
+  would appear in the `v1` document. The controller also carries
+  **`[ApiExplorerSettings(IgnoreApi = true)]`**, which keeps it out of all of them. That is the
+  intended outcome rather than an accident of configuration, so
   [issue 4](#4-pacmancontroller--minor) asserts it.
 * **The path uses names, not ids**, so that a `pacman.conf` is legible and so that the URL survives a
   `DATA_DIR` rebuild. The mapping from `(repoName, repoArch)` to a repository id, and from a
@@ -703,7 +705,7 @@ which this is the first real endpoint able to test; a conditional request return
 request returning `206` with the right bytes; and `Vary: Authorization` present with no
 `Cache-Control` on any of them, so that the omission is a decision the tests hold rather than
 something a later change drifts back into. A test asserts the routes are absent from every Swagger
-document, which `[ApiVersionNeutral]` gives but nothing else pins.
+document, which `[ApiExplorerSettings(IgnoreApi = true)]` gives and `[ApiVersionNeutral]` alone does not.
 
 *Depends on:* 3, and [Basic Auth](basic-auth.md#4-the-basic-scheme-and-its-handler--minor).
 
@@ -862,6 +864,12 @@ this one.
 Swagger omitting these routes is the intended outcome rather than an accident of configuration:
 these are routes for a package manager, described by `pacman.conf`, not an API surface a human
 explores.
+
+The plan first said `[ApiVersionNeutral]` was enough to keep them out, because
+`ConfigureSwaggerGenOptions` creates no document for the neutral version. Issue 4's Swagger test
+showed otherwise: the versioned API Explorer lists a neutral action under every version's group, so
+the routes appeared in `v1`. `[ApiExplorerSettings(IgnoreApi = true)]` was added to reach the outcome
+the plan already stated; nothing about the routes themselves changed.
 
 ### Why the root names the client, not the resource
 
