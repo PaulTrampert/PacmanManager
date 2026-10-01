@@ -35,7 +35,7 @@ jobs:
       checks: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # pacman tooling, libalpm, the ANTLR JRE, .NET and the NuGet cache. The Claude workflows
       # install the same set, so it lives in one place.
@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: artifacts/test-results
@@ -110,7 +110,7 @@ jobs:
           pacman -Sy --noconfirm archlinux-keyring
           pacman -Syu --noconfirm --needed dotnet-sdk jre-openjdk-headless git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Test
         run: |
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload Arch test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-arch
           path: artifacts/test-results
@@ -151,16 +151,16 @@ jobs:
           - name: migrations
             dockerfile: PacmanManager.Migrations/Dockerfile
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # push: false is the point of this job. The project is unreleased; building the image is a
       # sanity check that the Dockerfile and its COPY lines still match the solution layout.
       # Nothing is tagged for a registry and no registry credentials are used.
       - name: Build ${{ matrix.name }} image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
