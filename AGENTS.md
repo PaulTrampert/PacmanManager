@@ -205,6 +205,15 @@ is the point: the binding is exercised against a distribution that only carries 
 13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
 database is read the same way by both.
 
+### Code scanning (`codeql.yml`)
+
+`.github/workflows/codeql.yml` runs CodeQL over `actions` and `csharp` on pull requests, pushes to
+`main` and a weekly schedule. It is an advanced setup rather than GitHub's default setup only
+because default setup cannot exclude individual queries; the exclusions live in
+`.github/codeql/codeql-config.yml`, each with the reason it is excluded. Currently that is
+`cs/log-forging`, since logging uses structured message templates. Default setup must stay off in
+the repository settings, or this workflow's uploads are rejected.
+
 ### Claude on pull requests (`claude.yml`)
 
 `.github/workflows/claude.yml` runs
