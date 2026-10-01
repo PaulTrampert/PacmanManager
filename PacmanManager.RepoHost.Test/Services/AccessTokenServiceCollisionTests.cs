@@ -62,6 +62,7 @@ public class AccessTokenServiceCollisionTests
         _service = new AccessTokenService(
             _dbContext,
             _actors,
+            new AccessTokenAccessPolicy(),
             TimeProvider.System,
             new TestOutputLogger<AccessTokenService>());
     }

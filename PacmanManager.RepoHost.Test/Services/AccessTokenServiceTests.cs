@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.Entities;
@@ -52,6 +53,7 @@ public class AccessTokenServiceTests
         _service = new AccessTokenService(
             _dbContext,
             _actors,
+            new AccessTokenAccessPolicy(),
             new FixedTimeProvider(Now),
             new TestOutputLogger<AccessTokenService>());
     }
@@ -407,6 +409,105 @@ public class AccessTokenServiceTests
 
     #endregion
 
+    #region Scope
+
+    // AccessTokenAccessPolicyTests covers every row of the verdicts; these show that each method asks
+    // its own verdict before doing anything, and turns Forbidden into InsufficientScopeException.
+
+    [Test]
+    public void List_WhenTheVerdictIsForbidden_ThrowsInsufficientScope()
+    {
+        _actors.Actor = ScopedActor("pacman-manager:tokens:create pacman-manager:tokens:delete");
+
+        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+
+        AssertRefused(e, ScopeValues.ActionNames.Read);
+    }
+
+    [Test]
+    public async Task List_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var mine = GivenToken(_owner, "mine");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read");
+
+        var page = await _service.GetAccessTokensAsync(new PaginationParams());
+
+        Assert.That(page.Results.Select(t => t.Id), Is.EqualTo(new[] { mine.Id }));
+    }
+
+    [Test]
+    public void Create_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndMintsNothing()
+    {
+        // The scope a Basic credential carries.
+        _actors.Actor = ScopedActor("pacman-manager:*:read");
+
+        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+
+        AssertRefused(e, ScopeValues.ActionNames.Create);
+        Assert.That(TokenCount(), Is.Zero, "no token was minted");
+    }
+
+    [Test]
+    public async Task Create_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        _actors.Actor = ScopedActor("pacman-manager:tokens:create pacman-manager:tokens:read");
+
+        var created = await _service.CreateAccessTokenAsync(Request("laptop"));
+
+        Assert.That(StoredToken(created.Id).UserId, Is.EqualTo(_owner.Id));
+    }
+
+    [Test]
+    public void Delete_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndLeavesTheTokenInPlace()
+    {
+        var token = GivenToken(_owner, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read pacman-manager:tokens:create");
+
+        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(token.Id));
+
+        AssertRefused(e, ScopeValues.ActionNames.Delete);
+        Assert.That(TokenExists(token.Id), Is.True, "still there");
+    }
+
+    [Test]
+    public async Task Delete_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var token = GivenToken(_owner, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:delete pacman-manager:tokens:read");
+
+        var deleted = await _service.DeleteAccessTokenAsync(token.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(deleted, Is.True);
+            Assert.That(TokenExists(token.Id), Is.False);
+        });
+    }
+
+    [Test]
+    public void Delete_AnotherUsersToken_WithoutTheScope_IsRefusedBeforeItIsLookedFor()
+    {
+        // The verdict is asked first, so a refusal says nothing about whether the id names a token.
+        var theirs = GivenToken(_other, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read");
+
+        Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(theirs.Id));
+        Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(Guid.CreateVersion7()));
+    }
+
+    private Actor ScopedActor(string claim) => Actor.For(_owner, ActorScope.Parse(claim, NullLogger.Instance));
+
+    private static void AssertRefused(InsufficientScopeException? e, string action)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(e!.Entity, Is.EqualTo(ScopeValues.EntityNames.Tokens));
+            Assert.That(e.Action, Is.EqualTo(action));
+        });
+    }
+
+    #endregion
+
     #region Helpers
 
     private static CreateAccessTokenRequest Request(string name, DateTimeOffset? expiresAt = null) =>
@@ -433,6 +534,12 @@ public class AccessTokenServiceTests
         seed.Add(token);
         seed.SaveChanges();
         return token;
+    }
+
+    private int TokenCount()
+    {
+        using var read = NewContext();
+        return read.PacmanAccessTokens.Count();
     }
 
     private PacmanAccessToken StoredToken(Guid id)
