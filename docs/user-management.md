@@ -71,7 +71,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * `me` is a literal alias on the read route. A literal segment beats the `{userId:guid}` constraint
   in route matching, so the two do not conflict.
 * The write route accepts **`me` and nothing else**. `PATCH /api/v1/users/{userId}` does not exist at
-  any id, including the caller's own, and must 404 from routing rather than be handled.
+  any id, including the caller's own, and must be answered `405` by routing rather than be handled.
 * There is no visibility predicate on the user query. Every user is readable by everyone; only `me`
   is writable. The `me` methods ask a `UserAccessPolicy` whether the credential's scope permits them,
   which [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds; the anonymous routes ask
@@ -83,6 +83,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 **Why:**
 
 * [`me` is the only way to reach the write route](#me-is-the-only-way-to-reach-the-write-route)
+* [`PATCH` by id is a `405`, not a `404`](#why-patch-by-id-is-a-405-not-a-404)
 * [there is no `IUserAccessPolicy`](#there-is-no-iuseraccesspolicy)
 
 ### Models
@@ -341,7 +342,7 @@ and `UpdateCurrentUserAsync` on `IUserManagementService` behind it. `UpdateCurre
 
 *Acceptance:* E2E tests: the change takes effect and is visible from `GET /api/v1/users/{userId}`;
 an over-long name is a `400`; the route is a `401` unauthenticated; and there is no route by which
-one user can change another's, asserted by `PATCH /api/v1/users/{someOtherId}` returning `404` from
+one user can change another's, asserted by `PATCH /api/v1/users/{someOtherId}` returning `405` from
 routing rather than being handled.
 
 The patch semantics get their own tests, because they are the reason the library is here: an empty
@@ -356,6 +357,7 @@ still shows an optional `displayName`, since the patch type is generated rather 
 
 * [`PATCH`, and `PTrampert.SimplePatch`](#why-patch-and-why-ptrampertsimplepatch)
 * [`me` is the only way to reach the write route](#me-is-the-only-way-to-reach-the-write-route)
+* [`PATCH` by id is a `405`, not a `404`](#why-patch-by-id-is-a-405-not-a-404)
 
 ---
 
@@ -439,6 +441,20 @@ route and its own permission, not a relaxation of this one.
 
 The asymmetry with the read route is intentional. Reading a user is a public act; changing one is
 not.
+
+### Why `PATCH` by id is a `405`, not a `404`
+
+The plan originally said `PATCH /api/v1/users/{userId}` must `404` from routing. Implementing
+[6](#6-patch-apiv1usersme--minor) showed that ASP.NET Core answers `405 Method Not Allowed`: the
+anonymous `GET {userId:guid}` route matches the path, so routing rejects the *method* rather than the
+path. Changed with a project owner's sign-off.
+
+What the requirement protects still holds: no action handles the request, so no route exists by
+which one user can change another. The status code was the only thing at stake.
+
+Rejected: converting `405` to `404` globally so that the original wording held. It would change the
+response for every route in the API whose path matches under another method, to make one assertion
+read differently.
 
 ### There is no `IUserAccessPolicy`
 

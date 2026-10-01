@@ -240,12 +240,13 @@ public class UsersControllerTests
         var ownBody = await ownResponse.Content.ReadAsStringAsync();
         var otherAfter = await _otherUsersClient.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
 
-        // Assert: a 404 from routing has no body, where one from an action would carry ProblemDetails.
+        // Assert: routing answers 405, since GET {userId:guid} matches the path but no endpoint takes
+        // PATCH there. It carries no body, where a response from an action would carry ProblemDetails.
         Assert.Multiple(() =>
         {
-            Assert.That(otherResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(otherResponse.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
             Assert.That(otherBody, Is.Empty, "not handled by an action");
-            Assert.That(ownResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(ownResponse.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
             Assert.That(ownBody, Is.Empty, "not handled by an action");
             Assert.That(otherAfter, Is.EqualTo(other));
         });
