@@ -143,7 +143,7 @@ jobs:
 
       # The toolchain comes from main's copy of the setup action: a PR branch cut before the action
       # existed would not have it. The second checkout then replaces the workspace with the branch.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.check.outputs.go == 'true'
         with:
           ref: main
@@ -152,7 +152,7 @@ jobs:
         if: steps.check.outputs.go == 'true'
         uses: ./.github/actions/setup-toolchain
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.check.outputs.go == 'true'
         with:
           ref: ${{ matrix.branch }}
