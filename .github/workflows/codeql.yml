@@ -1,0 +1,48 @@
+name: CodeQL
+
+# Replaces GitHub's CodeQL default setup, which cannot exclude individual queries. The excluded
+# queries live in .github/codeql/codeql-config.yml. Languages, triggers and the weekly schedule
+# match what default setup ran.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '27 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR makes the in-flight run irrelevant. `main` is never cancelled.
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, csharp]
+    steps:
+      - uses: actions/checkout@v5
+
+      # build-mode none is what default setup uses for C#, so no toolchain is needed here.
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

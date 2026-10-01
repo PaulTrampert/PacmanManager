@@ -1,0 +1,11 @@
+name: PacmanManager CodeQL config
+
+# Default setup cannot exclude individual queries, which is why CodeQL runs from codeql.yml as an
+# advanced setup. Everything else matches what default setup ran: the default query suite and the
+# `remote` threat model.
+query-filters:
+  # cs/log-forging flags every user-supplied value that reaches a logger. Logging goes through
+  # Microsoft.Extensions.Logging with structured message templates, so values are recorded as
+  # template arguments rather than spliced into the line, and the alerts are noise.
+  - exclude:
+      id: cs/log-forging
