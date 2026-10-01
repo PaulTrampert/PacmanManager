@@ -415,11 +415,11 @@ public class AccessTokenServiceTests
     // its own verdict before doing anything, and turns Forbidden into InsufficientScopeException.
 
     [Test]
-    public void List_WhenTheVerdictIsForbidden_ThrowsInsufficientScope()
+    public async Task List_WhenTheVerdictIsForbidden_ThrowsInsufficientScope()
     {
         _actors.Actor = ScopedActor("pacman-manager:tokens:create pacman-manager:tokens:delete");
 
-        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
 
         AssertRefused(e, ScopeValues.ActionNames.Read);
     }
@@ -436,12 +436,12 @@ public class AccessTokenServiceTests
     }
 
     [Test]
-    public void Create_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndMintsNothing()
+    public async Task Create_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndMintsNothing()
     {
         // The scope a Basic credential carries.
         _actors.Actor = ScopedActor("pacman-manager:*:read");
 
-        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
 
         AssertRefused(e, ScopeValues.ActionNames.Create);
         Assert.That(TokenCount(), Is.Zero, "no token was minted");
@@ -458,12 +458,12 @@ public class AccessTokenServiceTests
     }
 
     [Test]
-    public void Delete_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndLeavesTheTokenInPlace()
+    public async Task Delete_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndLeavesTheTokenInPlace()
     {
         var token = GivenToken(_owner, "laptop");
         _actors.Actor = ScopedActor("pacman-manager:tokens:read pacman-manager:tokens:create");
 
-        var e = Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(token.Id));
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(token.Id));
 
         AssertRefused(e, ScopeValues.ActionNames.Delete);
         Assert.That(TokenExists(token.Id), Is.True, "still there");
@@ -485,14 +485,14 @@ public class AccessTokenServiceTests
     }
 
     [Test]
-    public void Delete_AnotherUsersToken_WithoutTheScope_IsRefusedBeforeItIsLookedFor()
+    public async Task Delete_AnotherUsersToken_WithoutTheScope_IsRefusedBeforeItIsLookedFor()
     {
         // The verdict is asked first, so a refusal says nothing about whether the id names a token.
         var theirs = GivenToken(_other, "laptop");
         _actors.Actor = ScopedActor("pacman-manager:tokens:read");
 
-        Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(theirs.Id));
-        Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(Guid.CreateVersion7()));
+        await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(theirs.Id));
+        await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(Guid.CreateVersion7()));
     }
 
     private Actor ScopedActor(string claim) => Actor.For(_owner, ActorScope.Parse(claim, NullLogger.Instance));
