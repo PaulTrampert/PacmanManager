@@ -1,0 +1,164 @@
+using System.Reflection;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using PacmanManager.RepoHost.Controllers;
+using PacmanManager.RepoHost.Models;
+using PacmanManager.RepoHost.Services;
+
+namespace PacmanManager.RepoHost.Test.Controllers;
+
+/// <summary>
+/// Unit tests of the result <see cref="PacmanController"/> builds. What the result then does on the
+/// wire — the <c>304</c>, the <c>206</c>, <c>Content-Length</c> — is ASP.NET's, and is asserted
+/// end to end in <c>PacmanRoutesTests</c>.
+/// </summary>
+[TestFixture]
+public class PacmanControllerTests
+{
+    private static readonly DateTimeOffset LastModified = new(2026, 9, 30, 12, 34, 56, 789, TimeSpan.Zero);
+
+    private Mock<IPacmanRepoService> _service = null!;
+    private PacmanController _subject = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _service = new Mock<IPacmanRepoService>();
+        _subject = new PacmanController(_service.Object, NullLogger<PacmanController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
+    }
+
+    [Test]
+    public async Task Get_ReturnsNotFound_WhenNothingResolves()
+    {
+        var result = await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(result, Is.InstanceOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task Get_SetsVaryAuthorization_OnANotFound()
+    {
+        await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
+    }
+
+    [Test]
+    public async Task Get_SetsVaryAuthorization_OnAFile()
+    {
+        GivenAFile(new byte[] { 1, 2, 3 });
+
+        await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(_subject.Response.Headers.Vary.ToString(), Is.EqualTo("Authorization"));
+    }
+
+    [Test]
+    public async Task Get_PassesTheRequestedSegmentsToTheService()
+    {
+        await _subject.Get("repo", "x86_64", "pkg-1-1-any.pkg.tar.zst");
+
+        _service.Verify(s => s.ResolveAsync("repo", "x86_64", "pkg-1-1-any.pkg.tar.zst", It.IsAny<CancellationToken>()));
+    }
+
+    [Test]
+    public async Task Get_ServesTheResolvedStream_AsAnOctetStreamWithRangesAndNoDownloadName()
+    {
+        var content = GivenAFile(new byte[] { 1, 2, 3 });
+
+        var result = await _subject.Get("repo", "x86_64", "repo.db");
+
+        Assert.That(result, Is.InstanceOf<FileStreamResult>());
+        var file = (FileStreamResult)result;
+        Assert.Multiple(() =>
+        {
+            Assert.That(file.FileStream, Is.SameAs(content));
+            Assert.That(file.ContentType, Is.EqualTo("application/octet-stream"));
+            Assert.That(file.LastModified, Is.EqualTo(LastModified));
+            Assert.That(file.EntityTag, Is.Not.Null);
+            Assert.That(file.EnableRangeProcessing, Is.True);
+            Assert.That(file.FileDownloadName, Is.Empty, "pacman names the file from its URL");
+        });
+    }
+
+    [Test]
+    public void CreateEntityTag_IsStrongAndQuoted()
+    {
+        var tag = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([1, 2, 3]), LastModified));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(tag.IsWeak, Is.False);
+            Assert.That(tag.Tag.ToString(), Does.StartWith("\"").And.EndWith("\""));
+        });
+    }
+
+    [Test]
+    public void CreateEntityTag_IsStableForTheSameTimeAndLength()
+    {
+        var first = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([1, 2, 3]), LastModified));
+        var second = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([4, 5, 6]), LastModified));
+
+        Assert.That(first.Tag, Is.EqualTo(second.Tag));
+    }
+
+    [Test]
+    public void CreateEntityTag_ChangesWithTheModificationTime()
+    {
+        var first = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([1, 2, 3]), LastModified));
+        var second = PacmanController.CreateEntityTag(
+            new RepositoryFile(new MemoryStream([1, 2, 3]), LastModified.AddMilliseconds(1)));
+
+        Assert.That(first.Tag, Is.Not.EqualTo(second.Tag));
+    }
+
+    [Test]
+    public void CreateEntityTag_ChangesWithTheLength()
+    {
+        var first = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([1, 2, 3]), LastModified));
+        var second = PacmanController.CreateEntityTag(new RepositoryFile(new MemoryStream([1, 2, 3, 4]), LastModified));
+
+        Assert.That(first.Tag, Is.Not.EqualTo(second.Tag));
+    }
+
+    [Test]
+    public void Controller_IsVersionNeutral_AndIgnoredByTheApiExplorer()
+    {
+        var type = typeof(PacmanController);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(type.GetCustomAttribute<ApiVersionNeutralAttribute>(), Is.Not.Null);
+            Assert.That(type.GetCustomAttribute<ApiExplorerSettingsAttribute>()?.IgnoreApi, Is.True);
+        });
+    }
+
+    [Test]
+    public void Get_IsAnonymous_AndNamesNoScheme()
+    {
+        var method = typeof(PacmanController).GetMethod(nameof(PacmanController.Get))!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(method.GetCustomAttribute<AllowAnonymousAttribute>(), Is.Not.Null);
+            Assert.That(method.GetCustomAttributes<AuthorizeAttribute>(), Is.Empty);
+            Assert.That(typeof(PacmanController).GetCustomAttributes<AuthorizeAttribute>(), Is.Empty);
+        });
+    }
+
+    private Stream GivenAFile(byte[] bytes)
+    {
+        var content = new MemoryStream(bytes);
+        _service
+            .Setup(s => s.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RepositoryFile(content, LastModified));
+        return content;
+    }
+}
