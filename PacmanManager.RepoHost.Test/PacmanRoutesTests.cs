@@ -178,7 +178,7 @@ public class PacmanRoutesTests
     }
 
     [Test]
-    public async Task Response_IsAnOctetStreamWithAContentLengthAndNoDisposition()
+    public async Task Response_IsAnOctetStreamWithAContentLengthAndTheRequestedNameAsItsDisposition()
     {
         var response = await _anonymousClient.GetAsync(Url(PublicRepo, PackageFixtures.MinimalPackageFileName));
 
@@ -187,7 +187,8 @@ public class PacmanRoutesTests
             Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("application/octet-stream"));
             Assert.That(response.Content.Headers.ContentLength, Is.EqualTo(_packageBytes.Length));
             Assert.That(response.Headers.TransferEncodingChunked, Is.Not.True, "never chunked");
-            Assert.That(response.Content.Headers.ContentDisposition, Is.Null, "pacman names the file from its URL");
+            Assert.That(response.Content.Headers.ContentDisposition?.FileName?.Trim('"'),
+                Is.EqualTo(PackageFixtures.MinimalPackageFileName));
             Assert.That(response.Content.Headers.LastModified, Is.Not.Null);
             Assert.That(response.Headers.ETag, Is.Not.Null);
         });

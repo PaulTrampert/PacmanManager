@@ -480,7 +480,8 @@ All of this applies to every `/pacman` response.
 * **`HEAD`** is routed to the `GET` action by ASP.NET automatically and must not stream a body.
 * **No `Cache-Control` at all**, deliberately.
 * **`Vary: Authorization`** on every response under this root.
-* **No `Content-Disposition`.** pacman names the file from the URL it requested.
+* **`Content-Disposition`** carries the requested file name, via the `fileName` argument of the
+  `File(...)` overload. pacman ignores it and names the file from the URL; a browser saves under it.
 
 Note that HTTP dates have one-second resolution and ASP.NET rounds `Last-Modified` down to a whole
 second; a test that publishes and immediately re-reads inside the same second will see a `304` where
@@ -870,6 +871,10 @@ The plan first said `[ApiVersionNeutral]` was enough to keep them out, because
 showed otherwise: the versioned API Explorer lists a neutral action under every version's group, so
 the routes appeared in `v1`. `[ApiExplorerSettings(IgnoreApi = true)]` was added to reach the outcome
 the plan already stated; nothing about the routes themselves changed.
+
+The plan also said "No `Content-Disposition`". A project owner chose to send one: the controller
+passes the requested name to the `File(...)` overload, so a browser saves under it. pacman and
+libcurl ignore the header, and a name that cannot be a file the caller may see is a `404` first.
 
 ### Why the root names the client, not the resource
 
