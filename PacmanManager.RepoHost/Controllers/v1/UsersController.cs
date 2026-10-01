@@ -2,11 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
+using PTrampert.SimplePatch;
 
 namespace PacmanManager.RepoHost.Controllers.v1;
 
 /// <summary>
-/// Controller for reading users.
+/// Controller for reading users, and for changing the caller's own record.
 /// </summary>
 /// <remarks>
 /// Every user is readable by everyone, so the listing and the lookup by id are anonymous and return
@@ -14,6 +15,10 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// returns <see cref="CurrentUser"/>, and it addresses the caller and nobody else. The literal
 /// <c>me</c> segment wins over the <c>{userId:guid}</c> constraint in route matching, so the two
 /// routes do not conflict.
+/// <para>
+/// The only write routes are <c>PATCH me</c> and <c>POST me</c>. There is deliberately no write route by
+/// id, at any id, so no route exists by which one user could change another.
+/// </para>
 /// </remarks>
 [ApiController]
 [Route(ControllerConstants.ControllerBaseRoute)]
@@ -80,5 +85,57 @@ public class UsersController(IUserManagementService userManagementService, ILogg
 
         var user = await userManagementService.GetCurrentUserAsync(ct);
         return Ok(user);
+    }
+
+    /// <summary>
+    /// Change the caller's own user record. Only the properties named in the body are changed; an
+    /// omitted property keeps its present value.
+    /// </summary>
+    /// <param name="patch">
+    /// The properties to change. An empty body changes nothing, and an explicit <c>null</c> display
+    /// name is rejected rather than clearing the name.
+    /// </param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns>The updated user.</returns>
+    [HttpPatch("me")]
+    [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [Authorize]
+    public async Task<ActionResult<CurrentUser>> PatchCurrentUser(
+        [FromBody] IPatchObject<WriteUserRequest> patch,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("Updating the current user");
+
+        // Patched onto a write model of the present values, never onto the entity: Patch returns a
+        // new instance, and the service receives a complete, validated model.
+        var current = await userManagementService.GetCurrentUserAsync(ct);
+        var request = patch.Patch(WriteUserRequest.FromCurrentUser(current));
+
+        var updated = await userManagementService.UpdateCurrentUserAsync(request, ct);
+        return Ok(updated);
+    }
+
+    /// <summary>
+    /// Replace the writable surface of the caller's own user record. Every property is required; use
+    /// <c>PATCH me</c> to change only some of them.
+    /// </summary>
+    /// <param name="request">The complete writable surface.</param>
+    /// <param name="ct">Cancellation Token</param>
+    /// <returns>The updated user.</returns>
+    [HttpPost("me")]
+    [ProducesResponseType(typeof(CurrentUser), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [Authorize]
+    public async Task<ActionResult<CurrentUser>> PostCurrentUser(
+        [FromBody] WriteUserRequest request,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("Replacing the current user");
+
+        var updated = await userManagementService.UpdateCurrentUserAsync(request, ct);
+        return Ok(updated);
     }
 }

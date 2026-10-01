@@ -59,6 +59,24 @@ public class UserManagementService(
         };
     }
 
+    /// <inheritdoc />
+    public async Task<CurrentUser> UpdateCurrentUserAsync(WriteUserRequest request, CancellationToken ct = default)
+    {
+        var actor = await actorAccessor.GetActorAsync(ct);
+        var currentUserId = actor.User?.Id ?? throw new NoCurrentUserException();
+
+        // Loaded through this context rather than taken from the actor, which another context or a
+        // tool may have supplied untracked. Within a request they are the same tracked instance.
+        var user = await dbContext.Users.SingleOrDefaultAsync(u => u.Id == currentUserId, ct)
+                   ?? throw new NoCurrentUserException();
+
+        user.DisplayName = request.DisplayName;
+        user.NormalizedDisplayName = request.DisplayName.ToLowerInvariant();
+        await dbContext.SaveChangesAsync(ct);
+
+        return CurrentUser.FromUser(user);
+    }
+
     /// <summary>
     /// Projects a user to the public model in the query, so that the email is never read.
     /// </summary>

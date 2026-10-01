@@ -52,6 +52,9 @@ public class ConfigureSwaggerGenOptions(
         opts.IncludeXmlComments(filePath);
         opts.SupportNonNullableReferenceTypes();
         opts.ParameterFilter<SortDirectionDefaultParameterFilter>();
+        // An IPatchObject<T> body is a generated type; without this it is documented as an empty
+        // object rather than as T with every property optional.
+        opts.AddSimplePatchSchemas();
 
         opts.MapType<DateOnly>(() => new OpenApiSchema
         {

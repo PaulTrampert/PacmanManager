@@ -16,6 +16,7 @@ using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
+using PTrampert.SimplePatch;
 using Serilog;
 
 // Configure Serilog
@@ -99,6 +100,7 @@ try
             opt.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
             opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            opt.JsonSerializerOptions.AddSimplePatchConverters();
         });
 
     JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();

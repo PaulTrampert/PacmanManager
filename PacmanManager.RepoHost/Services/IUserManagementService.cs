@@ -43,4 +43,17 @@ public interface IUserManagementService
         UserFilter? filter = null,
         SortOptions<UserSortField>? sort = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces the writable surface of the current user's own record. There is no way to address any
+    /// other user.
+    /// </summary>
+    /// <param name="request">
+    /// The complete writable surface, already validated. A partial update is applied to the current
+    /// values before it reaches this method.
+    /// </param>
+    /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
+    /// <returns>The updated user, projected to <see cref="CurrentUser"/>.</returns>
+    /// <exception cref="NoCurrentUserException">Thrown if there is no current user.</exception>
+    Task<CurrentUser> UpdateCurrentUserAsync(WriteUserRequest request, CancellationToken ct = default);
 }
