@@ -114,6 +114,26 @@ public class PacmanClientTests
         });
     }
 
+    /// <summary>
+    /// pacman sends credentials only once challenged, so the private case above is also the proof that
+    /// it answers the challenge. This is the other side of it: with nothing to answer with, the
+    /// challenge is what <c>pacman</c> reports, rather than a <c>404</c> that would point a user at
+    /// the repository name instead of at their missing credentials.
+    /// </summary>
+    [Test]
+    public async Task Pacman_SyncOfAPrivateRepositoryWithoutCredentials_FailsWithUnauthorized()
+    {
+        await using var client = await GivenAClientOfAsync(PrivateRepo, withCredentials: false);
+
+        var sync = await client.ExecAsync("pacman", "-Sy", "--noconfirm");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sync.ExitCode, Is.Not.Zero, "the sync fails");
+            Assert.That(sync.Stderr, Does.Contain($"'{PrivateRepo}.db'").And.Contain("401"), sync.Stderr);
+        });
+    }
+
     #region Helpers
 
     /// <summary>
