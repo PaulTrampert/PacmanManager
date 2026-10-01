@@ -17,9 +17,8 @@ namespace PacmanManager.RepoHost.Services;
 /// <para>
 /// The repository name and architecture are matched exactly as stored. The file name is one of
 /// <c>{repoName}.db</c>, <c>{repoName}.db.tar.gz</c>, <c>{repoName}.files</c>,
-/// <c>{repoName}.files.tar.gz</c>, or a package file name of the form
-/// <c>{name}-{version}-{architecture}.pkg.tar.{ext}</c> whose architecture is <c>{repoArch}</c> or
-/// <c>any</c>, which is read straight from the repository's directory. Anything else resolves to
+/// <c>{repoName}.files.tar.gz</c>, or the name of a package file, which is read straight from the
+/// repository's directory without being parsed. A name that is not a plain basename resolves to
 /// nothing without the disk being touched.
 /// </para>
 /// </remarks>

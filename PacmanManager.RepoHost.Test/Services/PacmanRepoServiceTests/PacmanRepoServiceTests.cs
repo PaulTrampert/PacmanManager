@@ -142,13 +142,15 @@ public class PacmanRepoServiceTests
     [TestCase("other.files", TestName = "a files database that disagrees with the repository name")]
     [TestCase("MYREPO.db", TestName = "a database name in the wrong case")]
     [TestCase("db", TestName = "the db subdirectory")]
-    public async Task ResolveAsync_ResolvesNothingForAnythingElse_WithoutTouchingTheDisk(string fileName)
+    public async Task ResolveAsync_ResolvesNothingForAnythingElse(string fileName)
     {
+        // Not a database of this repository, so it is looked for as a package file in the
+        // repository's directory, where there is nothing of that name.
         await GivenRepositoryAsync();
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        Assert.That(result, Is.Null);
     }
 
     #endregion
@@ -170,16 +172,6 @@ public class PacmanRepoServiceTests
         _fileSystem.VerifyNoOtherCalls();
     }
 
-    [Test]
-    public async Task ResolveAsync_ResolvesNothingForAPackageBuiltForAnotherArchitecture_WithoutTouchingTheDisk()
-    {
-        await GivenRepositoryAsync(architectures: [Architectures.X86_64, "aarch64"]);
-
-        var result = await _subject.ResolveAsync(RepoName, "aarch64", PackageFileName);
-
-        AssertUnresolvedWithoutTouchingTheDisk(result);
-    }
-
     [TestCase(Architectures.X86_64)]
     [TestCase("aarch64")]
     public async Task ResolveAsync_ServesAnAnyPackageUnderEverySupportedArchitecture(string repoArch)
@@ -194,15 +186,17 @@ public class PacmanRepoServiceTests
 
     #endregion
 
-    #region Package file-name validation
+    #region Package file names
 
-    [TestCase("my-tool-:1.4.2-x86_64.pkg.tar.zst", TestName = "a bad version")]
-    [TestCase("my-tool-1.4.2-1-x86/64.pkg.tar.zst", TestName = "a bad architecture token")]
-    [TestCase("my-tool-1.4.2-1-_x86_64.pkg.tar.zst", TestName = "an architecture token that is not an architecture")]
-    [TestCase("my-tool-1.4.2-1-x86_64", TestName = "no .pkg.tar suffix")]
-    [TestCase("my-tool-1.4.2-1-x86_64.tar.zst", TestName = "a .tar suffix without .pkg")]
-    [TestCase("my-tool-1.4.2-1-x86_64.pkg.tar.lz4", TestName = "an unrecognised compression")]
-    public async Task ResolveAsync_RejectsAMalformedPackageName_BeforeAnyFileSystemCall(string fileName)
+    [TestCase("..", TestName = "the parent directory")]
+    [TestCase(".", TestName = "the current directory")]
+    [TestCase("../../../etc/passwd", TestName = "a decoded traversal")]
+    [TestCase("../" + PackageFileName, TestName = "a decoded traversal to a package-shaped name")]
+    [TestCase("..\\" + PackageFileName, TestName = "a backslash traversal to a package-shaped name")]
+    [TestCase("my-tool\0-1.4.2-1-x86_64.pkg.tar.zst", TestName = "a decoded NUL")]
+    [TestCase(PackageFileName + "\n", TestName = "a trailing newline")]
+    [TestCase("my-tool\n-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an embedded newline")]
+    public async Task ResolveAsync_RejectsAFileNameThatIsNotAPlainBasename_BeforeAnyFileSystemCall(string fileName)
     {
         await GivenRepositoryAsync();
 
@@ -211,25 +205,25 @@ public class PacmanRepoServiceTests
         AssertUnresolvedWithoutTouchingTheDisk(result);
     }
 
-    [TestCase("..", TestName = "the parent directory")]
-    [TestCase(".", TestName = "the current directory")]
-    [TestCase("../../../etc/passwd", TestName = "a decoded traversal")]
     [TestCase("..%2F..%2F..%2Fetc%2Fpasswd", TestName = "an encoded traversal")]
-    [TestCase("..%2F" + PackageFileName, TestName = "an encoded traversal to a package-shaped name")]
-    [TestCase("../" + PackageFileName, TestName = "a decoded traversal to a package-shaped name")]
-    [TestCase("..\\" + PackageFileName, TestName = "a backslash traversal to a package-shaped name")]
     [TestCase("%2e%2e", TestName = "encoded dots")]
     [TestCase("my-tool%00-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an encoded control character")]
-    [TestCase("my-tool\0-1.4.2-1-x86_64.pkg.tar.zst", TestName = "a decoded NUL")]
-    [TestCase(PackageFileName + "\n", TestName = "a trailing newline")]
-    [TestCase("my-tool\n-1.4.2-1-x86_64.pkg.tar.zst", TestName = "an embedded newline")]
-    public async Task ResolveAsync_RejectsATraversalAttempt_BeforeAnyFileSystemCall(string fileName)
+    public async Task ResolveAsync_TreatsAnEncodedTraversalAsAnOrdinaryName(string fileName)
     {
+        // Routing decodes a segment before it gets here, so an encoded sequence that survives is
+        // just characters in a name: it names a file inside the repository's directory, or nothing.
         await GivenRepositoryAsync();
 
         var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
 
-        AssertUnresolvedWithoutTouchingTheDisk(result);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Null);
+            _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
+            _fileSystem.Verify(
+                f => f.Exists(It.Is<string>(path => !path.StartsWith($"{RepoDir}/", StringComparison.Ordinal))),
+                Times.Never);
+        });
     }
 
     #endregion

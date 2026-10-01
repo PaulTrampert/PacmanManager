@@ -315,8 +315,7 @@ repository's id. `{db}` abbreviates `{DATA_DIR}/repositories/{id}/db/{arch}`.
 | `{repo}.db.tar.gz` | `{db}/{id}.db.tar.gz` | The same bytes under its real name. |
 | `{repo}.files` | `{db}/{id}.files.tar.gz` | The files database. `pacman -Fy`. |
 | `{repo}.files.tar.gz` | `{db}/{id}.files.tar.gz` | The same bytes under its real name. |
-| A package basename | `{DATA_DIR}/repositories/{id}/{fileName}` | The package file, by the basename `repo-add` recorded. |
-| Anything else | — | `404`. |
+| Anything else | `{DATA_DIR}/repositories/{id}/{fileName}` | A package file, by the basename `repo-add` recorded. `404` if there is no such file. |
 
 Everything is `application/octet-stream`. A `{repoArch}` the repository does not support is a `404`
 before any of this is consulted.
@@ -344,17 +343,20 @@ before any of this is consulted.
   `pacman -Sy` succeeds — and the read path takes no lock. Closing the window entirely is
   [deferred](#deferred-work) rather than dismissed.
 
-Validation replaces the package lookup, and runs before any file system call:
+Anything that is not a database name is looked for on disk, and nothing else is checked:
 
-* **The name must parse as a package file name** — `<name>-<version>-<arch>.pkg.tar.<ext>`, the exact
-  shape `IPackagePathResolver.DeriveFileName` composes, checked with the same
-  `RegularExpressions.PackageName`, `PackageVersion` and `PackageArchitecture` it validates with.
-  Anything else is a `404` without touching the disk.
-* **The architecture in the name must match the request** — `{repoArch}`, or `any`.
-* **It must still be a plain basename.** `IPackagePathResolver.GetPackageFilePath` already throws
-  otherwise, and keeps doing so; the shape check is a narrowing on top of it, not a replacement.
-* **Path traversal.** `{fileName}` is a single route segment, so a literal `/` cannot appear in it,
-  but `%2F`, `..` and encoded control characters can be attempted. Both defences above are tested.
+* **The name is not parsed.** The repository directory holds only packages that were validated when
+  they were published, and the databases and the staging directory live elsewhere, so a name that
+  is on disk in that directory is a package. A name that is not there is a `404`.
+* **It must still be a plain basename.** `IPackagePathResolver.GetPackageFilePath` throws otherwise,
+  and the service reports that as a `404` without touching the disk.
+* **Path traversal.** `{fileName}` is a single route segment, so a literal `/` cannot appear in it;
+  `..`, a backslash and control characters can still be attempted, and are rejected by the basename
+  check. An encoded `%2F` is only characters in a name, which resolves to a file inside the
+  repository's directory or to nothing. Both are tested.
+* **The architecture in the name is not checked** against `{repoArch}`. An `any` package is one file
+  served under every architecture's URL, and a client asks for a basename out of that
+  architecture's database.
 
 **The ordering rule.** Both publishing and deleting touch a database file and a package file, and
 either can fail between the two:
@@ -658,25 +660,21 @@ answers `404`.
 answer a conditional request; it gains a sibling returning the richer type, alongside the files
 database it cannot currently name at all.
 
-A package file is [read straight from the repository's directory](#what-file-names-are-served) once
-its name has been validated, so this issue adds a **parser** for the package file-name shape — the
-inverse of `IPackagePathResolver.DeriveFileName`, over the same regular expressions — and no
-database access for packages at all.
+A package file is [read straight from the repository's directory](#what-file-names-are-served), by
+name and without being parsed, so this issue adds no database access for packages at all.
 
 *Constraints:* the service must name neither `DbContext` `DbSet`, and there must be no
 `PacmanRepoAccessPolicy`. Both are asserted rather than assumed.
 
 *Acceptance:* unit tests for every row of the file-name table, including an unrecognised name, a
 `.sig` request, a database name that disagrees with the repository name, an architecture the
-repository does not support, a file absent from disk, and traversal attempts (`..`, `%2F`, an
-encoded control character). A test that the modification time reaches the return type from
+repository does not support, a file absent from disk, and traversal attempts (`..`, a backslash, a
+control character, `%2F`). A test that the modification time reaches the return type from
 `IFileSystem` rather than from the stream, so a mocked file system is enough to exercise the
-conditional-GET path. Parser tests: a well-formed package name resolves; a name with a bad
-version, a bad architecture token or no `.pkg.tar.*` suffix is rejected before any file system call,
-asserted by the file system mock never being touched; `db` is rejected by the same rule; and a
-package whose architecture token disagrees with the requested `{repoArch}` is a `404` unless it is
-`any`. Tests that a private repository resolves for its owner and not for anyone else, and that the
-name and architecture segments are case-sensitive. An enforcement test asserts the service names
+conditional-GET path. Tests that a name which is not a plain basename is rejected before any file
+system call, asserted by the file system mock never being touched, and that a package resolves under
+every architecture the repository supports. Tests that a private repository resolves for its owner
+and not for anyone else, and that the name and architecture segments are case-sensitive. An enforcement test asserts the service names
 neither `DbContext` `DbSet`.
 
 *Depends on:* 1b, 1d, 2.
@@ -1034,8 +1032,19 @@ database as `%FILENAME%`. The two cannot disagree about what exists, because one
 other. The `PacmanPackage` rows are the management API's view of a repository — what it can list,
 filter and describe — not the client's index of it.
 
-Validation replaces the lookup and is stricter than one: the shape check admits no separator at all,
-covers `.sig` requests and the `db` subdirectory, and runs before any file system call.
+The name is **not parsed** either. An earlier draft required it to match
+`<name>-<version>-<arch>.pkg.tar.<ext>` and its architecture to match the request. That was rejected:
+it needed a parser for an ambiguous shape (`-` separates the fields and also occurs inside a name and
+a version) and about 200 lines of tests, to narrow what a name could reach in a directory that holds
+nothing but packages. Every file there was opened with libalpm and added with `repo-add` when it was
+published; the databases and the staging directory live elsewhere. A name that is not on disk is a
+`404`, `File.Exists` is false for the `db` subdirectory, and a file served under another
+architecture's URL is a file of a repository the caller can already see.
+
+What stays is the plain-basename check in `GetPackageFilePath`, reported as a `404`. The route
+already keeps a `/` out of `{fileName}`; the check covers `..`, a backslash and control characters.
+A `.sig` or a stray backup placed in the directory by some future feature would be served, so a
+feature that puts anything but packages there has to revisit this.
 
 The trade is worth it: a hot path with no query, one less index and one less migration, and an
 invariant a reader can check by listing a directory.

@@ -53,30 +53,28 @@ internal class PacmanRepoService(
                 repository.Id, repoArch, kind, cancellationToken);
         }
 
-        return OpenPackageFile(repository.Id, repoArch, fileName);
+        return OpenPackageFile(repository.Id, fileName);
     }
 
     /// <summary>
-    /// Opens a package file straight from the repository's directory, once its name has been
-    /// validated. No package row is consulted: a client only asks for a basename it read out of the
-    /// repository's database, and <c>repo-add</c> built that database from these very files.
+    /// Opens a package file straight from the repository's directory. No package row is consulted,
+    /// and the name is not parsed: the directory holds only packages that were validated on upload,
+    /// and a client only asks for a basename it read out of the repository's database.
     /// </summary>
-    private RepositoryFile? OpenPackageFile(Guid repositoryId, string repoArch, string fileName)
+    private RepositoryFile? OpenPackageFile(Guid repositoryId, string fileName)
     {
-        // Validation runs before any file system call, and admits nothing but a plain basename of a
-        // package file's shape: no separator, no signature, no database, no subdirectory.
-        if (!pathResolver.TryParseFileName(fileName, out var package))
+        string path;
+        try
         {
+            path = pathResolver.GetPackageFilePath(repositoryId, fileName);
+        }
+        catch (ArgumentException)
+        {
+            // Not a plain basename (a separator, a control character, '.' or '..'). The route keeps
+            // a '/' out of the segment already; this keeps the rest from reaching the disk.
             return null;
         }
 
-        // An any package is stored once and served under every architecture's URL.
-        if (!string.Equals(package.Architecture, repoArch, StringComparison.Ordinal)
-            && !string.Equals(package.Architecture, Architectures.Any, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return fileSystem.OpenRepositoryFile(pathResolver.GetPackageFilePath(repositoryId, fileName));
+        return fileSystem.OpenRepositoryFile(path);
     }
 }
