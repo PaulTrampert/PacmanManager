@@ -22,6 +22,11 @@ public class EndToEndTestFixture : IAsyncDisposable
     private HttpClient? _httpClient;
 
     /// <summary>
+    /// The network alias the API container answers to on <see cref="Network"/>.
+    /// </summary>
+    public const string ApiHostname = "repohost";
+
+    /// <summary>
     /// The package upload ceiling the containerized API is configured with, in bytes.
     /// </summary>
     public const long MaxUploadBytes = 1024 * 1024;
@@ -66,6 +71,20 @@ public class EndToEndTestFixture : IAsyncDisposable
     public string BaseUrl => $"http://{_apiContainer!.Hostname}:{_apiContainer.GetMappedPublicPort(8080)}";
 
     /// <summary>
+    /// The base URL of the containerized API as another container on <see cref="Network"/> reaches it,
+    /// by network alias and container port rather than through the host's mapped port.
+    /// </summary>
+    public static string NetworkBaseUrl => $"http://{ApiHostname}:8080";
+
+    /// <summary>
+    /// The Docker network the API and its dependencies run on, for a test that runs a client of its
+    /// own alongside them.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The containers have not been started.</exception>
+    public INetwork Network => _testNetwork
+        ?? throw new InvalidOperationException("Container has not been started. Call StartAsync() first.");
+
+    /// <summary>
     /// Starts the container and initializes the HTTP client.
     /// </summary>
     public async Task StartAsync()
@@ -90,6 +109,7 @@ public class EndToEndTestFixture : IAsyncDisposable
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
+                .WithNetworkAliases(ApiHostname)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
                 .WithEnvironment("Auth__Authority", AuthContainer.Authority)
