@@ -69,7 +69,7 @@ public class PacmanControllerTests
     }
 
     [Test]
-    public async Task Get_ServesTheResolvedStream_AsAnOctetStreamWithRangesAndNoDownloadName()
+    public async Task Get_ServesTheResolvedStream_AsAnOctetStreamWithRangesAndTheRequestedNameAsDownloadName()
     {
         var content = GivenAFile(new byte[] { 1, 2, 3 });
 
@@ -84,7 +84,7 @@ public class PacmanControllerTests
             Assert.That(file.LastModified, Is.EqualTo(LastModified));
             Assert.That(file.EntityTag, Is.Not.Null);
             Assert.That(file.EnableRangeProcessing, Is.True);
-            Assert.That(file.FileDownloadName, Is.Empty, "pacman names the file from its URL");
+            Assert.That(file.FileDownloadName, Is.EqualTo("repo.db"));
         });
     }
 

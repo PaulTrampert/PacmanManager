@@ -76,11 +76,12 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
             return NotFound();
         }
 
-        // No download name: a Content-Disposition is not wanted, since pacman names the file from
-        // the URL it requested.
+        // The requested name goes out as Content-Disposition. pacman ignores it and names the file
+        // from the URL, and a browser saves the file under that name.
         return File(
             file.Content,
             MediaTypeNames.Application.Octet,
+            fileName,
             file.LastModified,
             CreateEntityTag(file),
             enableRangeProcessing: true);
