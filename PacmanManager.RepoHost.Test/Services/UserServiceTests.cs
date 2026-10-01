@@ -258,9 +258,9 @@ public class UserServiceTests
     }
 
     [Test]
-    public void EnsureUserLinkedAsync_OnException_RollsBackTransaction()
+    public async Task EnsureUserLinkedAsync_OnException_RollsBackTransaction()
     {
-        Assert.ThrowsAsync<DbUpdateException>(async () => 
+        await Assert.ThrowsAsync<DbUpdateException>(async () => 
              await _service.EnsureUserLinkedAsync($"{new string('a', 1000)}@example.com", "Fail", "auth", "sub")); 
     }
 }
