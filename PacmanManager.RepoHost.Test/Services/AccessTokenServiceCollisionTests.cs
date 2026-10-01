@@ -1,4 +1,3 @@
-using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
 using PacmanManager.Entities;
@@ -31,10 +30,7 @@ public class AccessTokenServiceCollisionTests
     [OneTimeSetUp]
     public async Task OneTimeSetup()
     {
-        _network = new NetworkBuilder()
-            .WithName(nameof(AccessTokenServiceCollisionTests))
-            .WithCleanUp(true)
-            .Build();
+        _network = TestNetworks.Build();
         _database = new DatabaseContainer(_network);
         await _database.StartAsync(await TestImages.Migrations.GetAsync());
     }

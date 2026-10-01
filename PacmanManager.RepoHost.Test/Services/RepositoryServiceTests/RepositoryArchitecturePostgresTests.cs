@@ -1,4 +1,3 @@
-using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -34,10 +33,7 @@ public class RepositoryArchitecturePostgresTests
     [OneTimeSetUp]
     public async Task OneTimeSetup()
     {
-        _network = new NetworkBuilder()
-            .WithName(nameof(RepositoryArchitecturePostgresTests))
-            .WithCleanUp(true)
-            .Build();
+        _network = TestNetworks.Build();
         _database = new DatabaseContainer(_network);
         await _database.StartAsync(await TestImages.Migrations.GetAsync());
     }
