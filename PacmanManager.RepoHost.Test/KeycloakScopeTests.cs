@@ -1,4 +1,3 @@
-using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PacmanManager.RepoHost.Authentication;
@@ -20,10 +19,7 @@ public class KeycloakScopeTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _network = new NetworkBuilder()
-            .WithName($"pacmanmanager-test-network-{Guid.NewGuid():N}")
-            .WithCleanUp(true)
-            .Build();
+        _network = TestNetworks.Build();
         _keycloak = new KeycloakContainer(_network, DirUtils.FindSolutionDirectory());
         await _keycloak.StartAsync();
     }

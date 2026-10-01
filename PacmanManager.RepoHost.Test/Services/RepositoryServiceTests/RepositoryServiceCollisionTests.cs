@@ -1,4 +1,3 @@
-using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -41,10 +40,7 @@ public class RepositoryServiceCollisionTests
     [OneTimeSetUp]
     public async Task OneTimeSetup()
     {
-        _network = new NetworkBuilder()
-            .WithName(nameof(RepositoryServiceCollisionTests))
-            .WithCleanUp(true)
-            .Build();
+        _network = TestNetworks.Build();
         _database = new DatabaseContainer(_network);
         await _database.StartAsync(await TestImages.Migrations.GetAsync());
     }
