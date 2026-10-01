@@ -480,11 +480,16 @@ public class PacmanRepoServiceTests
         Assert.That(result, Is.SameAs(PacmanResolution.FileNotFound));
     }
 
-    [TestCase(false)]
-    [TestCase(true)]
-    public async Task ResolveAsync_ResolvesNothingByAPrivateRepositorysOldName_ForAnotherUser(bool gone)
+    [TestCase(false, false)]
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    [TestCase(true, true)]
+    public async Task ResolveAsync_ResolvesNothingByAPrivateRepositorysOldName_ForACallerWhoCannotSeeIt(bool gone, bool anonymous)
     {
-        // The old name of a repository the caller may not see is as absent as its current one.
+        // The old name of a repository the caller may not see is as absent as its current one, so the
+        // controller challenges an anonymous caller and tells anyone else nothing is there. Neither
+        // the current name nor whether the name still redirects is disclosed, and the architecture is
+        // not checked against a repository the caller cannot see.
         await GivenRepositoryAsync(isPublic: false);
         await RenameAsync("renamed");
         if (gone)
@@ -492,11 +497,17 @@ public class PacmanRepoServiceTests
             _clock.Advance(RepositoryRenameConfig.DefaultRedirectWindow);
         }
 
-        _actors.Actor = Actor.For(_otherUser, ActorScope.Unrestricted);
+        _actors.Actor = anonymous ? Actor.Anonymous : Actor.For(_otherUser, ActorScope.Unrestricted);
+        _fileSystem.Invocations.Clear();
 
-        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+        foreach (var repoArch in new[] { Architectures.X86_64, "aarch64" })
+        {
+            var result = await _subject.ResolveAsync(RepoName, repoArch, $"{RepoName}.db");
 
-        Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound));
+            Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound), repoArch);
+        }
+
+        _fileSystem.VerifyNoOtherCalls();
     }
 
     [Test]

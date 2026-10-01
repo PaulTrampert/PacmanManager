@@ -39,6 +39,9 @@ public class RepositoryRenameTests
     private HttpClient _anonymousClient = null!;
     private IContainer _pacmanClient = null!;
     private byte[] _packageBytes = null!;
+    private CreatedAccessToken _ownersToken = null!;
+    private HttpClient _ownersBasicClient = null!;
+    private HttpClient _otherUsersBasicClient = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -67,6 +70,10 @@ public class RepositoryRenameTests
 
         _packageBytes = await File.ReadAllBytesAsync(PackageFixtures.MinimalPackagePath);
 
+        _ownersToken = await MintTokenAsync(_ownerClient);
+        _ownersBasicClient = BasicClient(_ownersToken);
+        _otherUsersBasicClient = BasicClient(await MintTokenAsync(_otherUsersClient));
+
         // The same image the API is built on, so it is already present, and it carries pacman. Started
         // up front so that a test's rename is not waiting on it.
         _pacmanClient = new ContainerBuilder(new DockerImage("archlinux/archlinux"))
@@ -83,6 +90,8 @@ public class RepositoryRenameTests
         await _pacmanClient.DisposeAsync();
         _otherUsersClient.Dispose();
         _anonymousClient.Dispose();
+        _ownersBasicClient.Dispose();
+        _otherUsersBasicClient.Dispose();
         await _fixture.DisposeAsync();
     }
 
@@ -193,31 +202,165 @@ public class RepositoryRenameTests
         const string oldName = "rename-pacman-old";
         await GivenAPublishedRepositoryAsync(oldName, "rename-pacman-new");
 
+        var listing = await SyncAndListAsync(
+            oldName, $"http://{EndToEndTestFixture.ApiHostname}:8080/pacman/$repo/$arch", "public");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listing.SyncDir, Is.EqualTo(new[] { $"{oldName}.db" }));
+            Assert.That(listing.Packages, Does.Contain($"{oldName} {PackageFixtures.MinimalPackageName} {PackageFixtures.MinimalPackageVersion}"));
+        });
+    }
+
+    #region A private repository's old name
+
+    /// <summary>
+    /// pacman sends the credentials in its <c>Server</c> URL only once challenged, so the old name of
+    /// a private repository has to challenge an anonymous request, or its owner's clients could never
+    /// follow the redirect.
+    /// </summary>
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task PrivateOldName_ChallengesAnAnonymousRequest(bool gone)
+    {
+        await GivenAPublishedRepositoryAsync(
+            gone ? "rename-private-gone-old" : "rename-private-anon-old",
+            gone ? "rename-private-gone-new" : "rename-private-anon-new",
+            isPublic: false);
+        var oldName = gone ? "rename-private-gone-old" : "rename-private-anon-old";
+        if (gone)
+        {
+            await WaitUntilGoneAsync(_ownersBasicClient, oldName);
+        }
+
+        var response = await _anonymousClient.GetAsync(Url(oldName, $"{oldName}.db"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(response.Headers.WwwAuthenticate.ToString(), Is.EqualTo("Basic realm=\"pacman\""));
+            Assert.That(response.Headers.Location, Is.Null, "the new name is not disclosed");
+            Assert.That(response.Headers.Vary, Does.Contain("Authorization"), "Vary");
+        });
+    }
+
+    [Test]
+    public async Task PrivateOldName_IsNotFound_ForAnotherUsersToken()
+    {
+        await GivenAPublishedRepositoryAsync("rename-private-other-old", "rename-private-other-new", isPublic: false);
+
+        var response = await _otherUsersBasicClient.GetAsync(Url("rename-private-other-old", "rename-private-other-old.db"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(response.Headers.Location, Is.Null, "the new name is not disclosed");
+        });
+    }
+
+    [Test]
+    public async Task PrivateOldName_RedirectsTheOwnersToken_ToTheRightBytes()
+    {
+        await GivenAPublishedRepositoryAsync("rename-private-owner-old", "rename-private-owner-new", isPublic: false);
+
+        var redirect = await _ownersBasicClient.GetAsync(Url("rename-private-owner-old", "rename-private-owner-old.db"));
+        Assert.That(redirect.StatusCode, Is.EqualTo(HttpStatusCode.TemporaryRedirect));
+        Assert.That(redirect.Headers.CacheControl?.NoStore, Is.True, "Cache-Control: no-store");
+
+        // Followed by hand: HttpClient drops the Authorization header on a redirect, where libcurl
+        // keeps the credentials for the same host.
+        var followed = await _ownersBasicClient.GetAsync(redirect.Headers.Location);
+        var expected = await _ownersBasicClient.GetByteArrayAsync(Url("rename-private-owner-new", "rename-private-owner-new.db"));
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(followed.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(await followed.Content.ReadAsByteArrayAsync(), Is.EqualTo(expected));
+        });
+    }
+
+    /// <summary>
+    /// The case the challenge exists for: a pacman client with its token in the <c>Server</c> URL is
+    /// challenged on the old name, offers the token, and follows the redirect.
+    /// </summary>
+    [Test]
+    public async Task Pacman_SyncsAPrivateRepositoryThroughTheRedirect_WithTheTokenInItsServerUrl()
+    {
+        const string oldName = "rename-pacman-private-old";
+        await GivenAPublishedRepositoryAsync(oldName, "rename-pacman-private-new", isPublic: false);
+
+        var server = $"http://{_ownersToken.Username}:{_ownersToken.Secret}@{EndToEndTestFixture.ApiHostname}:8080/pacman/$repo/$arch";
+        var listing = await SyncAndListAsync(oldName, server, "private");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listing.SyncDir, Is.EqualTo(new[] { $"{oldName}.db" }));
+            Assert.That(listing.Packages, Does.Contain($"{oldName} {PackageFixtures.MinimalPackageName} {PackageFixtures.MinimalPackageVersion}"));
+        });
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private async Task WaitUntilGoneAsync(HttpClient client, string oldName)
+    {
+        var deadline = Stopwatch.StartNew();
+        HttpResponseMessage response;
+        do
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            response = await client.GetAsync(Url(oldName, $"{oldName}.db"));
+        } while (response.StatusCode != HttpStatusCode.Gone && deadline.Elapsed < RedirectWindow + TimeSpan.FromSeconds(30));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Gone), "arranging a lapsed redirect");
+    }
+
+    /// <summary>
+    /// Runs <c>pacman -Sy</c> in the pacman client container against one repository section, then
+    /// lists the section, each in a database directory of its own.
+    /// </summary>
+    private async Task<(string[] SyncDir, string Packages)> SyncAndListAsync(string section, string server, string label)
+    {
         var conf = $"""
             [options]
             Architecture = {Arch}
             SigLevel = Optional TrustAll
 
-            [{oldName}]
-            Server = http://{EndToEndTestFixture.ApiHostname}:8080/pacman/$repo/$arch
+            [{section}]
+            Server = {server}
             SigLevel = Optional TrustAll
             """;
-        await _pacmanClient.CopyAsync(Encoding.UTF8.GetBytes(conf), "/tmp/rename.conf");
-        await ExecInPacmanClientAsync("mkdir", "-p", "/tmp/rename-db");
+        var confPath = $"/tmp/{label}.conf";
+        var dbPath = $"/tmp/{label}-db";
+        await _pacmanClient.CopyAsync(Encoding.UTF8.GetBytes(conf), confPath);
+        await ExecInPacmanClientAsync("mkdir", "-p", dbPath);
 
-        await ExecInPacmanClientAsync("pacman", "--config", "/tmp/rename.conf", "--dbpath", "/tmp/rename-db", "-Sy");
-        var listing = await ExecInPacmanClientAsync(
-            "pacman", "--config", "/tmp/rename.conf", "--dbpath", "/tmp/rename-db", "-Sl", oldName);
-        var syncDir = await ExecInPacmanClientAsync("ls", "/tmp/rename-db/sync");
+        await ExecInPacmanClientAsync("pacman", "--config", confPath, "--dbpath", dbPath, "-Sy");
+        var packages = await ExecInPacmanClientAsync("pacman", "--config", confPath, "--dbpath", dbPath, "-Sl", section);
+        var syncDir = await ExecInPacmanClientAsync("ls", $"{dbPath}/sync");
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(syncDir.Split('\n', StringSplitOptions.RemoveEmptyEntries), Is.EqualTo(new[] { $"{oldName}.db" }));
-            Assert.That(listing, Does.Contain($"{oldName} {PackageFixtures.MinimalPackageName} {PackageFixtures.MinimalPackageVersion}"));
-        });
+        return (syncDir.Split('\n', StringSplitOptions.RemoveEmptyEntries), packages);
     }
 
-    #region Helpers
+    private async Task<CreatedAccessToken> MintTokenAsync(HttpClient client)
+    {
+        var mint = await client.PostAsJsonAsync("/api/v1/users/me/tokens",
+            new CreateAccessTokenRequest { Name = "repository-rename" });
+        Assert.That(mint.StatusCode, Is.EqualTo(HttpStatusCode.Created), await mint.Content.ReadAsStringAsync());
+        return (await mint.Content.ReadFromJsonAsync<CreatedAccessToken>())!;
+    }
+
+    private HttpClient BasicClient(CreatedAccessToken token)
+    {
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(_fixture.BaseUrl)
+        };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{token.Username}:{token.Secret}")));
+        return client;
+    }
 
     private static string Url(string repoName, string fileName) => $"/pacman/{repoName}/{Arch}/{fileName}";
 
@@ -248,16 +391,16 @@ public class RepositoryRenameTests
         });
 
     /// <summary>
-    /// Creates a public repository, publishes the fixture package into it so that its files are the
+    /// Creates a repository, public unless asked otherwise, publishes the fixture package into it so that its files are the
     /// ones the application itself wrote, and renames it.
     /// </summary>
-    private async Task<Repository> GivenAPublishedRepositoryAsync(string oldName, string newName)
+    private async Task<Repository> GivenAPublishedRepositoryAsync(string oldName, string newName, bool isPublic = true)
     {
         var created = await _ownerClient.PostAsJsonAsync("/api/v1/repositories", new WriteRepositoryRequest
         {
             Name = oldName,
             SupportedArchitectures = [Arch],
-            IsPublic = true,
+            IsPublic = isPublic,
         });
         Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.Created),
             $"Arranging '{oldName}' failed: {await created.Content.ReadAsStringAsync()}");

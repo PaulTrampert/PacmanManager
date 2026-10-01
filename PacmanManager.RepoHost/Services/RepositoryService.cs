@@ -268,7 +268,8 @@ internal class RepositoryService(
         // The repository the name points at is looked up like any other, so the old name of a
         // repository the caller may not see is as absent as its current one. Such a request is not
         // evidence that a client of the repository is still configured for the name, so it is not
-        // recorded either.
+        // recorded either; an anonymous pacman client is challenged, and the request it repeats
+        // with its credentials is the one recorded.
         var repository = await GetRepositoryByIdAsync(retired.RepositoryId, cancellationToken);
         if (repository is null)
         {

@@ -423,16 +423,30 @@ The redirect is **`307 Temporary Redirect`, with `Cache-Control: no-store`**. Th
 rather than a `404`. Because `pacman` says nothing about either, **the warning has to travel out of
 band**: the notification is the web UI, and eventually an email.
 
+**A private repository's old name is visible only to those who can see the repository.** The
+target is looked up under the usual visibility rule, so neither the redirect nor the `410` tells
+anyone else the repository's current name, or whether the name still redirects:
+
+* an **anonymous** request is answered `401` with `WWW-Authenticate: Basic realm="pacman"`, a Basic
+  challenge, because `pacman` sends the credentials in its `Server` URL only once challenged;
+* an **authenticated** caller who may not see the repository gets a `404`. It has already offered
+  its credential and has nothing more to offer.
+
 **Why:**
 
 * [a rename reserves the old name on a sliding window](#why-a-rename-reserves-the-old-name-on-a-sliding-window)
 * [a temporary redirect rather than a permanent one](#why-a-temporary-redirect-rather-than-a-permanent-one)
 * [the expiry is `410` rather than `404`](#why-the-expiry-is-410-rather-than-404)
+* [a private repository's old name challenges an anonymous request](#why-a-private-repositorys-old-name-challenges-an-anonymous-request)
 
 ### Recording who is still asking
 
 Each request for a retired name updates `LastRequestedAt`, which is what the sliding hold is
-computed from, and records the requesting user when the request was authenticated.
+computed from, and records the requesting user when the request was authenticated. A request from a
+caller who may not see the repository, a challenged anonymous request included, records nothing.
+It is not evidence that one of the repository's clients is still configured for the name, and a
+`pacman` client that answers the challenge repeats the request with its credentials, which is the
+request recorded.
 
 It is a **last**-requester record, not an audit trail: one row per retired name, not one per request.
 Emailing *everyone* still configured for a name needs the set rather than the latest member, which is
@@ -1216,6 +1230,29 @@ One more consequence worth knowing before choosing the window: a database that f
 aborts the *whole* transaction — `error: failed to synchronize all databases` — so once the redirect
 lapses, that user's `pacman -Syu` stops working entirely, not just for this repository. Thirty days
 of redirect is the grace period for that.
+
+### Why a private repository's old name challenges an anonymous request
+
+The plan as first written left this to the visibility rule, under which the old name of a private
+repository would have been a `404` for an anonymous request, like the repository itself. During
+issue 7's review a project owner chose a Basic challenge instead.
+
+`pacman` (libcurl, as libalpm configures it) does not send the credentials in a `Server` URL with
+its first request. It sends them only in answer to a `401` carrying `WWW-Authenticate: Basic`. A
+`404` therefore ends the exchange before the owner's token is ever offered. That would make a
+renamed private repository unusable from `pacman` for the whole redirect window, which is the
+period the redirect exists to cover. With the challenge, the client repeats the request with its
+token, gets the `307`, and follows it with the same credentials, since the target is on the same
+host.
+
+An authenticated caller who may not see the repository still gets a `404`, because a challenge
+would ask it for something it has already given. This is
+[the rule for any repository a caller cannot see](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged),
+applied to an old name. The old name of a repository the caller cannot see therefore answers
+exactly as a name nobody holds does, so it discloses neither the repository's current name nor
+whether the name still redirects. Only the request repeated with credentials is recorded against
+the retirement (see [Recording who is still asking](#recording-who-is-still-asking)), so the
+challenge does not let an anonymous caller keep a name held.
 
 ### Why there is no `Cache-Control`
 

@@ -292,16 +292,23 @@ public class RepositoryServiceRenameTests
             () => _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "custom" }));
     }
 
-    [Test]
-    public async Task ARequestByAnotherUserForAPrivateRepositorysOldName_DoesNotHoldIt()
+    [TestCase(false, TestName = "ARequestByAnotherUserForAPrivateRepositorysOldName_DoesNotHoldIt")]
+    [TestCase(true, TestName = "AnAnonymousRequestForAPrivateRepositorysOldName_DoesNotHoldIt")]
+    public async Task ARequestByACallerWhoCannotSeeTheRepository_DoesNotHoldItsOldName(bool anonymous)
     {
         // The caller cannot see the repository, so the request resolves to nothing and is not
-        // evidence that one of its clients is still configured for the name.
+        // evidence that one of its clients is still configured for the name. An anonymous pacman
+        // client is challenged, and only the request it repeats with credentials counts.
         var theirs = await GivenRepositoryAsync("custom", owner: _otherUser, isPublic: false);
         await RenameAsync(theirs.Id, "custom2", actor: _otherUser);
         _clock.Advance(Window + TimeSpan.FromDays(1));
+        if (anonymous)
+        {
+            _actors.Actor = Actor.Anonymous;
+        }
 
         var resolution = await _service.GetRetiredRepositoryNameAsync("custom");
+        _actors.Actor = Actor.For(_owner, ActorScope.Unrestricted);
 
         Assert.Multiple(async () =>
         {
