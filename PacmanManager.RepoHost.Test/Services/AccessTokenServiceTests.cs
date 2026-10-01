@@ -167,21 +167,21 @@ public class AccessTokenServiceTests
     }
 
     [Test]
-    public void Create_OnANameCollision_ThrowsItemExists()
+    public async Task Create_OnANameCollision_ThrowsItemExists()
     {
         _saveFailure.Failure = () => UniqueViolation(NameIndex());
 
-        var e = Assert.ThrowsAsync<ItemExistsException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        var e = await Assert.ThrowsAsync<ItemExistsException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
 
         Assert.That(e!.InnerException, Is.InstanceOf<DbUpdateException>());
     }
 
     [Test]
-    public void Create_OnAnyOtherFailureToSave_RethrowsIt()
+    public async Task Create_OnAnyOtherFailureToSave_RethrowsIt()
     {
         _saveFailure.Failure = () => UniqueViolation("some_other_index");
 
-        Assert.ThrowsAsync<DbUpdateException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        await Assert.ThrowsAsync<DbUpdateException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
     }
 
     #endregion
@@ -370,39 +370,39 @@ public class AccessTokenServiceTests
     #region No user
 
     [Test]
-    public void Anonymous_CanNotList()
+    public async Task Anonymous_CanNotList()
     {
         _actors.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
     }
 
     [Test]
-    public void Anonymous_CanNotMint()
+    public async Task Anonymous_CanNotMint()
     {
         _actors.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
     }
 
     [Test]
-    public void Anonymous_CanNotDelete()
+    public async Task Anonymous_CanNotDelete()
     {
         _actors.Actor = Actor.Anonymous;
         var token = GivenToken(_owner, "laptop");
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.DeleteAccessTokenAsync(token.Id));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.DeleteAccessTokenAsync(token.Id));
         Assert.That(TokenExists(token.Id), Is.True);
     }
 
     [Test]
-    public void SystemActorWithoutAUser_HasNoTokensToManage()
+    public async Task SystemActorWithoutAUser_HasNoTokensToManage()
     {
         // A system actor bypasses visibility elsewhere, but tokens are always somebody's own, and
         // it is nobody.
         _actors.Actor = Actor.System;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
     }
 
     #endregion
