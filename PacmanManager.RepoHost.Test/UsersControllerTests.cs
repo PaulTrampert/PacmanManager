@@ -1,13 +1,15 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json.Nodes;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 
 namespace PacmanManager.RepoHost.Test;
 
 /// <summary>
-/// End-to-end tests for the Users API's read routes.
+/// End-to-end tests for the Users API: its read routes, and the caller's own write route.
 /// These tests run the application in a Docker container and make real HTTP requests.
 /// </summary>
 /// <remarks>
@@ -109,6 +111,174 @@ public class UsersControllerTests
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
+
+    #endregion
+
+    #region PatchMe
+
+    [Test]
+    public async Task PatchMe_WithDisplayName_ChangesIt_VisiblyFromGetById()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var newName = $"Renamed {Guid.NewGuid():N}";
+
+        // Act
+        var response = await PatchMeAsync(_client, $$"""{"displayName": "{{newName}}"}""");
+        var patched = await response.Content.ReadFromJsonAsync<CurrentUser>();
+        var publicView = await _anonymousClient.GetFromJsonAsync<PublicUserInfo>($"/api/v1/users/{before!.Id}");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(patched, Is.EqualTo(before with { DisplayName = newName }),
+                "only the display name changes");
+            Assert.That(publicView!.DisplayName, Is.EqualTo(newName));
+        });
+    }
+
+    [Test]
+    public async Task PatchMe_WithDisplayName_IsFoundByTheCaseInsensitiveFilter()
+    {
+        // Arrange
+        var marker = $"Findable{Guid.NewGuid():N}";
+
+        // Act
+        var response = await PatchMeAsync(_client, $$"""{"displayName": "{{marker}}"}""");
+        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+            $"/api/v1/users?displayNameContains={marker.ToUpperInvariant()}");
+
+        // Assert: the normalized copy was written alongside the display name.
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(page!.Results.Select(u => u.DisplayName), Is.EqualTo(new[] { marker }));
+        });
+    }
+
+    [Test]
+    public async Task PatchMe_WithEmptyBody_ReturnsOkAndChangesNothing()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Act
+        var response = await PatchMeAsync(_client, "{}");
+        var patched = await response.Content.ReadFromJsonAsync<CurrentUser>();
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(patched, Is.EqualTo(before));
+            Assert.That(after, Is.EqualTo(before));
+        });
+    }
+
+    [Test]
+    public async Task PatchMe_WithExplicitNullDisplayName_ReturnsBadRequestAndKeepsTheName()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Act
+        var response = await PatchMeAsync(_client, """{"displayName": null}""");
+        var body = await response.Content.ReadAsStringAsync();
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(body, Does.Contain("required").IgnoreCase, "rejected by [Required], not by the parser");
+            Assert.That(after, Is.EqualTo(before));
+        });
+    }
+
+    [Test]
+    public async Task PatchMe_WithOverLongDisplayName_ReturnsBadRequestAndKeepsTheName()
+    {
+        // Arrange
+        var before = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var tooLong = new string('a', UserValidationConstants.DisplayNameMaxLength + 1);
+
+        // Act
+        var response = await PatchMeAsync(_client, $$"""{"displayName": "{{tooLong}}"}""");
+        var after = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(after, Is.EqualTo(before));
+        });
+    }
+
+    [Test]
+    public async Task PatchMe_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        // Act
+        var response = await PatchMeAsync(_anonymousClient, """{"displayName": "Anonymous"}""");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task PatchById_IsNotARoute_EvenForTheCallersOwnId()
+    {
+        // Arrange
+        var me = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+        var other = await _otherUsersClient.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Act
+        var otherResponse = await _client.PatchAsync($"/api/v1/users/{other!.Id}", JsonBody("""{"displayName": "Hijacked"}"""));
+        var otherBody = await otherResponse.Content.ReadAsStringAsync();
+        var ownResponse = await _client.PatchAsync($"/api/v1/users/{me!.Id}", JsonBody("""{"displayName": "Hijacked"}"""));
+        var ownBody = await ownResponse.Content.ReadAsStringAsync();
+        var otherAfter = await _otherUsersClient.GetFromJsonAsync<CurrentUser>("/api/v1/users/me");
+
+        // Assert: a 404 from routing has no body, where one from an action would carry ProblemDetails.
+        Assert.Multiple(() =>
+        {
+            Assert.That(otherResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(otherBody, Is.Empty, "not handled by an action");
+            Assert.That(ownResponse.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(ownBody, Is.Empty, "not handled by an action");
+            Assert.That(otherAfter, Is.EqualTo(other));
+        });
+    }
+
+    [Test]
+    public async Task Swagger_DocumentsPatchMeBodyWithAnOptionalDisplayName()
+    {
+        // Act
+        var document = await _anonymousClient.GetFromJsonAsync<JsonObject>("/swagger/v1/swagger.json");
+
+        // Assert
+        var paths = document!["paths"]!.AsObject();
+        var schema = paths["/api/v1/users/me"]!["patch"]!["requestBody"]!["content"]!["application/json"]!["schema"]!;
+        if (schema["$ref"] is { } reference)
+        {
+            var id = reference.GetValue<string>().Split('/').Last();
+            schema = document["components"]!["schemas"]![id]!;
+        }
+
+        var required = schema["required"]?.AsArray().Select(n => n!.GetValue<string>()) ?? [];
+        Assert.Multiple(() =>
+        {
+            Assert.That(schema["properties"]?.AsObject().Select(p => p.Key), Does.Contain("displayName"));
+            Assert.That(required, Does.Not.Contain("displayName"), "every property of a patch body is optional");
+            Assert.That(paths["/api/v1/users/{userId}"]?["patch"], Is.Null, "there is no PATCH by id");
+        });
+    }
+
+    private static Task<HttpResponseMessage> PatchMeAsync(HttpClient client, string json) =>
+        client.PatchAsync("/api/v1/users/me", JsonBody(json));
+
+    private static StringContent JsonBody(string json) => new(json, Encoding.UTF8, "application/json");
 
     #endregion
 
