@@ -34,7 +34,7 @@ jobs:
       matrix:
         language: [actions, csharp]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # build-mode none is what default setup uses for C#, so no toolchain is needed here.
       - uses: github/codeql-action/init@v4
