@@ -13,7 +13,9 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// <para>
 /// This controller performs no authorization of its own beyond requiring authentication.
 /// <see cref="IAccessTokenService"/> restricts every method to the actor's own tokens, so another
-/// user's token is reported as missing.
+/// user's token is reported as missing, and refuses a credential whose scope does not permit the
+/// action with a <c>403</c>. Listing needs <c>tokens:read</c>; minting and revoking need
+/// <c>tokens:create</c> or <c>tokens:delete</c> as well.
 /// </para>
 /// <para>
 /// A token's secret is returned once, in the <c>201</c> from <see cref="Create"/>, and never again:
@@ -41,6 +43,7 @@ public class AccessTokensController(IAccessTokenService accessTokenService, ILog
     [HttpGet]
     [ProducesResponseType(typeof(PaginatedResponse<AccessToken>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PaginatedResponse<AccessToken>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] AccessTokenFilter filter,
@@ -70,6 +73,7 @@ public class AccessTokensController(IAccessTokenService accessTokenService, ILog
     [ProducesResponseType(typeof(CreatedAccessToken), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CreatedAccessToken>> Create(
         [FromBody] CreateAccessTokenRequest request,
@@ -95,6 +99,7 @@ public class AccessTokensController(IAccessTokenService accessTokenService, ILog
     [HttpDelete("{tokenId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid tokenId, CancellationToken ct = default)
     {

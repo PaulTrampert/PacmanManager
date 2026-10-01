@@ -27,18 +27,18 @@ runs:
     # 25 is the current LTS and the newest ANTLR runs on: checked by deleting LibAlpmSharp/obj
     # and regenerating the parser under it, which produced the same sources and built clean.
     - name: Set up Java for the ANTLR build task
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v6
       with:
         distribution: temurin
         java-version: '25'
 
     - name: Set up .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
 
     - name: Cache NuGet packages
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.nuget/packages
         key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '.config/dotnet-tools.json') }}

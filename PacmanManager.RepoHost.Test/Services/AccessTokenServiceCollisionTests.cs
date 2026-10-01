@@ -62,6 +62,7 @@ public class AccessTokenServiceCollisionTests
         _service = new AccessTokenService(
             _dbContext,
             _actors,
+            new AccessTokenAccessPolicy(),
             TimeProvider.System,
             new TestOutputLogger<AccessTokenService>());
     }
@@ -79,7 +80,7 @@ public class AccessTokenServiceCollisionTests
     {
         await _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "laptop" });
 
-        Assert.ThrowsAsync<ItemExistsException>(
+        await Assert.ThrowsAsync<ItemExistsException>(
             () => _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "laptop" }));
         Assert.That(await CountAsync(_owner), Is.EqualTo(1));
     }
@@ -89,7 +90,7 @@ public class AccessTokenServiceCollisionTests
     {
         await _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "laptop" });
 
-        Assert.ThrowsAsync<ItemExistsException>(
+        await Assert.ThrowsAsync<ItemExistsException>(
             () => _service.CreateAccessTokenAsync(new CreateAccessTokenRequest { Name = "Laptop" }));
         Assert.That(await CountAsync(_owner), Is.EqualTo(1));
     }

@@ -74,6 +74,7 @@ try
     builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
     builder.Services.AddSingleton<RepositoryAccessPolicy>();
     builder.Services.AddSingleton<PackageAccessPolicy>();
+    builder.Services.AddSingleton<AccessTokenAccessPolicy>();
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();

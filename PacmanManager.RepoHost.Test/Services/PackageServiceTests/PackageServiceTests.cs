@@ -352,7 +352,7 @@ public class PackageServiceTests
         _fileSystem.Setup(f => f.Exists("/data/repositories/gone.pkg.tar.zst")).Returns(false);
 
         // Act / Assert
-        Assert.ThrowsAsync<FileNotFoundException>(() => _service.GetPackageContentByIdAsync(package.Id));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => _service.GetPackageContentByIdAsync(package.Id));
         _fileSystem.Verify(f => f.OpenRead(It.IsAny<string>()), Times.Never);
     }
 

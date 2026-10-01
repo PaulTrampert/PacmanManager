@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.Entities;
@@ -52,6 +53,7 @@ public class AccessTokenServiceTests
         _service = new AccessTokenService(
             _dbContext,
             _actors,
+            new AccessTokenAccessPolicy(),
             new FixedTimeProvider(Now),
             new TestOutputLogger<AccessTokenService>());
     }
@@ -167,21 +169,21 @@ public class AccessTokenServiceTests
     }
 
     [Test]
-    public void Create_OnANameCollision_ThrowsItemExists()
+    public async Task Create_OnANameCollision_ThrowsItemExists()
     {
         _saveFailure.Failure = () => UniqueViolation(NameIndex());
 
-        var e = Assert.ThrowsAsync<ItemExistsException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        var e = await Assert.ThrowsAsync<ItemExistsException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
 
         Assert.That(e!.InnerException, Is.InstanceOf<DbUpdateException>());
     }
 
     [Test]
-    public void Create_OnAnyOtherFailureToSave_RethrowsIt()
+    public async Task Create_OnAnyOtherFailureToSave_RethrowsIt()
     {
         _saveFailure.Failure = () => UniqueViolation("some_other_index");
 
-        Assert.ThrowsAsync<DbUpdateException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        await Assert.ThrowsAsync<DbUpdateException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
     }
 
     #endregion
@@ -370,39 +372,138 @@ public class AccessTokenServiceTests
     #region No user
 
     [Test]
-    public void Anonymous_CanNotList()
+    public async Task Anonymous_CanNotList()
     {
         _actors.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
     }
 
     [Test]
-    public void Anonymous_CanNotMint()
+    public async Task Anonymous_CanNotMint()
     {
         _actors.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
     }
 
     [Test]
-    public void Anonymous_CanNotDelete()
+    public async Task Anonymous_CanNotDelete()
     {
         _actors.Actor = Actor.Anonymous;
         var token = GivenToken(_owner, "laptop");
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.DeleteAccessTokenAsync(token.Id));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.DeleteAccessTokenAsync(token.Id));
         Assert.That(TokenExists(token.Id), Is.True);
     }
 
     [Test]
-    public void SystemActorWithoutAUser_HasNoTokensToManage()
+    public async Task SystemActorWithoutAUser_HasNoTokensToManage()
     {
         // A system actor bypasses visibility elsewhere, but tokens are always somebody's own, and
         // it is nobody.
         _actors.Actor = Actor.System;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+        await Assert.ThrowsAsync<NoCurrentUserException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+    }
+
+    #endregion
+
+    #region Scope
+
+    // AccessTokenAccessPolicyTests covers every row of the verdicts; these show that each method asks
+    // its own verdict before doing anything, and turns Forbidden into InsufficientScopeException.
+
+    [Test]
+    public async Task List_WhenTheVerdictIsForbidden_ThrowsInsufficientScope()
+    {
+        _actors.Actor = ScopedActor("pacman-manager:tokens:create pacman-manager:tokens:delete");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.GetAccessTokensAsync(new PaginationParams()));
+
+        AssertRefused(e, ScopeValues.ActionNames.Read);
+    }
+
+    [Test]
+    public async Task List_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var mine = GivenToken(_owner, "mine");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read");
+
+        var page = await _service.GetAccessTokensAsync(new PaginationParams());
+
+        Assert.That(page.Results.Select(t => t.Id), Is.EqualTo(new[] { mine.Id }));
+    }
+
+    [Test]
+    public async Task Create_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndMintsNothing()
+    {
+        // The scope a Basic credential carries.
+        _actors.Actor = ScopedActor("pacman-manager:*:read");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.CreateAccessTokenAsync(Request("laptop")));
+
+        AssertRefused(e, ScopeValues.ActionNames.Create);
+        Assert.That(TokenCount(), Is.Zero, "no token was minted");
+    }
+
+    [Test]
+    public async Task Create_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        _actors.Actor = ScopedActor("pacman-manager:tokens:create pacman-manager:tokens:read");
+
+        var created = await _service.CreateAccessTokenAsync(Request("laptop"));
+
+        Assert.That(StoredToken(created.Id).UserId, Is.EqualTo(_owner.Id));
+    }
+
+    [Test]
+    public async Task Delete_WhenTheVerdictIsForbidden_ThrowsInsufficientScope_AndLeavesTheTokenInPlace()
+    {
+        var token = GivenToken(_owner, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read pacman-manager:tokens:create");
+
+        var e = await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(token.Id));
+
+        AssertRefused(e, ScopeValues.ActionNames.Delete);
+        Assert.That(TokenExists(token.Id), Is.True, "still there");
+    }
+
+    [Test]
+    public async Task Delete_WhenTheVerdictIsAllowed_Proceeds()
+    {
+        var token = GivenToken(_owner, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:delete pacman-manager:tokens:read");
+
+        var deleted = await _service.DeleteAccessTokenAsync(token.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(deleted, Is.True);
+            Assert.That(TokenExists(token.Id), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task Delete_AnotherUsersToken_WithoutTheScope_IsRefusedBeforeItIsLookedFor()
+    {
+        // The verdict is asked first, so a refusal says nothing about whether the id names a token.
+        var theirs = GivenToken(_other, "laptop");
+        _actors.Actor = ScopedActor("pacman-manager:tokens:read");
+
+        await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(theirs.Id));
+        await Assert.ThrowsAsync<InsufficientScopeException>(() => _service.DeleteAccessTokenAsync(Guid.CreateVersion7()));
+    }
+
+    private Actor ScopedActor(string claim) => Actor.For(_owner, ActorScope.Parse(claim, NullLogger.Instance));
+
+    private static void AssertRefused(InsufficientScopeException? e, string action)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(e!.Entity, Is.EqualTo(ScopeValues.EntityNames.Tokens));
+            Assert.That(e.Action, Is.EqualTo(action));
+        });
     }
 
     #endregion
@@ -433,6 +534,12 @@ public class AccessTokenServiceTests
         seed.Add(token);
         seed.SaveChanges();
         return token;
+    }
+
+    private int TokenCount()
+    {
+        using var read = NewContext();
+        return read.PacmanAccessTokens.Count();
     }
 
     private PacmanAccessToken StoredToken(Guid id)

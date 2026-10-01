@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.RepoHost.Test.Containers;
 
 namespace PacmanManager.RepoHost.Test;
 
@@ -320,6 +321,74 @@ public class AccessTokensControllerTests
 
     #endregion
 
+    #region Scope
+
+    [Test]
+    public async Task TokensReadScope_ListsTokens_AndMintingOrDeletingIsForbidden()
+    {
+        var mine = await CreateTokenAsync(_client, NewName());
+        var refusedName = NewName();
+        using var scoped = await ScopedClientAsync("pacman-manager:tokens:read");
+
+        var listed = await ListAsync(scoped, mine.Name);
+        var create = await scoped.PostAsJsonAsync(TokensRoute, new { name = refusedName });
+        var delete = await scoped.DeleteAsync($"{TokensRoute}/{mine.Id}");
+        var minted = await ListAsync(_client, refusedName);
+        var remaining = await ListAsync(_client, mine.Name);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listed.Results.Select(t => t.Id), Is.EqualTo(new[] { mine.Id }), "listing");
+            Assert.That(create.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "mint");
+            Assert.That(minted.Total, Is.Zero, "no token was minted");
+            Assert.That(delete.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "delete");
+            Assert.That(remaining.Total, Is.EqualTo(1), "still there");
+        });
+    }
+
+    [Test]
+    public async Task RepositoriesScope_EveryTokenRouteIsForbidden()
+    {
+        var mine = await CreateTokenAsync(_client, NewName());
+        var refusedName = NewName();
+        using var scoped = await ScopedClientAsync("pacman-manager:repositories:*");
+
+        var list = await scoped.GetAsync(TokensRoute);
+        var create = await scoped.PostAsJsonAsync(TokensRoute, new { name = refusedName });
+        var delete = await scoped.DeleteAsync($"{TokensRoute}/{mine.Id}");
+        var minted = await ListAsync(_client, refusedName);
+        var remaining = await ListAsync(_client, mine.Name);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(list.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "listing");
+            Assert.That(create.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "mint");
+            Assert.That(minted.Total, Is.Zero, "no token was minted");
+            Assert.That(delete.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "delete");
+            Assert.That(remaining.Total, Is.EqualTo(1), "still there");
+        });
+    }
+
+    [Test]
+    public async Task BasicCredential_MintingIsForbidden_AndMintsNothing()
+    {
+        // A Basic credential carries only pacman-manager:*:read, which never includes tokens:create.
+        var credential = await CreateTokenAsync(_client, NewName());
+        var refusedName = NewName();
+        using var basic = BasicClient(credential.Username, credential.Secret);
+
+        var create = await basic.PostAsJsonAsync(TokensRoute, new { name = refusedName });
+        var listed = await ListAsync(_client, refusedName);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(create.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "mint");
+            Assert.That(listed.Total, Is.Zero, "no token was minted");
+        });
+    }
+
+    #endregion
+
     #region Helpers
 
     /// <summary>
@@ -351,6 +420,22 @@ public class AccessTokensControllerTests
     {
         using var document = JsonDocument.Parse(json);
         return document.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+    }
+
+    /// <summary>
+    /// A client carrying a token from <c>pacman-manager-scoped</c> for the default user, issued the
+    /// given values of ours and nothing else of ours.
+    /// </summary>
+    private async Task<HttpClient> ScopedClientAsync(string values)
+    {
+        var token = await _fixture.AuthContainer!.GetBearerTokenAsync(
+            _fixture.AuthContainer.DefaultCredentials,
+            KeycloakContainer.ScopedClientId,
+            $"openid {values}");
+
+        var client = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
     private HttpClient BasicClient(string username, string password)

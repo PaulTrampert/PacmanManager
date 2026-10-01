@@ -205,6 +205,15 @@ is the point: the binding is exercised against a distribution that only carries 
 13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
 database is read the same way by both.
 
+### Code scanning (`codeql.yml`)
+
+`.github/workflows/codeql.yml` runs CodeQL over `actions` and `csharp` on pull requests, pushes to
+`main` and a weekly schedule. It is an advanced setup rather than GitHub's default setup only
+because default setup cannot exclude individual queries; the exclusions live in
+`.github/codeql/codeql-config.yml`, each with the reason it is excluded. Currently that is
+`cs/log-forging`, since logging uses structured message templates. Default setup must stay off in
+the repository settings, or this workflow's uploads are rejected.
+
 ### Claude on pull requests (`claude.yml`)
 
 `.github/workflows/claude.yml` runs
@@ -355,6 +364,9 @@ ones.
   implement it as written. Deviating from one during implementation needs sign-off from a project
   owner, and the same change must update the plan, add an Appendix entry saying why, and update
   every dependent issue.
+* `.github/dependabot.yml` checks each ecosystem (NuGet, Docker, Compose, GitHub Actions) daily
+  and batches its version updates into one pull request per ecosystem, and leaves security updates
+  ungrouped so each arrives as its own PR. Its PR titles carry the `(PATCH) ` prefix the title check requires.
 * `.run/` holds Rider run configurations.
 * `test-fixtures/` holds binary fixtures shared by more than one test project — currently the
   minimal pacman package under `test-fixtures/packages` and the same package one version on, both

@@ -85,7 +85,9 @@ public class ForwardedHeadersConfigTests
             Assert.That(options.KnownProxies, Is.Not.Empty);
             Assert.That(options.KnownIPNetworks, Is.Not.Empty);
             Assert.That(options.KnownProxies, Is.EquivalentTo(defaults.KnownProxies));
-            Assert.That(options.KnownIPNetworks, Is.EquivalentTo(defaults.KnownIPNetworks));
+            // KnownIPNetworks is a DualIPNetworkList, which enumerates as both the obsolete and the
+            // System.Net IPNetwork; NUnit 5 cannot compare it as a collection, so compare copies.
+            Assert.That(options.KnownIPNetworks.ToList(), Is.EquivalentTo(defaults.KnownIPNetworks.ToList()));
         });
     }
 
@@ -99,7 +101,7 @@ public class ForwardedHeadersConfigTests
         Assert.Multiple(() =>
         {
             Assert.That(options.KnownProxies, Is.SupersetOf(defaults.KnownProxies));
-            Assert.That(options.KnownIPNetworks, Is.SupersetOf(defaults.KnownIPNetworks));
+            Assert.That(options.KnownIPNetworks.ToList(), Is.SupersetOf(defaults.KnownIPNetworks.ToList()));
         });
     }
 

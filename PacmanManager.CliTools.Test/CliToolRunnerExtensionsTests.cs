@@ -61,23 +61,23 @@ public class CliToolRunnerExtensionsTests
     }
 
     [Test]
-    public void RunToolCheckedAsync_Returns_WhenTheToolSucceeds()
+    public async Task RunToolCheckedAsync_Returns_WhenTheToolSucceeds()
     {
         // Arrange
         GivenToolRun(0, stdOut: "test");
 
         // Act & Assert
-        Assert.DoesNotThrowAsync(async () => await _runner.Object.RunToolCheckedAsync(_tool));
+        await Assert.DoesNotThrowAsync(async () => await _runner.Object.RunToolCheckedAsync(_tool));
     }
 
     [Test]
-    public void RunToolCheckedAsync_Throws_WhenTheToolExitsNonZero()
+    public async Task RunToolCheckedAsync_Throws_WhenTheToolExitsNonZero()
     {
         // Arrange
         GivenToolRun(1, stdErr: "ERROR: Failed to acquire lockfile");
 
         // Act
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _runner.Object.RunToolCheckedAsync(_tool));
 
         // Assert
@@ -94,13 +94,13 @@ public class CliToolRunnerExtensionsTests
     /// the diagnostics fall back to it rather than carrying an empty message.
     /// </summary>
     [Test]
-    public void RunToolCheckedAsync_FallsBackToStandardOutput_WhenTheToolSaidNothingOnStandardError()
+    public async Task RunToolCheckedAsync_FallsBackToStandardOutput_WhenTheToolSaidNothingOnStandardError()
     {
         // Arrange
         GivenToolRun(2, stdOut: "==> ERROR: 'foo.db.tar.gz' does not exist");
 
         // Act
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await _runner.Object.RunToolCheckedAsync(_tool));
 
         // Assert
@@ -151,7 +151,7 @@ public class CliToolRunnerExtensionsTests
     /// runner it extends and not just over a double of it.
     /// </summary>
     [Test]
-    public void RunToolCheckedAsync_Throws_ForARealProcessThatExitsNonZero()
+    public async Task RunToolCheckedAsync_Throws_ForARealProcessThatExitsNonZero()
     {
         // Arrange
         var registry = new Mock<ICliOutputHandlerRegistry>();
@@ -160,7 +160,7 @@ public class CliToolRunnerExtensionsTests
         var tool = new ShellCliTool("failing-tool", "echo 'it went wrong' >&2; exit 3");
 
         // Act
-        var thrown = Assert.ThrowsAsync<CliToolFailedException>(
+        var thrown = await Assert.ThrowsAsync<CliToolFailedException>(
             async () => await runner.RunToolCheckedAsync(tool));
 
         // Assert
