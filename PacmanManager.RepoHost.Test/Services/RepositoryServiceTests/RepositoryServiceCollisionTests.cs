@@ -5,6 +5,7 @@ using Moq;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;
@@ -79,12 +80,15 @@ public class RepositoryServiceCollisionTests
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             _mockFileSystem.Object,
-            _pathResolver);
+            _pathResolver,
+            Options.Create(new RepositoryRenameConfig()),
+            TimeProvider.System);
     }
 
     [TearDown]
     public async Task TearDown()
     {
+        await _dbContext.RetiredRepositoryNames.ExecuteDeleteAsync();
         await _dbContext.PacmanRepositories.ExecuteDeleteAsync();
         await _dbContext.Users.ExecuteDeleteAsync();
         _dbContext.Dispose();
@@ -229,6 +233,128 @@ public class RepositoryServiceCollisionTests
         // Act & Assert
         await Assert.ThrowsAsync<ItemExistsException>(async () => await _service.UpdateRepositoryAsync(renamed.Id, update));
     }
+
+    #region Retired names
+
+    [Test]
+    public async Task CreateRepositoryAsync_ReportsANameHeldByARetirement_ExactlyAsANameHeldByARepository()
+    {
+        // The response must not say which of the two holds the name, or it would disclose that a
+        // repository the caller may not see was renamed.
+        // Arrange
+        await GivenRepositoryAsync(name: "live", owner: _otherUser);
+        var retiring = await GivenRepositoryAsync(name: "retired", owner: _otherUser);
+        await RenameAsync(retiring, "retired-renamed", actor: _otherUser);
+
+        // Act
+        var byRepository = await Assert.ThrowsAsync<ItemExistsException>(
+            async () => await _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "live" }));
+        var byRetirement = await Assert.ThrowsAsync<ItemExistsException>(
+            async () => await _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "retired" }));
+
+        // Assert
+        Assert.That(byRetirement!.Message, Is.EqualTo(byRepository!.Message));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_RenameAndRetirement_LandTogether()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(name: "custom");
+
+        // Act
+        await RenameAsync(repository, "custom2");
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var retired = await fresh.RetiredRepositoryNames.SingleAsync();
+        Assert.Multiple(async () =>
+        {
+            Assert.That((await fresh.PacmanRepositories.SingleAsync(r => r.Id == repository.Id)).Name, Is.EqualTo("custom2"));
+            Assert.That(retired.Name, Is.EqualTo("custom"));
+            Assert.That(retired.RepositoryId, Is.EqualTo(repository.Id));
+        });
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_IntoALiveName_RetiresNothing()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "taken", owner: _otherUser);
+        var mine = await GivenRepositoryAsync(name: "mine");
+
+        // Act
+        await Assert.ThrowsAsync<ItemExistsException>(async () => await RenameAsync(mine, "taken"));
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        Assert.That(await fresh.RetiredRepositoryNames.AnyAsync(), Is.False);
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_TheRetiringRepository_CanTakeItsNameBack()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(name: "custom");
+        await RenameAsync(repository, "custom2");
+
+        // Act
+        await RenameAsync(repository, "custom");
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var retired = await fresh.RetiredRepositoryNames.ToListAsync();
+        Assert.Multiple(async () =>
+        {
+            Assert.That((await fresh.PacmanRepositories.SingleAsync(r => r.Id == repository.Id)).Name, Is.EqualTo("custom"));
+            Assert.That(retired.Select(r => r.Name), Is.EqualTo(new[] { "custom2" }));
+        });
+    }
+
+    [Test]
+    public async Task DeleteRepositoryAsync_ReleasesTheNamesTheRepositoryOnceHad()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(name: "custom");
+        await RenameAsync(repository, "custom2");
+
+        // Act
+        await _service.DeleteRepositoryAsync(repository.Id);
+        var created = await _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "custom" });
+
+        // Assert
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        Assert.Multiple(async () =>
+        {
+            Assert.That(created.Name, Is.EqualTo("custom"));
+            Assert.That(await fresh.RetiredRepositoryNames.AnyAsync(), Is.False);
+        });
+    }
+
+    private async Task RenameAsync(PacmanRepository repository, string newName, User? actor = null)
+    {
+        var previous = _actors.Actor;
+        if (actor is not null)
+        {
+            _actors.Actor = Actor.For(actor, ActorScope.Unrestricted);
+        }
+
+        try
+        {
+            await _service.UpdateRepositoryAsync(repository.Id, new WriteRepositoryRequest
+            {
+                Name = newName,
+                SupportedArchitectures = repository.SupportedArchitectures,
+                IsPublic = repository.IsPublic,
+            });
+        }
+        finally
+        {
+            _actors.Actor = previous;
+        }
+    }
+
+    #endregion
 
     private async Task<PacmanRepository> GivenRepositoryAsync(
         string name = "a-repo",

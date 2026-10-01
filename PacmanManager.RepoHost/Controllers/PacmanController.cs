@@ -40,6 +40,12 @@ namespace PacmanManager.RepoHost.Controllers;
 /// <c>304</c> is what keeps a sync cheap. <c>Vary: Authorization</c> is sent on every response,
 /// since the same URL is a <c>401</c> anonymously and a <c>200</c> for the owner.
 /// </para>
+/// <para>
+/// A repository's old name, after a rename, is a <c>307</c> to the same file under its current name
+/// for as long as the redirect window lasts, and a <c>410</c> afterwards. The redirect is the one
+/// response that carries <c>Cache-Control: no-store</c>: it expires by design, so nothing may
+/// remember it.
+/// </para>
 /// </remarks>
 [ApiController]
 [ApiVersionNeutral]
@@ -68,7 +74,8 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
     /// The file as <c>application/octet-stream</c>, a <c>304</c> or <c>206</c> where the request's
     /// preconditions or range call for one; a <c>401</c> Basic challenge when an anonymous caller asks
     /// for a repository it cannot see; or <c>404</c> when there is otherwise no such file the caller
-    /// may see.
+    /// may see. For a name the repository was renamed away from, a <c>307</c> to the same file under
+    /// its current name while the redirect lasts, and <c>410</c> once it has lapsed.
     /// </returns>
     [HttpGet]
     [HttpHead]
@@ -81,6 +88,23 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
         Response.Headers.Append(HeaderNames.Vary, HeaderNames.Authorization);
 
         var resolution = await pacmanRepoService.ResolveAsync(repoName, repoArch, fileName, ct);
+        if (resolution.Redirect is { } redirect)
+        {
+            // Temporary, and not to be remembered: the redirect lapses at the end of its window, and
+            // a client that cached it would never learn that the name is gone.
+            Response.Headers.CacheControl = "no-store";
+            return RedirectToActionPreserveMethod(
+                nameof(Get),
+                routeValues: new { repoName = redirect.RepoName, repoArch, fileName = redirect.FileName });
+        }
+
+        if (resolution.IsGone)
+        {
+            // The status code is the only part of this response pacman shows its user, and 410 says
+            // "this name was retired" where a 404 would say "you typed it wrong".
+            return StatusCode(StatusCodes.Status410Gone);
+        }
+
         if (resolution.File is not { } file)
         {
             if (!resolution.RepositoryFound && User.Identity?.IsAuthenticated != true)

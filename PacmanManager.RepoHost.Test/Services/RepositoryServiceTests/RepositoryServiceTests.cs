@@ -5,6 +5,7 @@ using Moq;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
@@ -69,7 +70,9 @@ public class RepositoryServiceTests
             new RepositoryAccessPolicy(),
             _logger,
             _mockFileSystem.Object,
-            new PackagePathResolver(Options.Create(settings)));
+            new PackagePathResolver(Options.Create(settings)),
+            Options.Create(new RepositoryRenameConfig()),
+            TimeProvider.System);
     }
 
     /// <summary>

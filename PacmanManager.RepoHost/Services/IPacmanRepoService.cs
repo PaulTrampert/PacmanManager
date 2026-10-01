@@ -21,6 +21,11 @@ namespace PacmanManager.RepoHost.Services;
 /// repository's directory without being parsed. A name that is not a plain basename resolves to
 /// nothing without the disk being touched.
 /// </para>
+/// <para>
+/// A repository name that no live repository holds may be one a repository was renamed away from,
+/// which is looked up through <see cref="IRepositoryService.GetRetiredRepositoryNameAsync"/>, under
+/// the same visibility rule as a live name.
+/// </para>
 /// </remarks>
 public interface IPacmanRepoService
 {
@@ -32,11 +37,22 @@ public interface IPacmanRepoService
     /// <param name="fileName">The requested file name, a single path segment.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// The open file and its modification time; or <see cref="PacmanResolution.RepositoryNotFound"/>
-    /// when the repository is absent as far as the current actor is concerned, whether it does not
-    /// exist or is private to somebody else; or <see cref="PacmanResolution.FileNotFound"/> when the
-    /// repository is visible but does not support <paramref name="repoArch"/>, the file name is not
-    /// one it serves, or the file is not on disk.
+    /// <para>
+    /// The open file and its modification time, when <paramref name="repoName"/> is a live
+    /// repository's name.
+    /// </para>
+    /// <para>
+    /// When it is a name a repository was renamed away from: a redirect to the same file under the
+    /// repository's current name while the redirect window lasts, and <see cref="PacmanResolution.Gone"/>
+    /// after it. A database requested by the old name is redirected to the database named for the new
+    /// one.
+    /// </para>
+    /// <para>
+    /// <see cref="PacmanResolution.RepositoryNotFound"/> when the repository is absent as far as the
+    /// current actor is concerned, whether it does not exist or is private to somebody else; or
+    /// <see cref="PacmanResolution.FileNotFound"/> when the repository is visible but does not support
+    /// <paramref name="repoArch"/>, the file name is not one it serves, or the file is not on disk.
+    /// </para>
     /// </returns>
     Task<PacmanResolution> ResolveAsync(
         string repoName,

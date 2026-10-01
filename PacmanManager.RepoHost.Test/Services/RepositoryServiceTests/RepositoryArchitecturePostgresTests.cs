@@ -6,6 +6,7 @@ using Npgsql;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
@@ -64,7 +65,9 @@ public class RepositoryArchitecturePostgresTests
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             new Mock<IFileSystem>().Object,
-            new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" })));
+            new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" })),
+            Options.Create(new RepositoryRenameConfig()),
+            TimeProvider.System);
     }
 
     [TearDown]

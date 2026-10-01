@@ -4,6 +4,7 @@ using Moq;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
@@ -35,8 +36,12 @@ public class PacmanRepoServiceTests
     private static readonly string SyncDbPath = $"{RepoDir}/db/x86_64/{RepoId}.db.tar.gz";
     private static readonly string FilesDbPath = $"{RepoDir}/db/x86_64/{RepoId}.files.tar.gz";
 
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+
     private PacmanManagerDbContext _dbContext = null!;
     private TestActorAccessor _actors = null!;
+    private TestTimeProvider _clock = null!;
+    private RepositoryService _repositories = null!;
     private Mock<IFileSystem> _fileSystem = null!;
     private PacmanRepoService _subject = null!;
     private User _owner = null!;
@@ -60,18 +65,21 @@ public class PacmanRepoServiceTests
 
         _actors = new TestActorAccessor { Actor = Actor.For(_owner, ActorScope.Unrestricted) };
         _fileSystem = new Mock<IFileSystem>();
+        _clock = new TestTimeProvider(Now);
 
         var pathResolver = new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = DataDir }));
-        var repositories = new RepositoryService(
+        _repositories = new RepositoryService(
             _dbContext,
             new Mock<ICliToolRunner>().Object,
             _actors,
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             _fileSystem.Object,
-            pathResolver);
+            pathResolver,
+            Options.Create(new RepositoryRenameConfig()),
+            _clock);
 
-        _subject = new PacmanRepoService(repositories, pathResolver, _fileSystem.Object);
+        _subject = new PacmanRepoService(_repositories, pathResolver, _fileSystem.Object);
     }
 
     [TearDown]
@@ -95,7 +103,7 @@ public class PacmanRepoServiceTests
         Assert.That(result, Is.EqualTo(PacmanResolution.Of(new RepositoryFile(content, LastModified))));
     }
 
-    [TestCase($"{RepoName}.files", TestName = "repo.files is the files database")]
+    [TestCase($"{RepoName}.files",TestName = "repo.files is the files database")]
     [TestCase($"{RepoName}.files.tar.gz", TestName = "repo.files.tar.gz is the files database")]
     public async Task ResolveAsync_ServesTheFilesDatabase(string fileName)
     {
@@ -372,6 +380,170 @@ public class PacmanRepoServiceTests
     }
 
     #endregion
+
+    #region Retired names
+
+    [TestCase(".db")]
+    [TestCase(".db.tar.gz")]
+    [TestCase(".files")]
+    [TestCase(".files.tar.gz")]
+    public async Task ResolveAsync_RedirectsADatabaseByTheOldName_ToTheDatabaseNamedForTheNewOne(string extension)
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+
+        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, RepoName + extension);
+
+        Assert.That(result, Is.EqualTo(PacmanResolution.RedirectTo(new PacmanRedirect("renamed", "renamed" + extension))));
+    }
+
+    [TestCase(PackageFileName)]
+    [TestCase($"{RepoName}.db.sig")]
+    [TestCase("other.db")]
+    public async Task ResolveAsync_RedirectsAnythingElseByTheOldName_UnderTheNameItWasRequestedBy(string fileName)
+    {
+        // Only a database is named for its repository; the target answers for anything else itself.
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+
+        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, fileName);
+
+        Assert.That(result, Is.EqualTo(PacmanResolution.RedirectTo(new PacmanRedirect("renamed", fileName))));
+    }
+
+    [Test]
+    public async Task ResolveAsync_RedirectsWithoutTouchingTheDisk()
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+        _fileSystem.Invocations.Clear();
+
+        await _subject.ResolveAsync(RepoName, Architectures.X86_64, PackageFileName);
+
+        _fileSystem.VerifyNoOtherCalls();
+    }
+
+    [Test]
+    public async Task ResolveAsync_RedirectsEveryOldName_StraightToTheCurrentName()
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("second");
+        await RenameAsync("third");
+
+        var fromFirst = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+        var fromSecond = await _subject.ResolveAsync("second", Architectures.X86_64, "second.db");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fromFirst?.Redirect, Is.EqualTo(new PacmanRedirect("third", "third.db")));
+            Assert.That(fromSecond?.Redirect, Is.EqualTo(new PacmanRedirect("third", "third.db")));
+        });
+    }
+
+    [Test]
+    public async Task ResolveAsync_IsGone_OnceTheRedirectWindowHasPassed()
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+        _clock.Advance(RepositoryRenameConfig.DefaultRedirectWindow);
+
+        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+
+        Assert.That(result, Is.SameAs(PacmanResolution.Gone));
+    }
+
+    [Test]
+    public async Task ResolveAsync_StillRedirects_JustBeforeTheRedirectWindowHasPassed()
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+        _clock.Advance(RepositoryRenameConfig.DefaultRedirectWindow - TimeSpan.FromSeconds(1));
+
+        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+
+        Assert.That(result?.Redirect, Is.Not.Null);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task ResolveAsync_ResolvesNothingByTheOldName_ForAnArchitectureTheRepositoryDoesNotSupport(bool gone)
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+        if (gone)
+        {
+            _clock.Advance(RepositoryRenameConfig.DefaultRedirectWindow);
+        }
+
+        var result = await _subject.ResolveAsync(RepoName, "aarch64", $"{RepoName}.db");
+
+        Assert.That(result, Is.SameAs(PacmanResolution.FileNotFound));
+    }
+
+    [TestCase(false, false)]
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    [TestCase(true, true)]
+    public async Task ResolveAsync_ResolvesNothingByAPrivateRepositorysOldName_ForACallerWhoCannotSeeIt(bool gone, bool anonymous)
+    {
+        // The old name of a repository the caller may not see is as absent as its current one, so the
+        // controller challenges an anonymous caller and tells anyone else nothing is there. Neither
+        // the current name nor whether the name still redirects is disclosed, and the architecture is
+        // not checked against a repository the caller cannot see.
+        await GivenRepositoryAsync(isPublic: false);
+        await RenameAsync("renamed");
+        if (gone)
+        {
+            _clock.Advance(RepositoryRenameConfig.DefaultRedirectWindow);
+        }
+
+        _actors.Actor = anonymous ? Actor.Anonymous : Actor.For(_otherUser, ActorScope.Unrestricted);
+        _fileSystem.Invocations.Clear();
+
+        foreach (var repoArch in new[] { Architectures.X86_64, "aarch64" })
+        {
+            var result = await _subject.ResolveAsync(RepoName, repoArch, $"{RepoName}.db");
+
+            Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound), repoArch);
+        }
+
+        _fileSystem.VerifyNoOtherCalls();
+    }
+
+    [Test]
+    public async Task ResolveAsync_RedirectsByAPrivateRepositorysOldName_ForItsOwner()
+    {
+        await GivenRepositoryAsync(isPublic: false);
+        await RenameAsync("renamed");
+
+        var result = await _subject.ResolveAsync(RepoName, Architectures.X86_64, $"{RepoName}.db");
+
+        Assert.That(result?.Redirect, Is.EqualTo(new PacmanRedirect("renamed", "renamed.db")));
+    }
+
+    [Test]
+    public async Task ResolveAsync_MatchesAnOldNameCaseSensitively()
+    {
+        await GivenRepositoryAsync(isPublic: true);
+        await RenameAsync("renamed");
+
+        var result = await _subject.ResolveAsync("MyRepo", Architectures.X86_64, "MyRepo.db");
+
+        Assert.That(result, Is.SameAs(PacmanResolution.RepositoryNotFound));
+    }
+
+    #endregion
+
+    private async Task RenameAsync(string newName)
+    {
+        var current = await _repositories.GetRepositoryByIdAsync(RepoId);
+        await _repositories.UpdateRepositoryAsync(RepoId, new WriteRepositoryRequest
+        {
+            Name = newName,
+            SupportedArchitectures = current!.SupportedArchitectures,
+            IsPublic = current.IsPublic,
+        });
+    }
 
     private void AssertUnresolvedWithoutTouchingTheDisk(PacmanResolution result, PacmanResolution expected)
     {

@@ -13,6 +13,8 @@ public class PacmanManagerDbContext : DbContext
     public DbSet<ExternalProviderUserMapping> UserMappings { get; set; }
     
     public DbSet<PacmanAccessToken> PacmanAccessTokens { get; set; }
+
+    public DbSet<RetiredRepositoryName> RetiredRepositoryNames { get; set; }
     
     public PacmanManagerDbContext(DbContextOptions<PacmanManagerDbContext> options) : base(options)
     {

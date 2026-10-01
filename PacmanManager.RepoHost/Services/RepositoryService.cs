@@ -1,9 +1,12 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.CliTools;
+using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
@@ -23,6 +26,15 @@ namespace PacmanManager.RepoHost.Services;
 /// rules therefore has to name the <see cref="DbSet{TEntity}"/> to do so, which is both obvious
 /// in review and caught by <c>RepositoryServiceEnforcementTests</c>.
 /// </remarks>
+/// <param name="dbContext">The application database.</param>
+/// <param name="cliRunner">Runs <c>repo-add</c>.</param>
+/// <param name="actorAccessor">Supplies the actor every rule is enforced against.</param>
+/// <param name="accessPolicy">The repository authorization rules.</param>
+/// <param name="logger">Logger for failures that are survived.</param>
+/// <param name="fileSystem">The disk the repositories' directories are on.</param>
+/// <param name="pathResolver">Where each repository's directory is.</param>
+/// <param name="renameConfig">How long a name a repository was renamed away from redirects and stays reserved.</param>
+/// <param name="timeProvider">The clock retirements and their windows are judged against.</param>
 internal class RepositoryService(
     PacmanManagerDbContext dbContext,
     ICliToolRunner cliRunner,
@@ -30,7 +42,9 @@ internal class RepositoryService(
     RepositoryAccessPolicy accessPolicy,
     ILogger<RepositoryService> logger,
     IFileSystem fileSystem,
-    IPackagePathResolver pathResolver) : IRepositoryService
+    IPackagePathResolver pathResolver,
+    IOptions<RepositoryRenameConfig> renameConfig,
+    TimeProvider timeProvider) : IRepositoryService
 {
     /// <summary>
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.
@@ -127,13 +141,97 @@ internal class RepositoryService(
     }
 
     /// <summary>
-    /// The exception a name collision is reported as, which the handler maps to <c>409</c>.
+    /// The exception a name collision is reported as, which the handler maps to <c>409</c>. A name
+    /// held by a live repository and a name held by a retirement are reported identically, so that
+    /// the response never says which of the two it was.
     /// </summary>
-    /// <param name="collision">The database's refusal, kept as the inner exception.</param>
-    private static ItemExistsException NameTaken(DbUpdateException collision) =>
+    /// <param name="collision">The database's refusal, kept as the inner exception, if it was the database that refused.</param>
+    private static ItemExistsException NameTaken(DbUpdateException? collision = null) =>
         // The handler never copies the message into the response, but it is still worded to say
         // nothing about the repository that holds the name.
-        new("A repository with this name already exists.", collision);
+        collision is null
+            ? new ItemExistsException(NameTakenMessage)
+            : new ItemExistsException(NameTakenMessage, collision);
+
+    private const string NameTakenMessage = "A repository with this name already exists.";
+
+    /// <summary>
+    /// Whether a retired name is still reserved: it is still redirecting, or something asked for it
+    /// within the hold window.
+    /// </summary>
+    private bool IsHeld(RetiredRepositoryName retired, DateTimeOffset now) =>
+        now < retired.RedirectUntil
+        || (retired.LastRequestedAt is { } lastRequestedAt && now < lastRequestedAt + renameConfig.Value.HoldWindow);
+
+    /// <summary>
+    /// Clears the way for <paramref name="claimantId"/> to take <paramref name="name"/>, as far as
+    /// retired names are concerned; a live repository holding it is the unique index's to report.
+    /// </summary>
+    /// <param name="name">The name being claimed.</param>
+    /// <param name="claimantId">
+    /// The repository taking the name, or <c>null</c> for one being created. A repository may always
+    /// take back a name it retired itself.
+    /// </param>
+    /// <param name="now">When the claim is being made.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <exception cref="ItemExistsException">The name is held by another repository's retirement.</exception>
+    /// <remarks>
+    /// Release is lazy: a retirement nothing holds any more is deleted here, in the same save as the
+    /// claim, rather than by a sweep. So is a retirement the claimant is taking back, whose redirect
+    /// would otherwise point the name at itself.
+    /// </remarks>
+    private async Task ReleaseRetiredNameForClaimAsync(
+        string name,
+        Guid? claimantId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var retired = await dbContext.RetiredRepositoryNames
+            .SingleOrDefaultAsync(r => r.Name == name, cancellationToken);
+        if (retired is null)
+        {
+            return;
+        }
+
+        if (retired.RepositoryId != claimantId && IsHeld(retired, now))
+        {
+            throw NameTaken();
+        }
+
+        dbContext.RetiredRepositoryNames.Remove(retired);
+    }
+
+    /// <summary>
+    /// Writes <see cref="RetiredRepositoryName.LastRequestedAt"/> and the requester if the stored time
+    /// is older than the configured resolution. Best-effort: a failure is logged and never fails the
+    /// request being answered.
+    /// </summary>
+    private async Task RecordRequestAsync(RetiredRepositoryName retired, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (retired.LastRequestedAt is { } lastRequestedAt
+            && now - lastRequestedAt < renameConfig.Value.LastRequestedAtResolution)
+        {
+            return;
+        }
+
+        var actor = await actorAccessor.GetActorAsync(cancellationToken);
+        var entry = dbContext.Entry(retired);
+        try
+        {
+            retired.LastRequestedAt = now;
+            retired.LastRequesterId = actor.User?.Id;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception e) when (e is DbUpdateException or DbException)
+        {
+            logger.LogWarning(e, "Failed to record a request for retired repository name {RetiredName}", retired.Name);
+        }
+        finally
+        {
+            // Whether or not the write landed, nothing later in this unit of work should save it.
+            entry.State = EntityState.Unchanged;
+        }
+    }
 
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -154,6 +252,33 @@ internal class RepositoryService(
             .Where(r => r.Name == name)
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<RetiredNameResolution?> GetRetiredRepositoryNameAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var retired = await dbContext.RetiredRepositoryNames
+            .SingleOrDefaultAsync(r => r.Name == name, cancellationToken);
+        if (retired is null)
+        {
+            return null;
+        }
+
+        // The repository the name points at is looked up like any other, so the old name of a
+        // repository the caller may not see is as absent as its current one. Such a request is not
+        // evidence that a client of the repository is still configured for the name, so it is not
+        // recorded either; an anonymous pacman client is challenged, and the request it repeats
+        // with its credentials is the one recorded.
+        var repository = await GetRepositoryByIdAsync(retired.RepositoryId, cancellationToken);
+        if (repository is null)
+        {
+            return null;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        await RecordRequestAsync(retired, now, cancellationToken);
+        return new RetiredNameResolution(repository, IsRedirecting: now < retired.RedirectUntil);
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(
@@ -195,7 +320,7 @@ internal class RepositoryService(
 
     public async Task<Repository> CreateRepositoryAsync(WriteRepositoryRequest request, CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
 
         switch (accessPolicy.CheckCreate(actor))
@@ -208,6 +333,9 @@ internal class RepositoryService(
                 throw new InsufficientScopeException(
                     ScopeValues.EntityNames.Repositories, ScopeValues.ActionNames.Create);
         }
+
+        // Before repo-add runs, so that a name a retirement holds writes nothing to disk.
+        await ReleaseRetiredNameForClaimAsync(request.Name, claimantId: null, now, cancellationToken);
 
         var owner = actor.User!;
         var repository = new PacmanRepository
@@ -266,10 +394,26 @@ internal class RepositoryService(
             return null;
         }
 
+        var now = timeProvider.GetUtcNow();
+        if (!string.Equals(repository.Name, update.Name, StringComparison.Ordinal))
+        {
+            await ReleaseRetiredNameForClaimAsync(update.Name, repository.Id, now, cancellationToken);
+
+            // The name being vacated is reserved for this repository, in the same save as the rename,
+            // so that no other claim can land between the two.
+            dbContext.RetiredRepositoryNames.Add(new RetiredRepositoryName
+            {
+                Name = repository.Name,
+                RepositoryId = repository.Id,
+                RetiredAt = now,
+                RedirectUntil = now + renameConfig.Value.RedirectWindow
+            });
+        }
+
         repository.Name = update.Name;
         repository.IsPublic = update.IsPublic;
         repository.SupportedArchitectures = update.SupportedArchitectures.Distinct(StringComparer.Ordinal).ToList();
-        repository.UpdatedAt = DateTimeOffset.UtcNow;
+        repository.UpdatedAt = now;
 
         try
         {
