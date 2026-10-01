@@ -37,6 +37,18 @@ public interface IFileSystem
     Stream OpenRead(string path);
 
     /// <summary>
+    /// When the specified file was last written, in UTC.
+    /// </summary>
+    /// <remarks>
+    /// Read from the file system rather than from a stream opened over the file, so that a service
+    /// answering a conditional request can be exercised with nothing but a mock of this interface.
+    /// </remarks>
+    /// <param name="path">The path to the file.</param>
+    /// <returns>The file's last write time, with a zero offset.</returns>
+    /// <exception cref="FileNotFoundException">The file does not exist.</exception>
+    DateTimeOffset GetLastWriteTimeUtc(string path);
+
+    /// <summary>
     /// Creates a file for writing, truncating it if it already exists.
     /// </summary>
     /// <param name="path">The path to the file.</param>

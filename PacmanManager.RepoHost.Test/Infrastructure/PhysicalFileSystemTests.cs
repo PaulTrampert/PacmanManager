@@ -178,4 +178,29 @@ public class PhysicalFileSystemTests
     {
         Assert.Throws<DirectoryNotFoundException>(() => _subject.DeleteDirectory(Path.Combine(_root, "missing")));
     }
+
+    [Test]
+    public void GetLastWriteTimeUtc_ReportsTheFilesLastWriteTimeInUtc()
+    {
+        var path = Path.Combine(_root, "repo.db.tar.gz");
+        File.WriteAllText(path, "contents");
+        var written = new DateTime(2024, 7, 28, 12, 34, 56, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, written);
+
+        var result = _subject.GetLastWriteTimeUtc(path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.UtcDateTime, Is.EqualTo(written));
+            Assert.That(result.Offset, Is.EqualTo(TimeSpan.Zero));
+        });
+    }
+
+    [Test]
+    public void GetLastWriteTimeUtc_ThrowsWhenTheFileDoesNotExist()
+    {
+        // File.GetLastWriteTimeUtc itself answers 1601-01-01 here, which would make a missing file
+        // look like a very old one.
+        Assert.Throws<FileNotFoundException>(() => _subject.GetLastWriteTimeUtc(Path.Combine(_root, "missing")));
+    }
 }

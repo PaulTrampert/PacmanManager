@@ -1,3 +1,4 @@
+using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 
@@ -71,6 +72,32 @@ public interface IRepositoryService
     /// and supports <paramref name="architecture"/>; otherwise, null.
     /// </returns>
     Task<Stream?> GetRepositoryFileByNameAsync(string name, string architecture, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens one of the databases for one of a repository's architectures by its ID, together with
+    /// when it was last written.
+    /// </summary>
+    /// <param name="id">The ID of the repository.</param>
+    /// <param name="architecture">
+    /// The architecture whose database to read, matched exactly against the repository's supported
+    /// architectures.
+    /// </param>
+    /// <param name="kind">Which of the architecture's databases to read: the sync database or the files database.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// The open database if the repository is visible to the current actor, supports
+    /// <paramref name="architecture"/>, and the file is on disk; otherwise, null.
+    /// </returns>
+    /// <remarks>
+    /// The sibling of <see cref="GetRepositoryFileByIdAsync"/> for a caller that has to answer a
+    /// conditional request. Unlike it, a database that is missing from disk is reported as absent
+    /// rather than as an error.
+    /// </remarks>
+    Task<RepositoryFile?> GetRepositoryDatabaseByIdAsync(
+        Guid id,
+        string architecture,
+        RepositoryDatabaseKind kind,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new repository owned by the current actor's user.

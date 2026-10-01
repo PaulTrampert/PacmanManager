@@ -1,4 +1,3 @@
-using System.Text;
 using LibAlpmSharp.Config;
 using Microsoft.Extensions.Options;
 
@@ -26,10 +25,7 @@ public partial class PacmanConfigGenerator(
             LogFile = currentSettings.LogFile,
         };
         
-        var configContent = new StringBuilder(serializer.Serialize(baseConfig));
-        configContent.AppendLine($"Include = {currentSettings.Include}");
-        
-        var result = configContent.ToString();
+        var result = serializer.Serialize(baseConfig);
         LogGeneratedConfigContentNewlineContent(logger, result);
         
         return result;

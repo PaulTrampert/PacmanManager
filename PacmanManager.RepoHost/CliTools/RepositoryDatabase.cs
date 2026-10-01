@@ -67,6 +67,19 @@ public class RepositoryDatabase(string name, string repositoryDirectory, string 
     public string FilesFilePath => $"{DatabaseDirectory}/{FilesFileName}";
 
     /// <summary>
+    /// Absolute path of one of the two databases.
+    /// </summary>
+    /// <param name="kind">Which database.</param>
+    /// <returns><see cref="FilePath"/> or <see cref="FilesFilePath"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a defined <see cref="RepositoryDatabaseKind"/>.</exception>
+    public string FilePathOf(RepositoryDatabaseKind kind) => kind switch
+    {
+        RepositoryDatabaseKind.Sync => FilePath,
+        RepositoryDatabaseKind.Files => FilesFilePath,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown repository database kind.")
+    };
+
+    /// <summary>
     /// Every file <c>repo-add</c> writes for this database, relative to <see cref="DatabaseDirectory"/>: the sync and
     /// files databases, the symlinks to each, and the backup of each.
     /// </summary>

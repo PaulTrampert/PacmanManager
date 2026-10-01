@@ -8,8 +8,8 @@ public class PacmanConfigSettings
     public string CacheDir => Path.Combine(DataDir, "libalpm-cache");
     public string LogFile => Path.Combine(DataDir, "libalpm.log");
     /// <summary>
-    /// The root of the per repository tree, which holds each repository's package files (and, via
-    /// <see cref="Include"/>, any per repository pacman configuration).
+    /// The root of the per repository tree, which holds each repository's package files and, under
+    /// each one's <c>db</c> directory, the databases <c>repo-add</c> writes for it.
     /// </summary>
     public string RepositoriesDir => Path.Combine(DataDir, "repositories");
 
@@ -23,6 +23,4 @@ public class PacmanConfigSettings
     /// and free of a second copy of a file that may run to hundreds of megabytes.
     /// </remarks>
     public string TmpDir => Path.Combine(DataDir, "tmp");
-
-    public string Include => Path.Combine(RepositoriesDir, "*", "*.conf");
 }

@@ -18,6 +18,19 @@ public class PhysicalFileSystem : IFileSystem
     public Stream OpenRead(string path) => File.OpenRead(path);
 
     /// <inheritdoc/>
+    public DateTimeOffset GetLastWriteTimeUtc(string path)
+    {
+        // File.GetLastWriteTimeUtc reports 1601-01-01 for a file that does not exist rather than
+        // throwing, which would turn a missing file into a very old one.
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"'{path}' does not exist.", path);
+        }
+
+        return new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero);
+    }
+
+    /// <inheritdoc/>
     public Stream OpenWrite(string path) => File.Create(path);
 
     /// <inheritdoc/>
