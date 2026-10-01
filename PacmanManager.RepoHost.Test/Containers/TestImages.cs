@@ -28,6 +28,10 @@ namespace PacmanManager.RepoHost.Test.Containers;
 /// The images are not cleaned up with the fixture that happened to build them, since later
 /// fixtures still need them.
 /// </para>
+/// <para>
+/// Each working tree tags its images with <see cref="ImageTag.ForWorkingTree"/> rather than
+/// <c>:latest</c>, so that test runs in two worktrees on one machine never test each other's build.
+/// </para>
 /// </remarks>
 public static class TestImages
 {
@@ -35,13 +39,13 @@ public static class TestImages
     /// The PacmanManager.RepoHost API image.
     /// </summary>
     public static SharedImage RepoHost { get; } =
-        FromDockerfile("PacmanManager.RepoHost/Dockerfile", "pacmanmanager-repohost-test:latest");
+        FromDockerfile("PacmanManager.RepoHost/Dockerfile", "pacmanmanager-repohost-test");
 
     /// <summary>
     /// The PacmanManager.Migrations image, which applies the migrations and exits.
     /// </summary>
     public static SharedImage Migrations { get; } =
-        FromDockerfile("PacmanManager.Migrations/Dockerfile", "pacmanmanager-migrations-test:latest");
+        FromDockerfile("PacmanManager.Migrations/Dockerfile", "pacmanmanager-migrations-test");
 
     private static SharedImage FromDockerfile(string dockerfile, string name) => new(() =>
     {
@@ -50,7 +54,7 @@ public static class TestImages
             .WithContextDirectory(solutionDirectory)
             .WithDockerfileDirectory(solutionDirectory)
             .WithDockerfile(dockerfile)
-            .WithName(name)
+            .WithName($"{name}:{ImageTag.ForWorkingTree(solutionDirectory)}")
             .WithCleanUp(false)
             .WithLogger(new TestOutputLogger(nameof(TestImages)))
             .Build();
