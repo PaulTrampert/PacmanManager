@@ -333,31 +333,31 @@ public class UserManagementServiceTests
     }
 
     [Test]
-    public void UpdateCurrentUserAsync_WithNoCurrentUser_ThrowsNoCurrentUserException()
+    public async Task UpdateCurrentUserAsync_WithNoCurrentUser_ThrowsNoCurrentUserException()
     {
         _actorAccessor.Actor = Actor.Anonymous;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(
+        await Assert.ThrowsAsync<NoCurrentUserException>(
             () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
     }
 
     [Test]
-    public void UpdateCurrentUserAsync_AsSystemWithNoUser_ThrowsNoCurrentUserException()
+    public async Task UpdateCurrentUserAsync_AsSystemWithNoUser_ThrowsNoCurrentUserException()
     {
         GivenUser("Alex");
         _actorAccessor.Actor = Actor.System;
 
-        Assert.ThrowsAsync<NoCurrentUserException>(
+        await Assert.ThrowsAsync<NoCurrentUserException>(
             () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
     }
 
     [Test]
-    public void UpdateCurrentUserAsync_WhenTheCurrentUserIsNotStored_ThrowsNoCurrentUserException()
+    public async Task UpdateCurrentUserAsync_WhenTheCurrentUserIsNotStored_ThrowsNoCurrentUserException()
     {
         var unstored = new User { DisplayName = "Ghost", NormalizedDisplayName = "ghost", Email = "ghost@example.com" };
         _actorAccessor.Actor = Actor.For(unstored, ActorScope.Unrestricted);
 
-        Assert.ThrowsAsync<NoCurrentUserException>(
+        await Assert.ThrowsAsync<NoCurrentUserException>(
             () => _subject.UpdateCurrentUserAsync(new WriteUserRequest { DisplayName = "Alexandra" }));
     }
 
