@@ -26,6 +26,10 @@ It is one of three documents that together let a `pacman` client install from a 
 
 It depends on [Basic Auth](basic-auth.md), and not on [User Management](user-management.md).
 
+A person configuring a machine to install from a hosted repository wants
+[Consuming a hosted repository](consuming-a-repository.md) instead, which says what to put in
+`pacman.conf` without the design behind it.
+
 It closes the first item under [`packages-api.md`'s deferred work](packages-api.md#deferred-work):
 the API can publish packages, but nothing can install them, because a `pacman` client configured
 with `Server = …` needs the `.db.tar.gz` and every package file resolvable under one base URL by the
