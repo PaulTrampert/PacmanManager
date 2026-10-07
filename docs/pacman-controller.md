@@ -57,12 +57,14 @@ Recorded here so the issues stay bounded; each has a follow-up in
   [cannot write in the first place](basic-auth.md#authority-is-a-property-of-the-actor-not-of-the-route).
 * **Rate limiting** and download quotas.
 * **A dispute process for repository names.** Names are first-come, first-served, and nothing
-  arbitrates between two people who want the same one. A name released by
-  [a rename](#renaming-a-repository) is a different matter and is in scope.
+  arbitrates between two people who want the same one.
+* **Reserving a renamed-away name.** [A rename](#renaming-a-repository) releases the old name at
+  once, with no redirect.
 
 **Why:**
 
 * [squatting, and the absence of a dispute process](#squatting-and-the-absence-of-a-dispute-process)
+* [renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name)
 
 ---
 
@@ -403,76 +405,26 @@ either can fail between the two:
 ## Renaming a repository
 
 A repository's name is in the URL, and the URL is in a `pacman.conf` on a machine we do not
-administer. Renames are expected to be rare, so the goal is not to make them cheap. It is to make
-them safe, and to make sure a name is not locked up forever afterwards.
+administer. A rename therefore breaks every client configured for the old name, and this work does
+nothing to soften that.
 
-### What a rename does
+* **The old name is released immediately.** Nothing reserves it, and anybody may claim it at once —
+  including the repository that gave it up, by renaming back.
+* **The old URL behaves like any name nobody holds**: an anonymous request is
+  [challenged](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged), and an
+  authenticated one is a `404`. There is no redirect and no `410`.
+* Because `pacman` says nothing beyond the status code, **an owner renaming a repository has to tell
+  its users**, who must update the section name and `Server` line in their `pacman.conf`.
+* **Removing an architecture** from `SupportedArchitectures` breaks clients on that architecture the
+  same way: an immediate `404` for that architecture, and the UI should say so before the change is
+  made.
 
-1. **The old name is reserved**, immediately and automatically. Nobody else can claim it, and the
-   repository that gave it up can always take it back.
-2. **For 30 days the old URL redirects** to the new one, per file:
-   `/pacman/custom/x86_64/custom.db` → `/pacman/custom2/x86_64/custom2.db`. The target is resolved
-   from the retirement's `RepositoryId` at request time, to **whatever that repository is called
-   now** — so a repository renamed twice inside the window redirects both old names straight at the
-   current one, with no chain to follow and no second hop.
-3. **After that the old URL is `410 Gone`**, and the reservation continues on a sliding window: the
-   name is held until 30 days after the *most recent request* for it. A name nobody has asked for in
-   30 days is released and can be claimed by anyone.
-
-The redirect is **`307 Temporary Redirect`, with `Cache-Control: no-store`**. The expiry is a `410`
-rather than a `404`. Because `pacman` says nothing about either, **the warning has to travel out of
-band**: the notification is the web UI, and eventually an email.
+Reserving a renamed-away name — a redirect to the new name, a `410` after it, and a release only once
+nothing is asking for the old name — was designed and is [deferred](#deferred-work).
 
 **Why:**
 
-* [a rename reserves the old name on a sliding window](#why-a-rename-reserves-the-old-name-on-a-sliding-window)
-* [a temporary redirect rather than a permanent one](#why-a-temporary-redirect-rather-than-a-permanent-one)
-* [the expiry is `410` rather than `404`](#why-the-expiry-is-410-rather-than-404)
-
-### Recording who is still asking
-
-Each request for a retired name updates `LastRequestedAt`, which is what the sliding hold is
-computed from, and records the requesting user when the request was authenticated.
-
-It is a **last**-requester record, not an audit trail: one row per retired name, not one per request.
-Emailing *everyone* still configured for a name needs the set rather than the latest member, which is
-[deferred](#deferred-work) along with the messaging that would send it.
-`LastRequestedAt` is written coarsely, at a configurable resolution, for the reason
-[`basic-auth.md`](basic-auth.md#recording-use) gives about `LastUsedAt`. An hour's resolution is
-invisible against a 30-day window.
-
-### `RetiredRepositoryName`
-
-| Column | Type | Notes |
-| :--- | :--- | :--- |
-| `Name` | `string` | Primary key. The retired name, matched exactly as stored. |
-| `RepositoryId` | `Guid` | The repository that gave it up. FK, cascade delete — deleting a repository releases the names it once had, since there is nothing left to redirect to. |
-| `Repository` | nav | |
-| `RetiredAt` | `DateTimeOffset` | |
-| `RedirectUntil` | `DateTimeOffset` | `RetiredAt` + 30 days. After this the name answers `410`. |
-| `LastRequestedAt` | `DateTimeOffset?` | Coarsely maintained; see above. |
-| `LastRequesterId` | `Guid?` | FK to `User`, null for anonymous requests. |
-
-A name is **held** while `now < RedirectUntil` or `now < LastRequestedAt + 30 days`, and released
-otherwise. Release is evaluated **lazily**, when somebody tries to claim the name: an expired row is
-deleted and the claim succeeds. That avoids needing a scheduler for correctness, and leaves a
-recurring sweep as an optimisation rather than a requirement — it is [deferred](#deferred-work).
-
-Both windows are configuration, not literals, with 30 days as the default.
-
-### The rules this adds
-
-* Creating or renaming into a **held** name is the same `409` as colliding with a live repository,
-  with the same body. It must not say whether the name is taken by a repository or by a retirement,
-  because that would leak the existence of a repository the caller cannot see.
-* **The repository that retired a name may always take it back**, which makes an accidental rename
-  undoable. Reclaiming deletes that retirement — the redirect it was serving would otherwise point
-  the name at itself — and retires the name being vacated in its place.
-* Retired names and live names are one namespace as far as a claim is concerned. There is no
-  arrangement in which a `409` depends on which of the two kinds holds the name.
-* **Removing an architecture** from `SupportedArchitectures` breaks clients on that architecture the
-  same way a rename does, and this machinery does not cover it — there is no name to reserve. It is
-  an immediate `404` for that architecture, and the UI should say so before the change is made.
+* [renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name)
 
 ---
 
@@ -795,14 +747,13 @@ so a typo in the repository name of an anonymous `Server` line is a `401`, not a
 working credentials means the token's owner cannot see a repository of that name.
 
 It also has to say [what a rename does to a configured client](#renaming-a-repository): that the old
-URL keeps working for 30 days, silently, and then starts failing the whole `pacman -Syu` with a
-`410`; and that an owner renaming a repository should expect to tell its users, because `pacman` will
-not.
+URL stops working at once, failing the whole `pacman -Syu`, and the name is free for anybody to
+claim; and that an owner renaming a repository has to tell its users, because `pacman` will not.
 
 This is the user-facing counterpart to three design documents, and it is the only one of the four a
 person configuring a machine will read.
 
-*Depends on:* 4, 7.
+*Depends on:* 4.
 
 **Why:**
 
@@ -841,34 +792,6 @@ every other test across them asserts a part, and this one asserts that the parts
 
 * [an anonymous request for an unseen repository is challenged](#why-an-anonymous-request-for-an-unseen-repository-is-challenged)
 
-### 7. Renaming a repository — `MINOR`
-
-[The retirement machinery](#renaming-a-repository): the `RetiredRepositoryName` entity and its
-migration (`AddTable_RetiredRepositoryNames`), a row written on every rename, the held-name check
-folded into the same collision path as a live name, the `307` while the redirect is live and the
-`410` after it, the coarse `LastRequestedAt`/`LastRequesterId` write, and lazy release when a claim
-arrives for a name nothing has asked for in 30 days. Both windows are configuration with a 30-day
-default.
-
-*Acceptance:* service unit tests: renaming writes the retirement; claiming a held name is a `409`
-whether it is held by a live repository or by a retirement, with the same body either way; the
-retiring repository can take its own name back; a name past both windows is claimable and the row is
-gone afterwards; a request inside the `410` period pushes the release date out by 30 days.
-
-E2E: a rename, then a fetch of the old database URL returning `307` to the new one and the redirect
-being followed to the right bytes; the same URL returning `410` once the redirect window has passed
-(with the window configured short for the test); and `Cache-Control: no-store` on the redirect. The
-`307` case is worth asserting with a real client — `pacman -Sy` through the redirect must still write
-the local database under the *old* section name, which is the behaviour that makes this safe.
-
-*Depends on:* 1b, 4.
-
-**Why:**
-
-* [a rename reserves the old name on a sliding window](#why-a-rename-reserves-the-old-name-on-a-sliding-window)
-* [a temporary redirect rather than a permanent one](#why-a-temporary-redirect-rather-than-a-permanent-one)
-* [the expiry is `410` rather than `404`](#why-the-expiry-is-410-rather-than-404)
-
 ---
 
 ## Deferred work
@@ -889,7 +812,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   than relying on a `404` and the client's next attempt.
 * **A recurring reconciliation and cleanup job.** Keeping a database and a filesystem in step is
   hard, and this design currently relies on each write path cleaning up after itself. A periodic
-  sweep would reap retired names nothing has asked for, delete repository directories with no row, unlink package files nothing references,
+  sweep would delete repository directories with no row, unlink package files nothing references,
   and rebuild a `.db.tar.gz` that disagrees with the packages table — the last of which is
   [already filed under `packages-api.md`](packages-api.md#deferred-work) and is the same job.
   Because of [the ordering rule](#what-file-names-are-served), this reclaims space rather than
@@ -898,10 +821,18 @@ Worth filing as issues, but explicitly out of scope for the work above.
   work is to find out what beyond the allowed-values list actually needs to change — whether
   `repo-add` behaves, what a multi-architecture repository costs in storage, and how a client on one
   architecture is kept from seeing another's packages.
-* **An audit of who is still requesting a retired name**, rather than
-  [the last requester alone](#recording-who-is-still-asking), plus the asynchronous messaging that
-  would email them. Together they turn a rename from something a user finds out about when their
-  updates break into something they are told about while the redirect still works.
+* **Reserving a renamed-away name.** On a rename the old name would be held rather than released:
+  for 30 days its URLs `307` (with `Cache-Control: no-store`) to the same file under whatever the
+  repository is called now, then answer `410`, and the name is released only once nothing has
+  requested it for 30 days, evaluated lazily when somebody claims it. Only the repository that gave
+  it up could take it back. Recording who is still requesting the old name, and the messaging that
+  would email them, would follow. It is worth building once the deployment is shared with people the
+  owner does not know; until then
+  [renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name).
+  [PR #173](https://github.com/PaulTrampert/PacmanManager/pull/173) is an unmerged implementation of
+  an earlier version of this design, and the three Appendix entries starting at
+  [a rename reserves the old name on a sliding window](#why-a-rename-reserves-the-old-name-on-a-sliding-window)
+  record the reasoning.
 * **A directory index** at `/pacman/{name}/{arch}/`. pacman never needs one, but it is the
   first thing a human opens the URL expecting to see.
 * **Serving package files through a reverse proxy.** Streaming hundreds of megabytes through Kestrel
@@ -1010,11 +941,10 @@ duplicates cannot avoid saying that a duplicate is what you have. Accepting it i
 First-come, first-served. One user taking `core` or `aur` denies it to everyone else for as long as
 they keep the repository, and nothing here arbitrates that.
 
-What the design does avoid is a name being locked up by a repository that no longer exists under it:
-[a renamed-away name is released](#renaming-a-repository) once nothing is asking for it any more.
-That is the same concern one step on — a valuable name should not be held forever by an accident of
-history — and it is the part worth solving, because it is the part that happens without anybody
-choosing it.
+A name is never locked up by a repository that no longer exists under it:
+[a renamed-away name is released](#renaming-a-repository) immediately. The deferred reservation
+design would hold it only until nothing is asking for it any more, for the same reason — a valuable
+name should not be held forever by an accident of history.
 
 Deliberate squatting is acceptable for what this application is: a self-hosted repository host whose
 users are colleagues rather than strangers. It would not be acceptable for a public multi-tenant
@@ -1167,7 +1097,34 @@ preserves correctness — it can run monthly, or never, without a client noticin
 Depending on `repo-add`'s own rotation symlinks would mean following a symlink out of a directory the
 application writes to, for no benefit — the bytes are identical to the `.tar.gz` they point at.
 
+### Why renaming does not reserve the old name
+
+This plan originally reserved a renamed-away name: a `307` to the new name for 30 days, a `410`
+after that, and release only once nothing had asked for the old name in 30 days. That design is
+sound, and the three entries after this one argue it, but it was deferred during implementation by
+a project owner, for its cost against what it protects.
+
+What it protects against is a stranger claiming the old name while somebody's `pacman.conf` still
+points at it, so that their client silently starts syncing from the stranger's repository. That needs
+users who do not know one another. The deployment this is built for is personal, so the owner who
+renames a repository is also the person who would claim the name, and who would update the clients.
+
+The cost was a new table and migration, a second namespace that every create and rename has to
+check, a write on the `/pacman` read path to record each request, two new outcomes in resolution
+(redirect and gone), configuration for both windows, and an end-to-end test with its own stack. Its
+implementation, [PR #173](https://github.com/PaulTrampert/PacmanManager/pull/173), was too large to
+review as one change, and splitting it reopened schema questions that would have taken longer to
+settle than the feature is worth here.
+
+Without it a rename breaks configured clients immediately, which is a worse experience but an
+honest one: the client fails rather than quietly following somebody else's repository, and there is
+nobody else to follow. It moves to [deferred work](#deferred-work) for when the deployment is shared
+more widely.
+
 ### Why a rename reserves the old name on a sliding window
+
+*Part of the [deferred](#deferred-work) reservation design; nothing in the plan builds it. See
+[renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name).*
 
 Renaming breaks clients, and under a global namespace it can break them *silently*: the moment
 `custom` is free, somebody else may take it, and Alice's un-updated clients start syncing from Bob's
@@ -1182,6 +1139,9 @@ forever, which is unacceptable if this is ever run for more than one household. 
 client is still configured for it.
 
 ### Why a temporary redirect rather than a permanent one
+
+*Part of the [deferred](#deferred-work) reservation design; nothing in the plan builds it. See
+[renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name).*
 
 Not `301`: a permanent redirect is
 [cacheable by default](https://www.rfc-editor.org/rfc/rfc9110#name-301-moved-permanently) with no
@@ -1203,6 +1163,9 @@ Three things about how `pacman` treats it, verified against pacman 7.1.0 rather 
   transaction and the 30-day expiry is exact.
 
 ### Why the expiry is `410` rather than `404`
+
+*Part of the [deferred](#deferred-work) reservation design; nothing in the plan builds it. See
+[renaming does not reserve the old name](#why-renaming-does-not-reserve-the-old-name).*
 
 **The status code reaches the user, the reason phrase does not.** A failed database fetch prints
 `error: failed retrieving file 'custom.db' from … : The requested URL returned error: 410`. The
