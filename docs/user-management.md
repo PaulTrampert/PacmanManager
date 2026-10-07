@@ -433,9 +433,11 @@ removes the whole apparatus.
 It does not, on its own, remove the class of failure where a user's client quietly starts tracking a
 stranger's repository: a *repository* rename releases a name into a global namespace with the same
 consequence, one level up. What it does is reduce two occurrences of that hazard to one, and the
-remaining one is
-[answered where it now lives](pacman-controller.md#renaming-a-repository) — a reserved name, a
-temporary redirect, and a release only once nothing is asking for it. A user rename, by contrast, now
+remaining one
+[lives with repositories](pacman-controller.md#renaming-a-repository), where reserving a
+renamed-away name is
+[deferred](pacman-controller.md#why-renaming-does-not-reserve-the-old-name) for as long as the
+deployment is personal. A user rename, by contrast, now
 has no effect on any URL at all, which is the stronger outcome and the one worth having.
 
 `User` therefore keeps exactly what it has: an `Id` that identifies it, a `DisplayName` that is a
