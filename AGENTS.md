@@ -356,7 +356,8 @@ ones.
   by the local composite action `.github/actions/setup-toolchain`, which mirrors
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
-  and its known gaps. A new design document starts from `docs/design-doc-template.md`, which carries
+  and its known gaps. `docs/web-ui-architecture.md` fixes the web front end's architecture — read it
+  before working on anything under the Web UI milestones. A new design document starts from `docs/design-doc-template.md`, which carries
   both the skeleton and the rules behind it: the body states *what* will be built, the argument for
   each decision lives in an Appendix that records what was rejected, each section ends with a
   bulleted **Why** footer linking those entries, and every `###` under the implementation plan is one
