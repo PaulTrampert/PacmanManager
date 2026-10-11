@@ -1,0 +1,654 @@
+# Web UI: Walking Skeleton
+
+Status: **design**. This document is the source the implementation issues for the **Web UI: Walking
+Skeleton** milestone are cut from.
+
+**How to read it.** The plan states what will be built. The argument for each decision — including
+what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
+**Why** footer linking the entries that bear on it. Once this document is on `main` the whole plan
+is settled, whether or not a given detail has a Why entry: implement it as written and raise an
+issue rather than re-deciding it.
+
+Deviating from the plan during implementation is allowed, but never quietly. A deviation **must**
+have sign-off from a project owner, and **must** carry all three of:
+
+* the plan updated to say what is actually being built;
+* an Appendix entry recording why it changed;
+* every dependent issue updated to match.
+
+It is the first of the Web UI milestones, and every later one builds on it:
+
+1. **Web UI: Architecture** — the front-end architecture decisions. No document exists for it yet,
+   so the decisions the skeleton cannot be built without are stated here, in
+   [Architecture the skeleton commits to](#architecture-the-skeleton-commits-to).
+2. **Web UI: Walking Skeleton** (this document) — the app deployed end to end, with nothing in it
+   but signing in and out.
+3. **Web UI: Repositories**, **Packages**, **Account and Access Tokens** and **Polish** — the
+   features, each of which needs the skeleton's app, image, API client and test harness to exist.
+
+Three issues already sit in this milestone: [#183](https://github.com/PaulTrampert/PacmanManager/issues/183),
+[#184](https://github.com/PaulTrampert/PacmanManager/issues/184) and
+[#185](https://github.com/PaulTrampert/PacmanManager/issues/185). They are follow-ups from
+`PTrampert.SpaHost` v0.8.60 and appear in the [Implementation plan](#implementation-plan) as they
+are, with their dependencies on the new issues added.
+
+**Why:**
+
+* [this document states architecture decisions](#why-this-document-states-architecture-decisions)
+
+## Open questions
+
+A first pass. This section lists the decisions it made that most need a project owner's eye, and it
+is removed before the document lands on `main`.
+
+* **Should the architecture decisions move to their own document?** The Architecture milestone's
+  description names a design document that does not exist. This document states the parts the
+  skeleton needs; the alternative is to write the architecture document first and cut this one
+  down to a reference to it.
+* **Is an empty display name the right signal for first-login registration?** See
+  [First-login registration](#first-login-registration). The alternative needs a column on `User`.
+* **Should the E2E tests drive Playwright from NUnit?** See [Tests](#tests). The alternative is the
+  Node Playwright runner against a compose stack.
+* **Is port 8081 free for the web host?** See [The web host](#the-web-host).
+
+---
+
+## Goals
+
+* `docker compose up -d --build` serves a web app on `http://localhost:8081` that a visitor can use
+  without signing in.
+* A user can sign in with Keycloak and sign out again, and the app shows who is signed in.
+* A user signing in for the first time without a display name chooses one before using the app.
+* The app calls RepoHost only through a TypeScript client generated from RepoHost's OpenAPI document,
+  and that document cannot drift from the API unnoticed.
+* Errors from the API reach the user as a consistent, readable message, and a session that can no
+  longer be refreshed sends the user to sign in.
+* Unit tests, Storybook stories and Playwright E2E tests for the app run in CI on every pull request.
+
+## Non-goals for this work
+
+Recorded here so the issues stay bounded; each has a follow-up in
+[Deferred work](#deferred-work).
+
+* **Any feature page.** Repositories, packages, account settings and access tokens are their own
+  milestones. The skeleton's home page is a placeholder.
+* **Accessibility, responsive layout and dark mode** beyond what the component library gives for
+  free. That is the **Polish** milestone.
+* **A production deployment.** The web host runs in Development mode against an `http` Keycloak, as
+  the rest of `compose.yaml` does. HTTPS, persistent data-protection keys and a health endpoint are
+  deferred.
+* **Writing anonymously.** Anonymous visitors only read. The app never offers an unsafe request to a
+  visitor who is not signed in.
+
+---
+
+## Architecture the skeleton commits to
+
+| Concern | Choice |
+| :--- | :--- |
+| Language and framework | React with TypeScript, `strict` on. |
+| Build | Vite. |
+| Routing | TanStack Router, file-based routes through its Vite plugin. |
+| Server state | TanStack Query. Nothing from the API is held in any other store. |
+| Hosting | `PTrampert.SpaHost`, image `paultrampert/spahost:0.8.60` or later. |
+| API client | Types generated by `openapi-typescript` from the committed OpenAPI document, called through `openapi-fetch`. |
+| Unit tests | Vitest with Testing Library. |
+| Component tests | Storybook, with API calls mocked by MSW. |
+| E2E tests | Playwright, driven from NUnit (`Microsoft.Playwright`). |
+| Package manager | npm, with a committed `package-lock.json`. |
+| Node | The current Active LTS, pinned in `.nvmrc` and in the Dockerfile's build stage. |
+
+**Why:**
+
+* [this document states architecture decisions](#why-this-document-states-architecture-decisions)
+* [the client is `openapi-typescript` and `openapi-fetch`](#why-the-client-is-openapi-typescript-and-openapi-fetch)
+* [E2E tests drive Playwright from NUnit](#why-e2e-tests-drive-playwright-from-nunit)
+
+## Where the app lives
+
+| Path | Contents |
+| :--- | :--- |
+| `PacmanManager.Web/` | The app: `package.json`, `vite.config.ts`, `src/`, `.storybook/`. |
+| `PacmanManager.Web/openapi/v1.json` | RepoHost's v1 OpenAPI document. **Committed.** |
+| `PacmanManager.Web/src/api/schema.d.ts` | Generated from `openapi/v1.json` by `npm run generate`. **Not committed**; ignored by git. |
+| `PacmanManager.Web/Dockerfile` | The web image. |
+| `PacmanManager.Web.Test/` | The NUnit project holding the web E2E tests. In `PacmanManager.sln`. |
+
+* `PacmanManager.Web` is **not** in `PacmanManager.sln`. `dotnet build` does not build it.
+* `npm run build`, `npm test`, `npm run storybook` and `npm run lint` each run `generate` first, so
+  a fresh clone needs only `npm ci`.
+* The root `.dockerignore` already excludes `**/node_modules`; it also gains `**/dist` and
+  `**/storybook-static`.
+
+**Why:**
+
+* [the app sits outside the solution](#why-the-app-sits-outside-the-solution)
+
+## The web host
+
+The image is `PacmanManager.Web/Dockerfile`: a `node` build stage that runs `npm ci` and
+`npm run build`, and a final stage `FROM paultrampert/spahost:0.8.60` that copies `dist/` to
+`/app/wwwroot/`. It is built with the **solution root** as context and Dockerfile directory, like the
+other two images, and copies only `PacmanManager.Web/`.
+
+A new `pacmanmanager.web` service in `compose.yaml`, on host port **8081** → container port **80**:
+
+| Setting | Value |
+| :--- | :--- |
+| `ASPNETCORE_ENVIRONMENT` | `Development`. **Required**: outside Development, SpaHost refuses an `http` authority and every request fails with `500`. |
+| `RedisConfig__UseForDataProtection` | `false`. **Required**: SpaHost's built-in Development settings turn it on, and startup then fails without Redis. |
+| `AuthConfig__OidcConfig__Authority` | `http://auth:8080/realms/localdev` |
+| `AuthConfig__OidcConfig__ClientId` / `__ClientSecret` | `pacman-manager-web` / its realm secret. |
+| `AuthConfig__OidcConfig__Scopes__0..3` | `openid`, `profile`, `email`, `offline_access`. |
+| `ApiProxy__repohost__BaseUrl` | `http://pacmanmanager.repohost:8080/api`, so the app calls `/api/repohost/v1/...`. |
+| `ApiProxy__repohost__AuthType` | `PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost` |
+
+* `AuthConfig__RequireForStaticFiles` is **left unset**. Setting it locks anonymous visitors out of
+  the proxy as well as the static files.
+* The `pacman-manager-web` client in `keycloak/localdev.json` changes `rootUrl` and `baseUrl` to
+  `http://localhost:8081`, and adds `http://localhost:5173/*` to its redirect URIs for the Vite dev
+  server. It stays confidential, with the standard **and** implicit flows enabled: SpaHost uses the
+  hybrid `code id_token` flow, and Keycloak refuses it without both.
+* The Vite dev server proxies `/api`, `/login`, `/logout`, `/userinfo`, `/antiforgery`,
+  `/signin-oidc` and `/signout-callback-oidc` to `http://localhost:8081`, without changing the
+  `Host` header, so `npm run dev` works against the compose stack.
+
+**Why:**
+
+* [the web host has its own port](#why-the-web-host-has-its-own-port)
+* [the web host runs in Development](#why-the-web-host-runs-in-development)
+
+## Sessions
+
+SpaHost owns the session. The app never sees a token; it learns who is signed in from SpaHost and
+from RepoHost.
+
+| Need | How |
+| :--- | :--- |
+| Is anyone signed in? | `GET /userinfo`. `200` is signed in; `401` is anonymous, and is **not** an error. |
+| Who? | Only when `/userinfo` says signed in: `GET /api/repohost/v1/users/me`, giving `CurrentUser`. |
+| Sign in | A full-page navigation to `/login?redirectUri=<current path and query>`. **Never** a `fetch`. |
+| Sign out | A form `POST` to `/logout` carrying an `antiforgeryToken` field, fetched from `/antiforgery` immediately before submitting. |
+
+* The session is one TanStack Query query, `['session']`, resolving to `{ kind: 'anonymous' }` or
+  `{ kind: 'signedIn', user: CurrentUser }`. Every component that needs to know reads it.
+* The app shell's header shows a **Sign in** link to an anonymous visitor, and the user's display
+  name and a **Sign out** button to a signed-in one.
+* Every page renders for an anonymous visitor. A page that has nothing to show anonymously says so
+  and offers **Sign in**; it does not redirect.
+* `GET /api/repohost/v1/users/me` is also what provisions a first-time user, through RepoHost's
+  `ClaimsTransformer`. No other call is needed to register.
+
+**Why:**
+
+* [the session comes from `/userinfo`](#why-the-session-comes-from-userinfo)
+
+## First-login registration
+
+* A signed-in user whose `CurrentUser.displayName` is the empty string has not registered. RepoHost
+  provisions a user with an empty display name when Keycloak supplies no `name` claim.
+* While the session is such a user, every route renders the **registration page** instead of its
+  own content. It asks for a display name and submits `POST /api/repohost/v1/users/me` with a
+  `WriteUserRequest`.
+* Validation in the form matches RepoHost: required, at most
+  `UserValidationConstants.DisplayNameMaxLength` (255) characters. A `400` from RepoHost is shown
+  against the field it names.
+* On success the `['session']` query is updated with the returned `CurrentUser` and the user lands
+  where they were going.
+* A user who has a display name never sees the page, even on their first login.
+* `keycloak/localdev.json` gains a third user, with no first or last name, for the E2E test.
+
+**Why:**
+
+* [registration keys off an empty display name](#why-registration-keys-off-an-empty-display-name)
+
+## The API client
+
+### Producing the OpenAPI document
+
+* `PacmanManager.Web/openapi/v1.json` is produced by `Swashbuckle.AspNetCore.Cli`, added to
+  `.config/dotnet-tools.json`, from a Release build of RepoHost with `ASPNETCORE_ENVIRONMENT=Development`:
+  `dotnet swagger tofile --output PacmanManager.Web/openapi/v1.json <RepoHost.dll> v1`.
+* `scripts/update-openapi.sh` runs that command, so regenerating is one step.
+* CI's `test` job runs the script after its build and fails if `git diff --exit-code` reports a
+  change. A pull request that changes the API therefore changes the committed document too.
+
+### Calling the API
+
+One module, `src/api/client.ts`, exports an `openapi-fetch` client with base URL `/api/repohost` and
+these middlewares, in this order:
+
+| Request | Behaviour |
+| :--- | :--- |
+| Any method but `GET`, `HEAD`, `OPTIONS` | `GET /antiforgery` first, then send the `XSRF-TOKEN` cookie's value as `X-XSRF-TOKEN`. |
+| Any response `401` | `window.location.assign('/login?redirectUri=' + encodeURIComponent(<current path and query>))`, and the call rejects. (This is [#183](https://github.com/PaulTrampert/PacmanManager/issues/183).) |
+| Any other non-2xx | The call rejects with an `ApiError` (below). |
+
+* `ApiError` carries `status`, and `problem` when the body is an RFC 9457 problem document. SpaHost's
+  own failures — an unreachable upstream (`500`), an oversized body (`413`) — have **empty bodies**,
+  so `problem` is optional.
+* Nothing outside `src/api/` calls `fetch` for `/api/...`.
+* `/userinfo`, `/antiforgery` and `/logout` are SpaHost's routes, not RepoHost's, and are called from
+  `src/api/session.ts`, outside the generated client. A `401` from `/userinfo` is the anonymous
+  session, never a redirect.
+
+**Why:**
+
+* [the OpenAPI document is committed](#why-the-openapi-document-is-committed)
+* [the client is `openapi-typescript` and `openapi-fetch`](#why-the-client-is-openapi-typescript-and-openapi-fetch)
+* [an antiforgery token is fetched before every write](#why-an-antiforgery-token-is-fetched-before-every-write)
+
+## Error handling
+
+| Failure | What the user sees |
+| :--- | :--- |
+| `401` from `/api/...` | Sent to sign in, as [above](#calling-the-api). |
+| `403`, `404` on a page's own resource | The not-found view. RepoHost reports a resource the caller may not see as `404`, and the UI does not distinguish the two. |
+| An unknown route | The not-found view, from TanStack Router's `notFoundComponent`. |
+| `400` from a form's mutation | The problem's validation errors against their fields, and its `title` above the form. |
+| `413` | "The file is too large." |
+| `5xx`, or a network failure | The error view, with the problem's `title` when there is one and a **Retry** button. |
+
+* `ErrorAlert` renders an `ApiError`, and is the only component that does.
+* The root route's `errorComponent` renders the error view for anything a loader or component throws.
+* TanStack Query's defaults: queries **do not retry** a `4xx`, and retry a `5xx` or network failure
+  at most twice. Mutations never retry.
+
+## Tests
+
+| Kind | Where | Runs in |
+| :--- | :--- | :--- |
+| Unit | `PacmanManager.Web/src/**/*.test.ts(x)`, Vitest and Testing Library. | `npm test` |
+| Component | A `*.stories.tsx` beside every component, mocking the API with MSW. Every story is also a test. | `npm run test-storybook` |
+| E2E | `PacmanManager.Web.Test`, NUnit and `Microsoft.Playwright`, against containers. | `dotnet test` |
+
+The web E2E fixture:
+
+* starts Postgres, the migrations, Keycloak, RepoHost and the web image on one Docker network, and
+  drives Chromium on the test host against the web host's mapped port;
+* builds the web image through `TestImages`, from the solution root, tagged per working tree, like
+  the other two;
+* binds Keycloak to a host port chosen **before** it starts and sets `KC_HOSTNAME` to
+  `http://localhost:<that port>`. The browser follows Keycloak's front-channel URLs, so they must
+  resolve from the test host;
+* registers `http://localhost:<web host port>/*` as a redirect and post-logout redirect URI on
+  `pacman-manager-web` through Keycloak's admin API, since the port is not known in advance;
+* signs in through the real Keycloak login form, never by injecting a cookie.
+
+The container helpers (`DatabaseContainer`, `KeycloakContainer`, `TestImages` and the rest of
+`PacmanManager.RepoHost.Test/Containers`) move to `PacmanManager.TestUtils`, so both test projects
+share one copy.
+
+**Why:**
+
+* [E2E tests drive Playwright from NUnit](#why-e2e-tests-drive-playwright-from-nunit)
+* [Keycloak's hostname follows its port in the web fixture](#why-keycloaks-hostname-follows-its-port-in-the-web-fixture)
+
+## Continuous integration
+
+* A new `web` job in `ci.yml`, on the pinned Node version: `npm ci`, `npm run lint`,
+  `npm run typecheck`, `npm test`, `npm run build-storybook` and `npm run test-storybook`.
+* The `test` job additionally runs the OpenAPI drift check and, through `dotnet test`, the web E2E
+  tests. `.github/actions/setup-toolchain` installs Node and Playwright's Chromium with its system
+  dependencies, and `.claude/hooks/session-start.sh` installs the same, as `AGENTS.md` requires.
+* The `docker` job's matrix gains `web`, building `PacmanManager.Web/Dockerfile`.
+* `docs/cloud-environment.md` lists the hosts the new steps need allowed: the npm registry and
+  Playwright's browser download host.
+* `.github/dependabot.yml` gains the `npm` ecosystem for `/PacmanManager.Web`, grouped like the
+  others.
+
+---
+
+## Implementation plan
+
+One issue per heading. Dependencies are noted; anything without a dependency can start immediately.
+Issues 1 and 2 can start at once; everything else is reached from them.
+
+### 1. Scaffold `PacmanManager.Web` — `MINOR`
+
+The Vite, React and TypeScript app, as [Where the app lives](#where-the-app-lives) and
+[Architecture the skeleton commits to](#architecture-the-skeleton-commits-to) lay it out: TanStack
+Router with a root route rendering an app shell (header, placeholder home page, not-found view),
+TanStack Query's provider, ESLint, Vitest, `.nvmrc`, the `.dockerignore` additions, and the `web` CI
+job running lint, typecheck, unit tests and the build. No API calls.
+
+*Acceptance:* a unit test that the root route renders the header and the home page, and one that an
+unknown path renders the not-found view. The `web` job runs on the PR and passes.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [the app sits outside the solution](#why-the-app-sits-outside-the-solution)
+
+### 2. Committed OpenAPI document and drift check — `PATCH`
+
+`Swashbuckle.AspNetCore.Cli` as a local tool, `scripts/update-openapi.sh`,
+`PacmanManager.Web/openapi/v1.json`, and the drift check in the `test` job, as
+[Producing the OpenAPI document](#producing-the-openapi-document) specifies.
+
+*Constraints:* the CLI must run with `ASPNETCORE_ENVIRONMENT=Development`; the base
+`appsettings.json` has no `Swagger` section, and `ConfigureSwaggerGenOptions` needs its
+`OpenIdConnectUrl`. The CLI stops the host at `Build()`, so nothing after it in `Program.cs` runs.
+
+*Acceptance:* CI fails on a branch that changes a controller's route without regenerating the
+document, and passes once it is regenerated. Show both runs in the PR.
+
+*Depends on:* nothing. Creates `PacmanManager.Web/openapi/` only, so it does not conflict with 1.
+
+**Why:**
+
+* [the OpenAPI document is committed](#why-the-openapi-document-is-committed)
+
+### 3. Web image and compose service — `MINOR`
+
+`PacmanManager.Web/Dockerfile`, the `pacmanmanager.web` compose service, the `pacman-manager-web`
+client changes in `keycloak/localdev.json`, the Vite dev-server proxy, and `web` in the `docker`
+job's matrix, as [The web host](#the-web-host) specifies.
+
+*Constraints:* `RedisConfig__UseForDataProtection=false` and `ASPNETCORE_ENVIRONMENT=Development` are
+both required, and each failure mode is silent until the first request. SpaHost has no health
+endpoint; anything waiting on it should wait for `200` from `/`.
+
+*Acceptance:* the `docker` job builds the image. `LocalDevRealmTests` gains assertions for the new
+`rootUrl` and redirect URIs. Manually, `docker compose up -d --build` serves the app on
+`http://localhost:8081`, and a deep link such as `/some/route` returns the app rather than a `404`;
+note it in the PR. The E2E proof arrives in 5.
+
+*Depends on:* 1.
+
+**Why:**
+
+* [the web host has its own port](#why-the-web-host-has-its-own-port)
+* [the web host runs in Development](#why-the-web-host-runs-in-development)
+
+### 4. Storybook — `PATCH`
+
+Storybook for the app, MSW wired into it, a story for the app shell, and `build-storybook` and
+`test-storybook` in the `web` job.
+
+*Acceptance:* the app shell's story renders in `test-storybook`, and a deliberately broken story
+fails the job (shown in the PR, then reverted).
+
+*Depends on:* 1.
+
+### 5. Web E2E harness — `MINOR`
+
+`PacmanManager.Web.Test`, added to `PacmanManager.sln`, with the web fixture described under
+[Tests](#tests); the container helpers moved to `PacmanManager.TestUtils`; Node and Playwright's
+Chromium in `setup-toolchain` and `session-start.sh`; the allowlist in `docs/cloud-environment.md`.
+
+*Constraints:* the move must leave `PacmanManager.RepoHost.Test` passing unchanged, with its
+fixtures' `KC_HOSTNAME` still `http://localhost:8080`. Only the web fixture binds Keycloak to a
+chosen port. Fixtures in two worktrees on one machine must not collide, so the chosen port comes from
+the OS, not a constant.
+
+*Acceptance:* one E2E test: an anonymous visitor loads `/` and sees **Sign in**. It runs in the `test`
+job.
+
+*Depends on:* 3.
+
+**Why:**
+
+* [E2E tests drive Playwright from NUnit](#why-e2e-tests-drive-playwright-from-nunit)
+* [Keycloak's hostname follows its port in the web fixture](#why-keycloaks-hostname-follows-its-port-in-the-web-fixture)
+
+### 6. Generated API client — `MINOR`
+
+`openapi-typescript` generation from `openapi/v1.json`, `src/api/client.ts` with the antiforgery
+middleware and `ApiError`, and the TanStack Query defaults from [Error handling](#error-handling). The
+`401` middleware is **not** part of this issue; it is [#183](#10-send-the-user-to-sign-in-when-their-session-can-no-longer-be-refreshed-183--minor).
+
+*Acceptance:* unit tests, against a mocked `fetch`, that a `POST` fetches `/antiforgery` first and
+sends the cookie's value as `X-XSRF-TOKEN`; that a `GET` does neither; that a problem body becomes
+`ApiError.problem`; and that an empty-bodied `500` becomes an `ApiError` with no `problem`.
+
+*Depends on:* 1 and 2.
+
+**Why:**
+
+* [the client is `openapi-typescript` and `openapi-fetch`](#why-the-client-is-openapi-typescript-and-openapi-fetch)
+* [an antiforgery token is fetched before every write](#why-an-antiforgery-token-is-fetched-before-every-write)
+
+### 7. Sign-in, sign-out and the session — `MINOR`
+
+`src/api/session.ts`, the `['session']` query, and the header's **Sign in** link and **Sign out**
+button, as [Sessions](#sessions) specifies.
+
+*Acceptance:* unit tests that a `401` from `/userinfo` gives the anonymous session without calling
+`/users/me`, and that a `200` gives the signed-in session from `/users/me`. Stories for the header in
+both states. E2E tests: a user signs in from a deep link and returns to it with their display name in
+the header; a signed-in user signs out and sees **Sign in**; after signing out, reloading the page
+still shows **Sign in**.
+
+*Depends on:* 5 and 6.
+
+**Why:**
+
+* [the session comes from `/userinfo`](#why-the-session-comes-from-userinfo)
+
+### 8. First-login registration — `MINOR`
+
+The registration page and its gate on every route, and the nameless realm user, as
+[First-login registration](#first-login-registration) specifies.
+
+*Acceptance:* unit tests of the form's validation at 0, 1, 255 and 256 characters. Stories for the
+empty, invalid and server-rejected states. E2E tests: the nameless user signs in, is shown the
+registration page on a deep link, chooses a name, and lands on the deep link with the name in the
+header; the `test` user, who has a name, never sees the page.
+
+*Depends on:* 7.
+
+**Why:**
+
+* [registration keys off an empty display name](#why-registration-keys-off-an-empty-display-name)
+
+### 9. Error views — `MINOR`
+
+`ErrorAlert`, the error view and the root `errorComponent`, the not-found view's use for `403` and
+`404`, as [Error handling](#error-handling) specifies.
+
+*Acceptance:* unit tests mapping each row of the [Error handling](#error-handling) table to its
+rendering. A story per row. An E2E test that an unknown route renders the not-found view inside the
+app shell.
+
+*Depends on:* 6.
+
+### 10. Send the user to sign in when their session can no longer be refreshed ([#183](https://github.com/PaulTrampert/PacmanManager/issues/183)) — `MINOR`
+
+The `401` middleware from [Calling the API](#calling-the-api). The issue's own acceptance criteria
+stand: an E2E test revokes a signed-in user's session in Keycloak, loads a page that calls the API,
+and ends up at sign-in rather than on the anonymous view.
+
+*Constraints:* the middleware applies to `/api/...` only. A `401` from `/userinfo` must still give
+the anonymous session, or anonymous visitors are sent to sign in on every page.
+
+*Depends on:* 7.
+
+### 11. Allow package uploads over 30 MB through the web host ([#184](https://github.com/PaulTrampert/PacmanManager/issues/184)) — `PATCH`
+
+As the issue describes: `ApiProxy__repohost__MaxRequestBodySize` in `compose.yaml`, equal to
+RepoHost's `PackagePublishing__MaxUploadBytes`, and an E2E test uploading a package over 30 MB
+through the web host.
+
+*Constraints:* the web fixture's RepoHost must be configured with a ceiling above the test package,
+unlike `EndToEndTestFixture`'s 1 MiB. The upload is a write, so the test needs a signed-in session
+and an antiforgery token; it can use the browser context's request API after signing in.
+
+*Depends on:* 5. The image half of the issue is met by 3.
+
+### 12. Stream package downloads through the web host ([#185](https://github.com/PaulTrampert/PacmanManager/issues/185)) — `PATCH`
+
+As the issue describes: `Content-Disposition` in `ApiProxy__repohost__ResponseHeaders`, and an E2E
+test that a package downloaded through the web host matches the upload byte for byte and is saved
+under its filename.
+
+*Depends on:* 5. The image half of the issue is met by 3.
+
+---
+
+## Deferred work
+
+Worth filing as issues, but explicitly out of scope for the work above.
+
+* **Persistent sessions across restarts.** SpaHost keeps its data-protection keys inside the
+  container unless Redis is configured, so recreating the web container signs everyone out. Adding a
+  `redis` compose service and `RedisConfig__UseForDataProtection=true` fixes it. Additive.
+* **A production configuration**: HTTPS, a non-Development environment, and a real Keycloak. Blocked
+  on nothing but a deployment target.
+* **A health endpoint for the web host.** SpaHost has none, and `/health` falls back to
+  `index.html`. Needs an upstream change to SpaHost.
+* **Anonymous writes report `400`, not `401`.** SpaHost rejects an unsafe request with no antiforgery
+  token before it is proxied. Harmless while the UI never offers one, which this plan requires; worth
+  an upstream issue if a client other than the app ever writes through the web host.
+* **Accessibility, responsive layout and dark mode** — the **Web UI: Polish** milestone.
+
+---
+
+## Appendix
+
+The argument for each decision in the plan, including what was considered and rejected. Nothing
+here adds a requirement — the plan above is the specification, and it is the plan, once merged,
+that is settled. These entries are the supporting reasoning: if implementation suggests a different
+choice, they are what to argue with, in an issue, rather than something to quietly depart from.
+A deviation that is agreed to updates the plan, this Appendix and the dependent issues together, as
+the **How to read it** paragraph at the top sets out.
+
+### Why this document states architecture decisions
+
+The **Web UI: Architecture** milestone names a design document covering the stack, where the app
+lives, how the OpenAPI document is produced, the E2E harness and anonymous rendering. It has not been
+written, and it has no issues. The skeleton cannot be built without answers to every one of those, so
+this document gives them, choosing what the milestone's description already names (React, TypeScript,
+Vite, TanStack Router and Query, SpaHost, a generated client, Storybook, Playwright) and deciding only
+what it leaves open.
+
+Writing the architecture document first was the alternative. It would be cleaner, but it would hold
+the skeleton up for a document whose decisions the skeleton is the first test of. If one is written
+later, the decisions here move to it and this document links them.
+
+### Why the app sits outside the solution
+
+`PacmanManager.Web` is a Node project, and `dotnet build` is the repository's build and typecheck
+step for .NET code. Bringing it into the solution as a JavaScript project (`.esproj`) would make
+every `dotnet build` run `npm`, and every .NET-only change pay for it, while giving the app nothing it
+does not get from its own scripts. Its E2E tests are .NET code and do sit in the solution, as
+`PacmanManager.Web.Test`, following the one-test-project-per-project convention.
+
+### Why the OpenAPI document is committed
+
+Three ways to get the document to the client generator were considered:
+
+* **Generate it inside the web image build.** The web image would need the .NET SDK, pacman tooling
+  and a JRE for LibAlpmSharp's ANTLR step, just to describe an API it never runs.
+* **Fetch it from a running RepoHost.** Generation would need the stack up, and the client's types
+  would depend on whichever RepoHost happened to be running.
+* **Commit it, and check it in CI.** The image build needs only Node. An API change shows up in the
+  pull request as a diff to `v1.json`, which is the clearest review signal of a breaking change the
+  repository could have. The drift check stops it going stale.
+
+The third was chosen. The generated TypeScript is not committed, since it is a pure function of the
+document and committing it would double every API diff.
+
+`Swashbuckle.AspNetCore.Cli` produces it because RepoHost already uses Swashbuckle; the document it
+writes is the one `/swagger/v1/swagger.json` serves. A test that hosts RepoHost in-process was the
+alternative, but nothing in the solution hosts RepoHost in-process today, and its startup touches
+`DATA_DIR` and libalpm.
+
+### Why the client is `openapi-typescript` and `openapi-fetch`
+
+The generator has to produce types that match RepoHost's JSON exactly — camelCase, omitted nulls,
+string enums — and leave the app free to choose how it caches.
+
+* **`openapi-typescript` with `openapi-fetch`** generates types only, and a small typed `fetch`
+  wrapper with middleware, which is where antiforgery and the `401` rule go. Query keys and caching
+  stay in the app, written against TanStack Query directly.
+* **Orval** generates TanStack Query hooks too. It saves boilerplate, but it fixes the query keys and
+  the shape of every hook, and the app's error and session handling would then be fitted around
+  generated code.
+* **`@hey-api/openapi-ts`** sits between the two. It was not preferred over the smaller, more
+  established pair.
+* **NSwag's TypeScript generator** produces classes and its own `fetch` wrapper, and fits a .NET
+  toolchain better than a Vite one.
+
+### Why the session comes from `/userinfo`
+
+Two different callers get a `401` from `/api/...`: an anonymous visitor calling a route that needs a
+user, answered by RepoHost, and a signed-in user whose session cannot be refreshed, answered by
+SpaHost without proxying. The response does not say which. The app must send the second to sign in
+([#183](https://github.com/PaulTrampert/PacmanManager/issues/183)) and must not send the first, or
+anonymous rendering is impossible.
+
+`/userinfo` answers the question directly: `401` means no session. Asking it first, and calling
+`/users/me` only for a signed-in session, means the app never makes an `/api` call that gives an
+anonymous visitor a `401`, so the redirect rule can stay unconditional.
+
+Deriving the session from `/users/me` alone was rejected for exactly that ambiguity. Reading the
+user's name from `/userinfo`'s claims, as Budgy does, was rejected because the display name a user
+chooses lives in RepoHost and can differ from Keycloak's `name`.
+
+### Why registration keys off an empty display name
+
+RepoHost already provisions every user on their first authenticated call, so "registration" in the
+web UI is only the part RepoHost cannot do: getting a display name from someone Keycloak gave none.
+`EnsureUserLinkedAsync` stores the empty string in that case, and `WriteUserRequest` rejects the empty
+string, so an empty display name is a state that only provisioning creates and that the user cannot
+return to.
+
+Adding a `RegisteredAt` column, set when the user first saves their profile, was the alternative. It
+would let every new user confirm their name, not only the nameless ones, but it needs a migration, a
+change to `CurrentUser`, and a revisit of the [User Management](user-management.md) non-goal that
+provisioning stays in `ClaimsTransformer`. Nothing in the milestone asks for a user with a name to be
+stopped on their way in.
+
+### Why an antiforgery token is fetched before every write
+
+SpaHost binds the token to the signed-in user, and issues it only to a signed-in user. A token cached
+by the app goes stale when the user signs in again, and the app would have to detect the `400` and
+retry. Fetching one before each unsafe request costs a round trip on writes only, which are rare in
+this UI, and is the pattern Budgy, SpaHost's other consumer, uses. It also means an anonymous visitor
+who somehow reaches a write is sent to sign in by the `401` from `/antiforgery`, which is the right
+outcome.
+
+### Why the web host has its own port
+
+`8080` is Keycloak and `8082` is RepoHost, and `pacman` clients and Swagger still talk to RepoHost
+directly. Putting the web host on `8082` and moving RepoHost would change the URL in every
+`pacman.conf` written against the local stack, and the documentation in
+[consuming-a-repository.md](consuming-a-repository.md). `8081` is the next free port.
+
+### Why the web host runs in Development
+
+SpaHost refuses an `http` authority outside Development, and the local Keycloak is `http`, as it is
+for RepoHost. Development also loads a settings file built into the SpaHost image that turns on
+Redis-backed data protection, which is why `RedisConfig__UseForDataProtection=false` is required
+alongside it. Running Keycloak over HTTPS locally was the alternative; it would mean certificates for
+every developer and every CI run, for a stack that is not deployed anywhere.
+
+### Why E2E tests drive Playwright from NUnit
+
+The repository's E2E harness is NUnit and Testcontainers: images built once per run and tagged per
+worktree, Postgres with migrations, a Keycloak with admin helpers, and the parallel-run fixes that
+took several PRs to get right. The web tests need all of it, and #183's test needs Keycloak's admin
+API to revoke a session.
+
+* **`Microsoft.Playwright` from NUnit** reuses all of that, and runs under the same `dotnet test` CI
+  already runs.
+* **The Node Playwright runner** would keep the tests in TypeScript beside the app, but would need
+  the harness rebuilt in TypeScript, or a compose stack started around the run, losing per-worktree
+  isolation and parallel fixtures.
+
+Storybook's tests cover components in the app's own language, so TypeScript is not absent from the
+testing story.
+
+### Why Keycloak's hostname follows its port in the web fixture
+
+The existing fixtures never put a browser in front of Keycloak. RepoHost reaches it over the Docker
+network, and tests get tokens over the back channel, so `KC_HOSTNAME=http://localhost:8080` can be
+wrong for the test host without anything noticing. A browser, though, follows the front-channel URLs
+Keycloak issues, and with a random mapped port `localhost:8080` is nothing.
+
+Running the browser inside the Docker network was the alternative, with Keycloak and the web host
+reached by network alias. They would then be different sites, and the `form_post` that returns the
+user from Keycloak to SpaHost would arrive without SpaHost's correlation cookie. On `localhost` both
+are the same site and the sign-in works.
