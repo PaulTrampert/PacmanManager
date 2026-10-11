@@ -52,8 +52,11 @@ Services in `compose.yaml`:
 | :--- | :--- |
 | `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
-| `migrations` | Runs EF migrations to completion and exits. |
+| `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
 | `postgres` | Postgres 18, port **5432**, user/password `pacmanmanager`/`password`. |
+
+A service built from this repository is named `pacmanmanager.<component>`; an external dependency
+keeps a plain role name (`auth`, `postgres`). Follow that when adding a service.
 
 Swagger UI is enabled in Development (or when `Swagger:EnableSwaggerUI` is set) and is wired for
 OAuth against Keycloak with PKCE.
