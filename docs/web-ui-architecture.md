@@ -79,7 +79,7 @@ pacmanmanager-web/
     ├── session/           # the session query, useSession, requireUser
     ├── queries/<resource>/ # query-options factories and mutations, one folder per resource
     ├── components/<Name>/ # Name.tsx, Name.stories.tsx, Name.test.tsx, index.ts
-    ├── mocks/             # MSW handlers shared by Vitest and Storybook
+    ├── mocks/             # Mock Service Worker (MSW) handlers, shared by Vitest and Storybook
     └── testing/           # render helpers and fixture factories
 ```
 
