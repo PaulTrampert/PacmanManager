@@ -108,8 +108,13 @@ Every `Repository` RepoHost returns — the listing, `GET` by id, and the respon
   enforce with, so ownership and the credential's scope both count: a token without
   `pacman-manager:repositories:update` sees `update: false` on its own repositories.
 * They are computed per response for the actor making the request, and **never stored**.
-* The policy decides from the repository's owner id and visibility; computing `permissions` must not
-  add a query per repository to a listing.
+* `RepositoryAccessPolicy`'s ownership check gains a core taking
+  `(Guid ownerId, bool isPublic, Actor actor, string action)`. `CheckUpdate(PacmanRepository, Actor)`
+  and `CheckDelete(PacmanRepository, Actor)` become thin overloads over it, so there is still **one**
+  rule.
+* `RepositoryService` sets `permissions` **after** the query has run, calling that core for each
+  projected `Repository` with its `Owner.Id` and `IsPublic`. Nothing about `permissions` is part of
+  `Repository.Projection` or translated to SQL, and it adds no query.
 
 **Why:**
 
@@ -598,10 +603,12 @@ with `PublicUrl` set, and a second asserts the request-root form with it unset. 
 `permissions` on `Repository`, from `RepositoryAccessPolicy.CheckUpdate` and `CheckDelete`, and the
 regenerated `openapi/v1.json`. See [`Repository.permissions`](#repositorypermissions).
 
-*Constraints:* the values come from the same policy calls the writes enforce with; there is no
-second implementation of the rule. Computing them adds no query per repository.
+*Constraints:* the values come from the policy's ownership core that `CheckUpdate` and `CheckDelete`
+also go through; there is no second implementation of the rule. They are set on the materialised
+`Repository` after the query, never in `Repository.Projection`, and add no query.
 
-*Acceptance:* `RepositoryAccessPolicyTests` gain no new rules; service tests assert `permissions`
+*Acceptance:* the existing `RepositoryAccessPolicyTests` pass unchanged against the overloads, and
+gain no new rules; service tests assert `permissions`
 for the owner, another user (public repository), an anonymous caller, and a token lacking each of
 `pacman-manager:repositories:update` and `pacman-manager:repositories:delete`. An E2E test asserts
 both fields, `false` included, in the raw JSON of the listing and `GET` by id, for the owner and for
