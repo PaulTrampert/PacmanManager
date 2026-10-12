@@ -158,27 +158,28 @@ the client's generated types know the response exists.
 
 ---
 
-## The app shell
+## Navigation
 
-The walking skeleton's shell — an `AppBar` above a `Container` — gains a navigation drawer. This
-changes [Theme and layout](../web-ui-architecture/web-ui-architecture.md#theme-and-layout), which
-is updated to match in the same issue.
+The walking skeleton's shell — an `AppBar` above a `Container` — is **unchanged**. There is no
+navigation menu: no drawer, and no links in the app bar.
 
-* The `AppBar` spans the full width and keeps the product name, linking to `/`, and the session
-  control. It holds no navigation.
-* Below it, a **permanent, clipped MUI `Drawer`**, 240 px wide, holds a navigation `List` with one
-  `ListItemButton` per section. This milestone adds one, **Repositories**, linking to
-  `/repositories`; later milestones add theirs.
-* The item for the section the current route is in is shown `selected`. Every `/repositories…`
-  route is in the Repositories section.
-* The drawer is shown to every visitor, signed in or not.
-* The routed page renders to the drawer's right, in the existing `Container`.
-* Collapsing the drawer on narrow screens is **Web UI: Polish**'s responsive work, not this
-  milestone's.
+* The product name in the app bar links to `/`, which [redirects](#routes) to the repository list.
+* Every page **below** the list shows MUI `Breadcrumbs` above its heading, starting from
+  **Repositories**, which links to `/repositories`. The last crumb is the current page and is not a
+  link.
+
+  | Page | Breadcrumbs |
+  | :--- | :--- |
+  | `/repositories` | none |
+  | `/repositories/new` | Repositories / New repository |
+  | `/repositories/$repositoryId` | Repositories / *the repository's name* |
+  | `/repositories/$repositoryId/edit` | Repositories / *the repository's name* / Edit |
+
+* A crumb naming a repository shows its current name, from `repositoryQuery(id)`.
 
 **Why:**
 
-* [navigation is a drawer, not the app bar](#why-navigation-is-a-drawer-not-the-app-bar)
+* [there is no navigation menu yet](#why-there-is-no-navigation-menu-yet)
 
 ---
 
@@ -193,8 +194,7 @@ is updated to match in the same issue.
 | `/repositories/$repositoryId/edit` | signed in (`requireUser`) | the [edit form](#editing-a-repository) |
 
 * A repository is addressed by **id**, so renaming it never changes its URL.
-* Navigation moves into the [app shell's drawer](#the-app-shell), whose **Repositories** item links
-  to `/repositories`.
+* Pages below the list carry [breadcrumbs](#navigation) back to it.
 * `src/queries/repositories/` holds `repositoryListQuery(search)`, `repositoryQuery(id)` and the
   create, update and delete mutation hooks; `src/queries/architectures/` holds
   `architecturesQuery()`; `src/queries/users/` holds `userListQuery(search)` and `userQuery(id)`.
@@ -458,6 +458,8 @@ agreed, since the components they show decide how the UI work divides.
 
 Worth filing as issues, but explicitly out of scope for the work above.
 
+* **A navigation scheme** — a drawer, app-bar links or something else, chosen when a second
+  section of the app exists. Breadcrumbs stay useful under any of them, so it is additive.
 * **Packages on the repository page** — the **Web UI: Packages** milestone. The repository page is
   where a package list goes; nothing here is in its way.
 * **Credentials in the `pacman.conf` snippet** — the **Web UI: Account and Access Tokens**
@@ -561,15 +563,14 @@ already does them. Requiring confirmation in the API — a typed name in the `DE
 protect CLI callers too, but it would change three routes and break the contract for a protection
 whose real audience is a person clicking in a browser. It can be added later without changing the UI.
 
-### Why navigation is a drawer, not the app bar
+### Why there is no navigation menu yet
 
-The first wireframe put a **Repositories** link in the app bar beside the product name. The project
-owner preferred a drawer: the later Web UI milestones each add a section — Packages, Account and
-Access Tokens — and a vertical list grows to hold them where a row of app-bar links runs out of
-room beside the session control. Making the change now, while there is one item, costs one
-`ListItemButton`; making it after three milestones had each added an app-bar link would mean
-redoing all three. The walking skeleton's layout is otherwise kept, so its pages need no change
-beyond the shell.
+Two schemes were drawn and set aside: a **Repositories** link in the app bar, and a permanent drawer
+on the left. This milestone has one section — the repository list and the pages beneath it — so a
+menu would hold a single item that duplicates the product name's link, while committing every later
+milestone to a scheme chosen before anyone knew what those sections were. Breadcrumbs give the only
+navigation these pages need, back up the hierarchy, without that commitment. The scheme is chosen
+when a second section arrives; see [Deferred work](#deferred-work).
 
 ### Why the list sorts from its column headers
 
