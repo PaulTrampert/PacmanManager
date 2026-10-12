@@ -113,11 +113,13 @@ jobs:
       # the review's requests; `track_progress` keeps the action in tag mode when a prompt is given,
       # where it would otherwise switch to its unattended agent mode. No `github_token`, so it uses
       # the Claude GitHub App's. AGENTS.md is the repository's CLAUDE.md and is read as usual.
+      # `node`, scripts/pr-screenshots.sh and `gh pr edit` let a change that alters the UI retake the
+      # PR's screenshots and relink them from its description (AGENTS.md, "Screenshots").
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ needs.review.outputs.prompt }}
           track_progress: true
           claude_args: >-
-            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh issue view:*)"
+            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(scripts/pr-screenshots.sh:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"
