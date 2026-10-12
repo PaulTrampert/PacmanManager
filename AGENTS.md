@@ -43,9 +43,13 @@ npm run storybook          # Storybook on port 6006 (`npm run build-storybook` b
 npx playwright install chromium   # once, for the storybook project's browser
 ```
 
-`npm run generate` writes the gitignored `*.gen.ts` files (currently the TanStack Router route
-tree). `dev`, `build`, `typecheck`, `lint`, `test` and `storybook` run it first, so nothing generated
-is ever committed or needed before them.
+`npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree, and
+`src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`.
+`dev`, `build`, `typecheck`, `lint`, `test` and `storybook` run it first, so nothing generated is ever
+committed or needed before them. The types are generated for the paths the API client is called
+with, under its `/api/pacmanmanager` base URL: the document's `/api/v1/Repositories` is the client's
+`/v1/Repositories`. Call the API only through `client` and `unwrap` from `src/api`, and mock it in
+tests and stories with `apiHandler` from `src/mocks/api.ts`, which is typed from the same schema.
 
 **Note on `dotnet test`:** `PacmanManager.RepoHost.Test` contains Testcontainers-based E2E tests
 that build the RepoHost and Migrations Docker images and start Postgres and Keycloak containers.
