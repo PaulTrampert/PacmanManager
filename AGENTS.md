@@ -303,7 +303,10 @@ It needs two things set up once, which every Claude workflow here shares:
   pushes made with the workflow's own `GITHUB_TOKEN` would not;
 * a `CLAUDE_CODE_OAUTH_TOKEN` repository secret, generated with `claude setup-token`.
 
-Claude may run `dotnet`, `git`, `npm`, `npx` and read-only `gh` commands; `gh pr merge` is denied outright.
+Claude may run `dotnet`, `git`, `npm`, `npx`, `node`, `scripts/pr-screenshots.sh`, read-only `gh`
+commands and `gh pr edit`; `gh pr merge` is denied outright. The last three exist for
+[Screenshots](#screenshots): a change that alters the UI retakes the PR's screenshots with a
+Playwright script, stores them with the script and links them from the description.
 
 ### Claude fixes failing CI (`claude-fix-ci.yml`)
 
@@ -383,7 +386,35 @@ path that already exists. That way a sub-agent only ever works; it never has to 
   release tooling reads, and the form the title check enforces.
 * PR descriptions reference the issue they fix (`Fixes #123`) and explain what the diff does not
   make obvious.
+* A PR that changes the UI carries screenshots in its description; see [Screenshots](#screenshots).
 * GitHub repo: <https://github.com/PaulTrampert/PacmanManager>.
+
+### Screenshots
+
+`CONTRIBUTING.md` requires screenshots of the UI **before** and **after** in the description of any
+PR that changes it. "Before" may be left out when the change is purely additive, and a new component
+not yet used anywhere needs only its Storybook render.
+
+GitHub has no API for attaching an image to a description, so the images live on a branch of their
+own, `screenshots/pr-<n>`, which holds only images, is never merged, and is deleted once the PR
+merges. Never commit them to the PR's branch. `scripts/pr-screenshots.sh <n> <image>...` adds
+images to that branch, replacing any of the same name and keeping the rest, and prints the Markdown
+that embeds each one. The links name the commit, not the branch, so an image a description
+already shows never changes under it. Put the images under a `## Screenshots` heading, with
+**Before** and **After** subheadings, and say how they were taken.
+
+Take them with Playwright (`npx playwright install chromium` once). The real app is best, run
+however suits the change: the app's production build under `npx vite preview`, with Playwright's
+`page.route` answering the requests it makes (`/userinfo` and the API), needs no compose stack; a
+Storybook render suits a single component. "Before" comes from the PR's base on `main`, which a
+`git worktree add` of it, or `git archive` into a scratch directory, provides. Don't overwrite the
+shared `pacmanmanager.*` images while doing so: `compose.yaml` names them, so a second compose
+project still re-tags them.
+
+**Keep them current.** A commit that changes what a screenshot shows -- addressing review feedback
+included, and an `@claude` run on the PR in particular -- retakes the screenshots it affects, adds
+them with the script, and updates the description to link the new commit, all in the same piece of
+work. A screenshot of the UI as it was before the review is not an "after".
 
 ### Issue and pull request size
 
