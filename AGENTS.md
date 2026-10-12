@@ -303,7 +303,7 @@ It needs two things set up once, which every Claude workflow here shares:
   pushes made with the workflow's own `GITHUB_TOKEN` would not;
 * a `CLAUDE_CODE_OAUTH_TOKEN` repository secret, generated with `claude setup-token`.
 
-Claude may run `dotnet`, `git` and read-only `gh` commands; `gh pr merge` is denied outright.
+Claude may run `dotnet`, `git`, `npm`, `npx` and read-only `gh` commands; `gh pr merge` is denied outright.
 
 ### Claude fixes failing CI (`claude-fix-ci.yml`)
 
