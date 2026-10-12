@@ -102,6 +102,8 @@ Every `Repository` RepoHost returns — the listing, `GET` by id, and the respon
 | `delete` | `RepositoryAccessPolicy.CheckDelete(repository, actor)` is `Allowed` |
 
 * Both fields are **always present**, `false` included. An anonymous caller gets `false` for both.
+* The OpenAPI document lists `permissions` in `Repository`'s `required`, and `update` and `delete`
+  in its own, so the generated TypeScript types are not optional.
 * The values come from the **same policy calls** `UpdateRepositoryAsync` and `DeleteRepositoryAsync`
   enforce with, so ownership and the credential's scope both count: a token without
   `pacman-manager:repositories:update` sees `update: false` on its own repositories.
@@ -131,7 +133,8 @@ at, such as `https://packages.example.com/`.
 * A configured `PublicUrl` always wins over the request root.
 * Whichever root is used, it is normalised to end in exactly one `/` before `pacman/` is appended, so
   `https://example.com/pm` and `https://example.com/pm/` both give `https://example.com/pm/pacman/$repo/$arch`.
-* `serverUrl` is therefore **always present**.
+* `serverUrl` is therefore **always present**, and the OpenAPI document lists it in `Repository`'s
+  `required`, so the generated TypeScript type is `serverUrl: string`.
 * `$repo` and `$arch` are **literal** in the value, exactly as `pacman.conf` writes them; they are
   not replaced with the repository's name or an architecture.
 * `serverUrl` is built **each time a repository is returned**. It is never stored, so changing
@@ -579,7 +582,9 @@ column. The request root is read after `UseForwardedHeaders`.
 *Acceptance:* unit tests cover each row of the `PublicUrl` table, the trailing-`/` normalisation in
 both directions, a `PathBase`, and a forwarded `https` scheme from a trusted proxy. An E2E test
 asserts `serverUrl` on the listing, `GET` by id, `POST` and `PUT` responses, against a host started
-with `PublicUrl` set, and a second asserts the request-root form with it unset.
+with `PublicUrl` set, and a second asserts the request-root form with it unset. The regenerated
+`openapi/v1.json` lists `serverUrl` in `Repository.required`, and the web app's generated type has
+`serverUrl: string`, not `serverUrl?: string`.
 
 *Depends on:* nothing.
 
@@ -600,7 +605,9 @@ second implementation of the rule. Computing them adds no query per repository.
 for the owner, another user (public repository), an anonymous caller, and a token lacking each of
 `pacman-manager:repositories:update` and `pacman-manager:repositories:delete`. An E2E test asserts
 both fields, `false` included, in the raw JSON of the listing and `GET` by id, for the owner and for
-another user.
+another user. The regenerated `openapi/v1.json` lists `permissions` in `Repository.required` and
+`update` and `delete` in its own `required`, and none of the three is optional in the web app's
+generated types.
 
 *Depends on:* nothing.
 
