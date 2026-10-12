@@ -68,13 +68,84 @@ export async function userId(username: string): Promise<string> {
   return users[0].id;
 }
 
+/** The Keycloak client the web host signs users in as, and refreshes their tokens with. */
+export const webHostClientId = "pacman-manager-web";
+
 /**
- * Ends every Keycloak session `username` has, so the web host can no longer refresh their tokens.
- * Their web host cookie survives until it next needs Keycloak.
+ * Ends every Keycloak session `username` has, so the web host can no longer refresh their tokens:
+ * signs their sessions out, then revokes the offline token the web host holds for them, which a
+ * sign-out leaves working (the web host asks for `offline_access`). Their web host cookie survives
+ * until it next needs Keycloak.
  */
 export async function signOutSessions(username: string): Promise<void> {
   const id = await userId(username);
   await adminRequest(`/users/${id}/logout`, `sign ${username}'s sessions out`, {
     method: "POST",
   });
+  // Revoking the client's consent revokes its offline tokens too. Keycloak answers 404 when the user
+  // has neither, which leaves nothing to revoke.
+  const token = await adminToken();
+  const response = await fetch(
+    `${keycloakUrl}/admin/realms/${realm}/users/${id}/consents/${webHostClientId}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (response.status !== 404) {
+    await ensureOk(response, `revoke ${username}'s offline tokens`);
+  }
+}
+
+/** The client attribute that overrides the realm's access token lifespan, in seconds. */
+const accessTokenLifespanAttribute = "access.token.lifespan";
+
+/** The part of Keycloak's client representation these helpers read; the rest is sent back as is. */
+interface ClientRepresentation {
+  id: string;
+  attributes?: Record<string, string | null>;
+}
+
+async function clientRepresentation(
+  clientId: string,
+): Promise<ClientRepresentation> {
+  const response = await adminRequest(
+    `/clients?${new URLSearchParams({ clientId })}`,
+    `find the client ${clientId}`,
+  );
+  const clients = (await response.json()) as ClientRepresentation[];
+  if (clients.length !== 1) {
+    throw new KeycloakAdminError(
+      `Expected one client ${clientId} in the ${realm} realm, found ${clients.length}.`,
+    );
+  }
+  return clients[0];
+}
+
+/**
+ * Sets how long the access tokens Keycloak issues to the client `clientId` live, in seconds,
+ * overriding the realm's lifespan; `undefined` removes the override. Tokens already issued keep
+ * their lifespan. Returns the override it replaced, so a test can put it back.
+ */
+export async function setAccessTokenLifespan(
+  clientId: string,
+  seconds: number | undefined,
+): Promise<number | undefined> {
+  const client = await clientRepresentation(clientId);
+  const previous = client.attributes?.[accessTokenLifespanAttribute];
+  await adminRequest(
+    `/clients/${client.id}`,
+    `set the access token lifespan of ${clientId}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...client,
+        attributes: {
+          ...client.attributes,
+          // Keycloak removes an attribute sent as null.
+          [accessTokenLifespanAttribute]:
+            seconds === undefined ? null : String(seconds),
+        },
+      }),
+    },
+  );
+  return previous ? Number(previous) : undefined;
 }
