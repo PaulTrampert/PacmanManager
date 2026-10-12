@@ -157,6 +157,7 @@ environment variables on the service:
 | `AuthConfig__OidcConfig__Scopes__0…` | `openid`, `offline_access`, `profile`, `email`, `pacman-manager`, `pacman-manager:*:*` |
 | `ApiProxy__PacmanManager__BaseUrl` | `http://pacmanmanager.repohost:8080/api/` |
 | `ApiProxy__PacmanManager__AuthType` | `PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost` |
+| `RedisConfig__UseForDataProtection` | `false` |
 
 * The service is configured for local development only. `ASPNETCORE_ENVIRONMENT=Development` is
   what lets SpaHost talk to the plain-HTTP Keycloak; a production deployment is configured
@@ -166,14 +167,16 @@ environment variables on the service:
 * The `pacman-manager-web` client in `keycloak/localdev.json` lists `http://localhost:8081/*` and
   `http://localhost:3000/*` among its redirect and post-logout redirect URIs, and its web origins.
 * `docker compose up -d --build` **must** produce a working stack with no other setup: the
-  `pacmanmanager.repohost` service carries the environment it needs (`Auth__Authority` and a
-  connection string), and `pacmanmanager.web` depends on it and on `auth`.
+  `pacmanmanager.repohost` service carries the environment it needs (`ASPNETCORE_ENVIRONMENT=Development`,
+  `Auth__Authority` and a connection string) and starts once `pacmanmanager.migrations` has completed,
+  and `pacmanmanager.web` depends on it and on `auth`.
 * `ResponseHeaders` and `MaxRequestBodySize` on the proxied API are #185's and #184's to add.
 
 **Why:**
 
 * [the browser never holds a token](#why-the-browser-never-holds-a-token)
 * [the web host is on 8081](#why-the-web-host-is-on-8081)
+* [the compose services set more than the first plan listed](#why-the-compose-services-set-more-than-the-first-plan-listed)
 
 ### Bringing the stack up
 
@@ -839,6 +842,23 @@ wait for readiness.
 real browser. Component tests then run under the same runner and the same `npm test` as unit tests,
 with no Storybook server to start. Rejected: the older `@storybook/test-runner`, which needs a built
 or running Storybook and its own CI step.
+
+### Why the compose services set more than the first plan listed
+
+*Changed during implementation of issue 3, pending sign-off from the project owner.* The first
+version of this plan listed only the variables above `RedisConfig__UseForDataProtection` for
+`pacmanmanager.web`, and only `Auth__Authority` and a connection string for
+`pacmanmanager.repohost`. With just those, `docker compose up -d --build` does not produce a working
+stack:
+
+* SpaHost's own `appsettings.Development.json`, which `ASPNETCORE_ENVIRONMENT=Development` loads,
+  keeps data-protection keys in Redis at `redis:6379`, and the host exits at startup when it cannot
+  connect. Redis exists to share keys between replicas; the local stack runs one, so the setting is
+  turned off rather than a Redis service added.
+* RepoHost requires HTTPS metadata from its authority outside `Development`, and Keycloak here is
+  plain HTTP, so RepoHost runs in `Development`, as the E2E fixtures already run it.
+* RepoHost needs the migrated schema to serve requests, so it waits for the migrations container to
+  finish rather than racing it.
 
 ### Why the web host is on 8081
 
