@@ -454,16 +454,20 @@ given that repository, which puts it in its edit behaviour.
 
 ### Confirming consequential changes
 
-Saving a change that affects clients already using the repository first opens a confirmation dialog
-listing each consequence that applies:
+Every change the edit form can make — a rename or a visibility change — affects clients already using
+the repository, so **Save** always opens a confirmation dialog first. It is titled **Save these
+changes?**, opens with "Clients already using *the stored name* will be affected:", and lists each
+consequence that applies, in this order:
 
 | Change | Consequence shown |
 | :--- | :--- |
-| the name changed | Every `pacman.conf` using this repository must change its section name to the new name, or `pacman` will stop finding it. |
-| Private → Public | Anyone, signed in or not, will be able to read every package in this repository. |
-| Public → Private | Clients that read this repository without credentials will lose access. |
+| the name changed | Renaming it to *new name*: every pacman.conf using this repository must change its section name to [*new name*], or pacman will stop finding it. |
+| Private → Public | Making it public: anyone, signed in or not, will be able to read every package in this repository. |
+| Public → Private | Making it private: clients that read this repository without credentials will lose access. |
 
-* The dialog's **Save** sends the request; its **Cancel** returns to the form with the edits intact.
+* The dialog's actions are **Cancel** (text) and **Save** (contained). **Save** sends the request
+  and the dialog closes when it settles; **Cancel** returns to the form with the edits intact.
+* A `409` closes the dialog and shows the error on the name field, as without it.
 * The API is not told whether the user confirmed. It performs the update as it does today.
 
 **Why:**
@@ -474,13 +478,15 @@ listing each consequence that applies:
 
 ## Deleting a repository
 
-**Delete** on the repository page opens a dialog that:
+**Delete** on the repository page opens a dialog titled **Delete *name*?** that:
 
-* says the repository and every package in it will be permanently deleted, and that clients using it
-  will fail;
-* asks the user to type the repository's name, and keeps its **Delete** button disabled until the
-  typed text equals the name **exactly**, case included;
-* on success, navigates to `/repositories`; on failure, shows the error in the dialog and stays open.
+* says "This permanently deletes *name* and every package in it. Clients using it will fail. This
+  can't be undone.";
+* has one text field labelled **Type *name* to confirm**, focused when the dialog opens;
+* has the actions **Cancel** (text) and **Delete** (contained, error colour). **Delete** is disabled
+  until the typed text equals the name **exactly**, case included, and while the request is pending;
+* on success, navigates to `/repositories`; on failure, shows a `ProblemDetailsAlert` at the top of
+  the dialog's content and stays open with the typed name kept.
 
 The API is not told about the confirmation, and deletes as it does today.
 
