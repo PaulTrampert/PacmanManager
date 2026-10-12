@@ -165,7 +165,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
-            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"
           prompt: |
             Pull request #${{ matrix.number }} in ${{ github.repository }} conflicts with `main`.
@@ -181,7 +181,9 @@ jobs:
                changed in each conflicting file. Resolve each conflict so that both sides' intent
                survives, rather than taking one side wholesale.
             3. `dotnet build` must pass with no new warnings, and so must the unit tests of the
-               projects the merge touched.
+               projects the merge touched. If the merge touched `pacmanmanager-web`, run `npm ci`
+               there, then `npm run format:check`, `lint`, `typecheck` and `test` (after
+               `npx playwright install chromium`, which the story tests need).
             4. Commit the merge and `git push origin HEAD:${{ matrix.branch }}`. Never push to any
                other branch, and never merge a pull request.
             5. If a conflict needs a decision you cannot make from the PR, its issue and any design
