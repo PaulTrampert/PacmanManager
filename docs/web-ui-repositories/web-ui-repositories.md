@@ -329,6 +329,11 @@ Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://pe
   written in the web app. While the next page loads, the previous response's sort stays shown with
   the rest of the [dimmed previous state](#loading).
 * Paging uses the response's `total` and `offset`, with page sizes 25, 50 and 100.
+* **A page past the end** — a response with no results but `total > 0`, from a stale bookmark or
+  after deleting the last repository on the last page — replaces the URL's `offset` with the last
+  page's, `floor((total − 1) / pageSize) × pageSize`, with `replace: true`. Until that page arrives
+  the table keeps the dimmed previous state under the spinner. `PaginatedTable` is never given a page
+  beyond the last.
 
 **Why:**
 
@@ -369,6 +374,8 @@ used for every empty list:
 | Any filter applied, no results | No repositories match | **Clear filters**, removing every filter search param |
 | Anonymous, no filters applied, no repositories | No public repositories | none |
 
+* An empty state is shown **only when `total` is 0**, never because a page past the end came back
+  empty.
 * "No filters applied" means `nameContains`, `isPublic`, `ownerId` and `architecture` are all
   absent. Disabled filters never count as applied.
 * The component knows nothing about repositories; the list route chooses the text and the action.
@@ -1095,12 +1102,16 @@ compose stack, signed in as the realm's `test` and `other` users as needed.
 `RepositoryFilters` and `RepositoryTable` read and write the URL's search params, resetting `offset`
 on any filter, sort or page-size change; the owner filter searches with `userListQuery`, pins the
 session's user, labels a URL `ownerId` with `userQuery` and drops it on a `404`; **Clear filters**
-removes every filter parameter.
+removes every filter parameter; and a page past the end is clamped to the last page, as
+[Sorting and paging](#sorting-and-paging) sets out.
 
 *Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)).
 
 *Acceptance:* Playwright tests filter by name, by visibility and by owner ("(you)" and another user),
-sort by each column in both directions, and reload to find the same state from the URL.
+sort by each column in both directions, and reload to find the same state from the URL. Route tests
+load `?offset=500` with 5 repositories and end on `offset=0` with the rows shown and no empty state,
+and load `?offset=500&pageSize=50` with 120 repositories and end on `offset=100`, each by a
+history-replacing navigation.
 
 *Depends on:* 27, 31.
 
