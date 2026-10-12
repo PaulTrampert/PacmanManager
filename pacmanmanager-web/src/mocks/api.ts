@@ -94,18 +94,17 @@ export function apiHandler<M extends ApiMethod, P extends ApiPath<M>>(
 export const mockAntiforgeryToken = "mock-antiforgery-token";
 
 /**
- * Answers `GET /antiforgery` as the web host does, by setting the `XSRF-TOKEN` cookie; MSW copies a
- * mocked response's cookies into `document.cookie`.
+ * Answers `GET /antiforgery` as the web host does, by setting the `XSRF-TOKEN` cookie. The cookie
+ * is written to `document.cookie` here as well as sent in `Set-Cookie`, since a mocked response's
+ * cookies are not reliably copied there (MSW 3 does not).
  */
 export function antiforgeryHandler(token = mockAntiforgeryToken): HttpHandler {
-  return http.get(
-    antiforgeryPath,
-    () =>
-      new HttpResponse(null, {
-        status: 200,
-        headers: {
-          "Set-Cookie": `${antiforgeryCookie}=${encodeURIComponent(token)}; Path=/`,
-        },
-      }),
-  );
+  return http.get(antiforgeryPath, () => {
+    const cookie = `${antiforgeryCookie}=${encodeURIComponent(token)}; Path=/`;
+    document.cookie = cookie;
+    return new HttpResponse(null, {
+      status: 200,
+      headers: { "Set-Cookie": cookie },
+    });
+  });
 }
