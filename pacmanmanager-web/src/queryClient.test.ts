@@ -1,4 +1,8 @@
+import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { client, unwrap } from "./api";
+import { apiHandler } from "./mocks/api";
+import { server } from "./mocks/node";
 import {
   createQueryClient,
   isClientError,
@@ -76,5 +80,42 @@ describe("createQueryClient", () => {
 
   it("requests a query failing with a 5xx three times", async () => {
     expect(await countAttempts(new StatusError(503))).toBe(3);
+  });
+});
+
+describe("a query through the API client", () => {
+  async function countRequests(status: number): Promise<number> {
+    let requests = 0;
+    server.use(
+      apiHandler("get", "/v1/Repositories/{id}", () => {
+        requests++;
+        return HttpResponse.json(
+          { title: `Failed with ${status}.` },
+          { status },
+        );
+      }),
+    );
+    const queryClient = createQueryClient();
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ["repositories", "core"],
+        queryFn: () =>
+          unwrap(
+            client.GET("/v1/Repositories/{id}", {
+              params: { path: { id: "core" } },
+            }),
+          ),
+        retryDelay: 0,
+      }),
+    ).rejects.toMatchObject({ status });
+    return requests;
+  }
+
+  it("is requested once when it fails with 404", async () => {
+    expect(await countRequests(404)).toBe(1);
+  });
+
+  it("is requested three times when it fails with 503", async () => {
+    expect(await countRequests(503)).toBe(3);
   });
 });
