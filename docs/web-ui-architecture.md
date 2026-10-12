@@ -175,15 +175,20 @@ environment variables on the service:
 * [the browser never holds a token](#why-the-browser-never-holds-a-token)
 * [the web host is on 8081](#why-the-web-host-is-on-8081)
 
+### Bringing the stack up
+
+One npm script, **`compose-up`**, runs `docker compose -f ../compose.yaml up -d --build`. Both
+`predev` and `pree2e` run it, and nothing else starts the stack. `--build` is required: a change to
+RepoHost, to the migrations or to the web app must be in the stack the next time either command
+starts, and compose leaves running any container whose image did not change.
+
 ### The development server
 
 `npm run dev` serves the app from Vite on **port 3000** with hot reload, and proxies
 `/api`, `/login`, `/logout`, `/userinfo`, `/antiforgery`, `/signin-oidc` and
 `/signout-callback-oidc` to the compose stack's web host on `http://localhost:8081`, with
-`changeOrigin: false`. A `predev` script (after `generate`) brings the stack up with
-`docker compose -f ../compose.yaml up -d`, **without** `--build`: Vite serves the app's files, so
-the web image only has to exist, not be current, and an image is built only when it is missing.
-The app's code is the same in both modes; it never names a host.
+`changeOrigin: false`. Its `predev` script runs `generate` and then `compose-up`, so the stack is
+running, and built from the current sources, before Vite starts. The app's code is the same in both modes; it never names a host.
 
 ---
 
@@ -375,10 +380,8 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 ### End-to-end tests
 
-* The stack is **started outside Playwright**, by a `pree2e` npm script that runs
-  `docker compose -f ../compose.yaml up -d --build`, so `npm run e2e` is the one command locally and
-  in CI. `--build` is required here, so the tests always run against the current images; containers
-  whose image did not change are left running. Playwright's global setup only waits until
+* The stack is **started outside Playwright**, by `pree2e` running `compose-up`, so `npm run e2e` is
+  the one command locally and in CI. Playwright's global setup only waits until
   `http://localhost:8081/` and Keycloak's discovery document both answer, and fails with a message
   naming the compose command if they do not within its timeout.
 * `baseURL` is `http://localhost:8081`. Tests run against the built image, never the dev server.
@@ -410,7 +413,7 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 | Job | Steps |
 | :--- | :--- |
 | `web` | `actions/setup-node` from `.nvmrc` with the npm cache; `npm ci`; `npx playwright install --with-deps chromium`; `npm run format:check`; `npm run lint`; `npm run typecheck`; `npm test`; `npm run build`; `npm run build-storybook` |
-| `e2e` | Node as above; `npm ci`; `npx playwright install --with-deps chromium`; `npm run e2e` (its `pree2e` starts the stack); on failure, `docker compose logs` and the Playwright report uploaded as an artifact; `docker compose down -v` always |
+| `e2e` | Node as above; `npm ci`; `npx playwright install --with-deps chromium`; `npm run e2e` (its `pree2e` runs `compose-up`); on failure, `docker compose logs` and the Playwright report uploaded as an artifact; `docker compose down -v` always |
 | `docker` (matrix entry `web`) | Builds `pacmanmanager-web/Dockerfile` with `pacmanmanager-web` as the context, `push: false` |
 
 * Both new jobs run in `pacmanmanager-web` as their working directory, except the compose commands,
@@ -484,8 +487,8 @@ works from a fresh clone with no generated file present.
 
 `pacmanmanager-web/Dockerfile` and `.dockerignore`, the `pacmanmanager.web` compose service with the
 [configuration above](#the-compose-service), the redirect URIs on `pacman-manager-web`, the
-`pacmanmanager.repohost` environment that makes `docker compose up` work unaided, and the `web` entry
-in the CI `docker` matrix.
+`pacmanmanager.repohost` environment that makes `docker compose up` work unaided, the `compose-up`
+npm script with `predev` running it, and the `web` entry in the CI `docker` matrix.
 
 *Constraints:* the image builds on `paultrampert/spahost:0.8.60` or later.
 
@@ -524,7 +527,7 @@ response, its `errors`. Editing `openapi/v1.json` to rename a property used by t
 
 ### 5. Playwright harness — MINOR
 
-`@playwright/test`, `playwright.config.ts`, the readiness global setup, the `signIn` fixture,
+`@playwright/test`, `playwright.config.ts`, `pree2e` running `compose-up`, the readiness global setup, the `signIn` fixture,
 `e2e/keycloak.ts`, the `e2e` npm script and CI job, and one test: an anonymous visitor loads `/` and
 sees the app shell.
 
@@ -789,8 +792,8 @@ TypeScript.
 Playwright's `webServer` option manages one long-running process. A compose stack is several
 containers plus a migrations container that runs and exits, and bringing it up in `globalSetup` would
 couple Playwright to compose's lifecycle and hide build failures inside a test run. Keeping
-`docker compose up -d --build` as an explicit step, run by the `pree2e` npm script before Playwright
-starts, means CI shows a broken image build as a broken
+`docker compose up -d --build` as an explicit step, run by the `compose-up` npm script before
+Playwright starts, means CI shows a broken image build as a broken
 build step, a developer can leave the stack running between test runs, and global setup only has to
 wait for readiness.
 
