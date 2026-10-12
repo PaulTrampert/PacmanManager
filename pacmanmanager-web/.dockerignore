@@ -1,0 +1,20 @@
+# The build context is pacmanmanager-web. Keep out what `npm ci` and `npm run build` produce again
+# inside the image, and test and tool output that the build never reads.
+**/.dockerignore
+**/Dockerfile*
+**/.git
+**/.gitignore
+**/.idea
+**/.vscode
+**/npm-debug.log
+node_modules/
+dist/
+storybook-static/
+coverage/
+.tanstack/
+*.gen.ts
+__screenshots__/
+.vitest-attachments/
+*storybook.log
+playwright-report/
+test-results/

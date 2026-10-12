@@ -8,7 +8,8 @@
   },
   "scripts": {
     "generate": "tsr generate && node scripts/generate-api-schema.ts",
-    "predev": "npm run generate",
+    "compose-up": "docker compose -f ../compose.yaml up -d --build",
+    "predev": "npm run generate && npm run compose-up",
     "dev": "vite",
     "prebuild": "npm run generate",
     "build": "vite build",

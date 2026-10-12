@@ -6,7 +6,48 @@
       dockerfile: PacmanManager.RepoHost/Dockerfile
     ports:
       - "8082:8080"
-        
+    # What `docker compose up` needs with no other setup. Development is what lets the bearer
+    # handler fetch Keycloak's metadata over plain HTTP, as the web host's does.
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Auth__Authority: "http://auth:8080/realms/localdev"
+      ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
+    depends_on:
+      auth:
+        condition: service_started
+      pacmanmanager.migrations:
+        condition: service_completed_successfully
+
+  # The web front end: the app's bundle in SpaHost, which signs users in against Keycloak and
+  # proxies /api/pacmanmanager/... to RepoHost with their access token. Local development only; see
+  # docs/web-ui-architecture.md, "The compose service".
+  pacmanmanager.web:
+    image: pacmanmanager.web
+    build:
+      context: pacmanmanager-web
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      AuthConfig__OidcConfig__Authority: "http://auth:8080/realms/localdev"
+      AuthConfig__OidcConfig__ClientId: pacman-manager-web
+      AuthConfig__OidcConfig__ClientSecret: Asdfasdf1
+      AuthConfig__OidcConfig__Scopes__0: openid
+      AuthConfig__OidcConfig__Scopes__1: offline_access
+      AuthConfig__OidcConfig__Scopes__2: profile
+      AuthConfig__OidcConfig__Scopes__3: email
+      AuthConfig__OidcConfig__Scopes__4: pacman-manager
+      AuthConfig__OidcConfig__Scopes__5: "pacman-manager:*:*"
+      ApiProxy__PacmanManager__BaseUrl: "http://pacmanmanager.repohost:8080/api/"
+      ApiProxy__PacmanManager__AuthType: "PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost"
+      # SpaHost's Development settings keep its data-protection keys in Redis, for replicas sharing
+      # a session cookie. This stack runs one replica and has no Redis.
+      RedisConfig__UseForDataProtection: "false"
+    depends_on:
+      - auth
+      - pacmanmanager.repohost
+
   auth:
     image: quay.io/keycloak/keycloak
     command: start-dev --import-realm
