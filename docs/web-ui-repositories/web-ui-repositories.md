@@ -396,6 +396,10 @@ Worth filing as issues, but explicitly out of scope for the work above.
   fill in the `Server` line's credentials. Additive: the snippet's note is where it goes.
 * **Checking name availability as it is typed** — would need an API route answering whether a name
   is taken, and a decision about whether that may leak the existence of a private repository.
+* **Trusting `X-Forwarded-Host`** — [#225](https://github.com/PaulTrampert/PacmanManager/issues/225).
+  Would let RepoHost behind a proxy build a correct `serverUrl` without `PublicUrl`. It changes
+  which forwarded headers [Basic Auth](../basic-auth/basic-auth.md#trusted-forwarded-header-sources)
+  trusts, so it is designed there. Additive: a configured `PublicUrl` still wins.
 * **Choosing architectures** — once RepoHost supports more than one, the create and edit forms'
   disabled architecture control becomes enabled. The control and `GET /v1/Architectures` already
   exist, so this is additive.
@@ -444,7 +448,8 @@ caller that reaches RepoHost directly — the CLI, Swagger, a deployment with no
 correct URL with no configuration at all, an existing deployment keeps working after the upgrade, and
 the UI has a single shape to render instead of a "not configured" state. The cost is that a web UI
 behind SpaHost shows SpaHost's upstream address until `PublicUrl` is set, which is why the setting
-exists and why compose sets it. Trusting `X-Forwarded-Host` to close that gap was rejected here:
+exists and why compose sets it. Trusting `X-Forwarded-Host` to close that gap was left out of this work
+([#225](https://github.com/PaulTrampert/PacmanManager/issues/225)):
 widening which forwarded headers are believed is a change to [Basic Auth](../basic-auth/basic-auth.md)'s
 design, not this one's.
 
