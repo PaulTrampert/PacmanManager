@@ -158,6 +158,30 @@ the client's generated types know the response exists.
 
 ---
 
+## The app shell
+
+The walking skeleton's shell — an `AppBar` above a `Container` — gains a navigation drawer. This
+changes [Theme and layout](../web-ui-architecture/web-ui-architecture.md#theme-and-layout), which
+is updated to match in the same issue.
+
+* The `AppBar` spans the full width and keeps the product name, linking to `/`, and the session
+  control. It holds no navigation.
+* Below it, a **permanent, clipped MUI `Drawer`**, 240 px wide, holds a navigation `List` with one
+  `ListItemButton` per section. This milestone adds one, **Repositories**, linking to
+  `/repositories`; later milestones add theirs.
+* The item for the section the current route is in is shown `selected`. Every `/repositories…`
+  route is in the Repositories section.
+* The drawer is shown to every visitor, signed in or not.
+* The routed page renders to the drawer's right, in the existing `Container`.
+* Collapsing the drawer on narrow screens is **Web UI: Polish**'s responsive work, not this
+  milestone's.
+
+**Why:**
+
+* [navigation is a drawer, not the app bar](#why-navigation-is-a-drawer-not-the-app-bar)
+
+---
+
 ## Routes
 
 | Path | Who | Shows |
@@ -169,7 +193,8 @@ the client's generated types know the response exists.
 | `/repositories/$repositoryId/edit` | signed in (`requireUser`) | the [edit form](#editing-a-repository) |
 
 * A repository is addressed by **id**, so renaming it never changes its URL.
-* The app bar gains a **Repositories** link to `/repositories`.
+* Navigation moves into the [app shell's drawer](#the-app-shell), whose **Repositories** item links
+  to `/repositories`.
 * `src/queries/repositories/` holds `repositoryListQuery(search)`, `repositoryQuery(id)` and the
   create, update and delete mutation hooks; `src/queries/architectures/` holds
   `architecturesQuery()`; `src/queries/users/` holds `userListQuery(search)` and `userQuery(id)`.
@@ -200,8 +225,9 @@ architecture document requires:
 | `offset` | the same | `0` |
 | `pageSize` | the same | `50` |
 
-* Each row shows the repository's name (linking to its page), its owner's display name, its
-  visibility, its architectures' `displayValue`s, and when it was last updated.
+* The list is a table with the columns **Name** (linking to the repository's page), **Owner** (the
+  display name), **Visibility** (a Public or Private chip), **Architectures** (the
+  `displayValue`s), **Created** and **Updated**.
 * Changing a filter, the sort or the page size resets `offset` to `0`.
 * The name search updates the URL **300 ms after typing stops**, not on every keystroke.
 * A signed-in user sees a **New repository** button linking to `/repositories/new`. An anonymous
@@ -237,9 +263,16 @@ Every filter follows one rule: **a filter with one possible value or none is sho
 
 ### Sorting and paging
 
-* The sort control offers `Name`, `Created` and `Updated`, and a direction toggle. With no `sortBy`
-  in the URL it shows `Name`; with no `direction` it shows that field's default direction.
+* The **Name**, **Created** and **Updated** column headers sort the list, as MUI's
+  `TableSortLabel`. Clicking the active header reverses `direction`; clicking another sets `sortBy`
+  to it and removes `direction`, so the field's default applies. There is no other sort control.
+* With no `sortBy` in the URL, **Name** shows as the active header; with no `direction`, the arrow
+  shows that field's default direction.
 * Paging uses the response's `total` and `offset`, with page sizes 25, 50 and 100.
+
+**Why:**
+
+* [the list sorts from its column headers](#why-the-list-sorts-from-its-column-headers)
 
 ### Empty states
 
@@ -527,6 +560,23 @@ A rename, a visibility change and a delete are all things the owner is entitled 
 already does them. Requiring confirmation in the API — a typed name in the `DELETE` body, say — would
 protect CLI callers too, but it would change three routes and break the contract for a protection
 whose real audience is a person clicking in a browser. It can be added later without changing the UI.
+
+### Why navigation is a drawer, not the app bar
+
+The first wireframe put a **Repositories** link in the app bar beside the product name. The project
+owner preferred a drawer: the later Web UI milestones each add a section — Packages, Account and
+Access Tokens — and a vertical list grows to hold them where a row of app-bar links runs out of
+room beside the session control. Making the change now, while there is one item, costs one
+`ListItemButton`; making it after three milestones had each added an app-bar link would mean
+redoing all three. The walking skeleton's layout is otherwise kept, so its pages need no change
+beyond the shell.
+
+### Why the list sorts from its column headers
+
+A separate sort dropdown with a direction toggle, beside the filters, was the first plan. Sortable
+column headers are the convention for a data table, put the sort beside the data it orders, and keep
+the filter bar for filters. The cost is a **Created** column, which the list had not otherwise
+shown, so that it can be sorted on.
 
 ### Why repositories are addressed by id
 
