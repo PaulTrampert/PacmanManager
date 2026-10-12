@@ -242,16 +242,22 @@ Every filter follows one rule: **a filter with one possible value or none is sho
 | :--- | :--- | :--- | :--- |
 | Name | free text | never | — |
 | Visibility | All, Public, Private | the visitor is anonymous | **Public** |
-| Owner | typeahead over users, plus **Mine** | `GET /v1/Users?pageSize=1` reports `total` ≤ 1 | **All** |
+| Owner | typeahead over users, the signed-in user first | `GET /v1/Users?pageSize=1` reports `total` ≤ 1 | **All** |
 | Architecture | All, then each of `GET /v1/Architectures` by `displayValue` | that array has ≤ 1 entry | **All** |
 
 * **Visibility.** Signed in, it defaults to **All** (`isPublic` absent). Anonymous, it is disabled on
   **Public** and sends **no** `isPublic`: the API already shows an anonymous caller public
   repositories only.
 * **Owner.** An autocomplete that queries `GET /v1/Users?displayNameContains=<text>&pageSize=20`,
-  300 ms after typing stops, and sets `ownerId` to the chosen user's id. **Mine** is a shortcut,
-  shown only to a signed-in user, that sets `ownerId` to `session.user.id`, and appears selected
-  whenever `ownerId` is that id. While the filter is disabled, **Mine** is disabled too.
+  300 ms after typing stops, and sets `ownerId` to the chosen user's id. There is no separate
+  "mine" control.
+* For a signed-in user, the autocomplete's **first option is always themselves**, labelled with
+  their display name and "(you)" and followed by a divider, built from `session.user` rather than
+  the API's answer:
+  * with no text typed, it is shown above the API's first page of users;
+  * with text typed, it is shown only when their display name contains the text, case-insensitively;
+  * the signed-in user is removed from the API's results, so they never appear twice.
+* Selecting it sets `ownerId` to `session.user.id`, and the field then shows the "(you)" label.
 * When the page loads with an `ownerId`, the autocomplete shows that user's display name, fetched
   with `GET /v1/Users/{id}`. If that is a `404`, `ownerId` is removed from the search params.
 * A disabled filter never sends a value. Its state is a consequence of the data, so the list still
