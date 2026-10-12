@@ -7,7 +7,7 @@ import { server } from "../mocks/node";
 vi.spyOn(window, "scrollTo").mockImplementation(() => {});
 
 // A request no handler matches fails the test that made it.
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 
 afterEach(() => {
   cleanup();

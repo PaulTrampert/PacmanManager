@@ -32,9 +32,13 @@ const preview: Preview = {
         quiet: true,
         // Storybook's own modules and assets pass through; an unmocked call to the web host is an
         // error, as it is in the unit tests.
-        onUnhandledRequest(request, print) {
+        onUnhandledFrame({ frame, defaults }) {
+          if (frame.protocol !== "http") {
+            return;
+          }
+          const { request } = frame.data as { request: Request };
           if (isWebHostPath(new URL(request.url).pathname)) {
-            print.error();
+            defaults.error();
           }
         },
       });
