@@ -1,0 +1,2825 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "PacmanManager RepoHost Api",
+    "version": "1"
+  },
+  "paths": {
+    "/api/v1/users/me/tokens": {
+      "get": {
+        "tags": [
+          "AccessTokens"
+        ],
+        "summary": "List the caller's own access tokens. No secret is ever returned.",
+        "description": "`lastUsedAt` is deliberately coarse. It is written only when the stored value is older\n            than a configured resolution, one hour by default, so it may lag a token's most recent use by\n            up to that much.",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "nameContains",
+            "in": "query",
+            "description": "Matches tokens whose name contains this value, ignoring case.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/AccessTokenSortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Ascending for Name; Descending for CreatedAt, ExpiresAt, LastUsedAt.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenPaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenPaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenPaginatedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AccessTokens"
+        ],
+        "summary": "Mint an access token for the caller.",
+        "description": "An omitted or `null``expiresAt` means the token never expires. A name the caller\nalready has, compared without regard to case, is a `409`.",
+        "requestBody": {
+          "description": "The token's name and optional expiry.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessTokenRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessTokenRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAccessToken"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAccessToken"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAccessToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/tokens/{tokenId}": {
+      "delete": {
+        "tags": [
+          "AccessTokens"
+        ],
+        "summary": "Revoke one of the caller's own access tokens by deleting it.",
+        "description": "A token that belongs to another user is a `404`, exactly like one that does not exist.",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "description": "The token's ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Healthcheck": {
+      "get": {
+        "tags": [
+          "Healthcheck"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/Packages": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "List the packages visible to the caller, across every repository they can see.",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "repositoryIds",
+            "in": "query",
+            "description": "Matches packages in any of these repositories.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "publisherIds",
+            "in": "query",
+            "description": "Matches packages most recently published by any of these users.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "architecture",
+            "in": "query",
+            "description": "Matches packages built for this architecture, which is not always their repository's.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "nameContains",
+            "in": "query",
+            "description": "Matches packages whose name contains this value.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "in": "query",
+            "description": "Matches packages published since this instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Matches packages whose name, package base or description contains this value, ignoring case.",
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/PackageSortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Ascending for Name; Descending for Updated, Created, InstalledSize.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Packages/{packageId}": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Get a specific package by ID.",
+        "parameters": [
+          {
+            "name": "packageId",
+            "in": "path",
+            "description": "Package ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Delete a package by ID, removing it from the repository holding it.",
+        "description": "\nDeleting needs the same permission publishing does, and it is held over the repository rather\n            than over the package: anyone who may publish to a repository may delete any package in it,\n            including one somebody else published.\n\nA package the caller may not see is a `404`, and so is one that was already deleted, so\n            a repeated delete is indistinguishable from a first one.\n\nA failure of the pacman tools is a `500` like any other failed `ICliTool` rather\n            than a `409`: nothing was deleted, the package is still listed and still installable,\n            and the caller cannot fix it by sending a different request.",
+        "parameters": [
+          {
+            "name": "packageId",
+            "in": "path",
+            "description": "Package ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repositoryId}/packages": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "List the packages in a single repository.",
+        "description": "A caller who sends `repositoryIds` anyway gets a `400` rather than having it\nsilently ignored, because the two would disagree whenever they named different repositories\nand a silently ignored criterion is the sort of thing a build script never notices.",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "repositoryIds",
+            "in": "query",
+            "description": "Matches packages in any of these repositories.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "publisherIds",
+            "in": "query",
+            "description": "Matches packages most recently published by any of these users.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "architecture",
+            "in": "query",
+            "description": "Matches packages built for this architecture, which is not always their repository's.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "nameContains",
+            "in": "query",
+            "description": "Matches packages whose name contains this value.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "in": "query",
+            "description": "Matches packages published since this instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Matches packages whose name, package base or description contains this value, ignoring case.",
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/PackageSortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Ascending for Name; Descending for Updated, Created, InstalledSize.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePaginatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Publish a package file into a repository, creating it or replacing the version already\nthere.",
+        "description": "\nThe request body is the raw package file, as `application/octet-stream`. There is\n            deliberately no `multipart/form-data` envelope: the name the file is stored under is\n            derived from the metadata libalpm reads out of it, so a form would carry nothing worth\n            trusting, and a raw body is markedly simpler to stream without buffering.\n\nPackage files run to hundreds of megabytes, so the request's own body limit is raised from\n            Kestrel's 30 MB default to the configured ceiling before the body is touched. Over that, the\n            upload is a `413`.",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "description": "The repository to publish into.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repositoryId}/packages/{name}": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Get a package by its natural key, the repository holding it and its name.",
+        "description": "A repository holds exactly one version of a package, so this pair matches at most one\npackage.",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Delete a package by its natural key, the repository holding it and its name.",
+        "description": "An alias for M:PacmanManager.RepoHost.Controllers.v1.PackagesController.DeleteById(System.Guid,System.Threading.CancellationToken) that goes through the same service method, keyed the\nway a build script knows the package it has just published.",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Packages/{packageId}/content": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Download a package's file by the package's ID.",
+        "description": "\nThe response carries a `Content-Disposition` naming the file as it is stored —\n            `{name}-{version}-{architecture}.pkg.tar.{ext}`, the basename `repo-add` recorded\n            — so a client that saves it to disk ends up with the name pacman expects rather than a\n            package id. The body is streamed from disk and never buffered, since a package file can run\n            to hundreds of megabytes.\n\nThis downloads one package by identity. It is not a pacman mirror: a client configured with\n            `Server = …` needs the repository's `.db.tar.gz` and every package file resolvable\n            under one base URL by basename, which is separate work.",
+        "parameters": [
+          {
+            "name": "packageId",
+            "in": "path",
+            "description": "Package ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repositoryId}/packages/{name}/content": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Download a package's file by its natural key, the repository holding it and its name.",
+        "description": "The alias of M:PacmanManager.RepoHost.Controllers.v1.PackagesController.GetContentById(System.Guid,System.Threading.CancellationToken) for a caller that knows what it published rather\nthan what the package was assigned. A repository holds exactly one version of a package, so\nthis pair resolves to the same file.",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Repositories": {
+      "get": {
+        "tags": [
+          "Repositories"
+        ],
+        "summary": "List the repositories visible to the caller.",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "nameContains",
+            "in": "query",
+            "description": "Matches repositories whose name contains this value.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "architecture",
+            "in": "query",
+            "description": "Matches repositories that support this architecture.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "isPublic",
+            "in": "query",
+            "description": "Matches only public repositories when true, or only private ones when false. Omit for both.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "ownerId",
+            "in": "query",
+            "description": "Matches repositories belonging to this owner. A caller wanting only their own repositories\npasses their own id here.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/RepositorySortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Ascending for Name; Descending for Created, Updated.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryPaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryPaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Repositories"
+        ],
+        "summary": "Create a new repository owned by the caller.",
+        "requestBody": {
+          "description": "Repository creation request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Repositories/{id}": {
+      "get": {
+        "tags": [
+          "Repositories"
+        ],
+        "summary": "Get a specific repository by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Repositories"
+        ],
+        "summary": "Update an existing repository. Only its owner may do so.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Repository update request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRepositoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Repositories"
+        ],
+        "summary": "Delete a repository. Only its owner may do so.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Repository ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List users.",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "displayNameContains",
+            "in": "query",
+            "description": "Matches users whose display name contains this value, ignoring case.",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/UserSortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Ascending for DisplayName.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfoPaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfoPaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfoPaginatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Users/{userId}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get a specific user by ID.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "description": "User ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfo"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfo"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/Users/me": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get the caller's own user record, including their email.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Change the caller's own user record. Only the properties named in the body are changed; an\nomitted property keeps its present value.",
+        "requestBody": {
+          "description": "The properties to change. An empty body changes nothing, and an explicit `null` display\nname is rejected rather than clearing the name.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequestIPatchObject"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequestIPatchObject"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequestIPatchObject"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Replace the writable surface of the caller's own user record. Every property is required; use\n`PATCH me` to change only some of them.",
+        "requestBody": {
+          "description": "The complete writable surface.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccessToken": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The token's id, which also names it in `DELETE /api/v1/users/me/tokens/{tokenId}`.",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "description": "The Basic username a client presents with this token, `pmt_{id:N}`. Derived from\nPacmanManager.RepoHost.Models.AccessToken.Id rather than stored, and given here so that a client never has to know how\none is spelled from the other.",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "The label the user chose for the token, exactly as entered."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the token was minted.",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the token stops authenticating, or `null` if it never expires.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "description": "When the token was last used to authenticate, or `null` if it never has been. Coarse by\ndesign: it is written at most once per configured resolution, one hour by default, so it may\nlag the true last use by up to that long.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "An access token, as its owner sees it in a listing. Carries no secret: the secret is shown once,\non PacmanManager.RepoHost.Models.CreatedAccessToken, and only its hash is kept."
+      },
+      "AccessTokenPaginatedResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessToken"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccessTokenSortField": {
+        "enum": [
+          "CreatedAt",
+          "Name",
+          "ExpiresAt",
+          "LastUsedAt"
+        ],
+        "type": "string",
+        "description": "The properties an access token listing may be ordered by."
+      },
+      "CreateAccessTokenRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string",
+            "description": "A label for the token, so that a list of tokens is legible. Unique per user without regard\nto case: `laptop` and `Laptop` are the same name."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the token stops authenticating. Must be in the future when present.\n<b>Omitted or `null` means the token never expires</b>; there is no default lifetime and\nno maximum.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request model for minting an access token."
+      },
+      "CreatedAccessToken": {
+        "required": [
+          "id",
+          "name",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "secret": {
+            "type": "string",
+            "description": "The Basic password a client presents with this token, `pms_{secret}`. Returned once,\nhere, and never retrievable again: only its hash is stored."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A token that has just been minted: PacmanManager.RepoHost.Models.AccessToken's fields plus the secret, and the\nonly model that ever carries one."
+      },
+      "CurrentUser": {
+        "required": [
+          "displayName",
+          "email",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The user's id.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "The name the user has chosen to be shown by. Not unique."
+          },
+          "email": {
+            "type": "string",
+            "description": "The user's email address."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The authenticated caller's own user record, including the parts that are not public."
+      },
+      "Package": {
+        "required": [
+          "architecture",
+          "fileName",
+          "id",
+          "name",
+          "publisher",
+          "repositoryId",
+          "sha256Sum",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Internal database Id for the package.",
+            "format": "uuid"
+          },
+          "repositoryId": {
+            "type": "string",
+            "description": "Id of the repository this package belongs to.",
+            "format": "uuid"
+          },
+          "publisher": {
+            "$ref": "#/components/schemas/PublicUserInfo"
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "version": {
+            "type": "string",
+            "description": "Full package version, in pacman's `[epoch:]pkgver[-pkgrel]` form."
+          },
+          "description": {
+            "type": "string",
+            "description": "Package description.",
+            "nullable": true
+          },
+          "base": {
+            "type": "string",
+            "description": "The package base (`pkgbase`) this package was built from.",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "description": "Upstream URL for the packaged software.",
+            "nullable": true
+          },
+          "architecture": {
+            "type": "string",
+            "description": "Architecture the package was built for, which is not always the repository's."
+          },
+          "packager": {
+            "type": "string",
+            "description": "Who built the package, typically `Name <email>`.",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Basename of the stored package file."
+          },
+          "compressedSize": {
+            "type": "integer",
+            "description": "Size of the package file in bytes.",
+            "format": "int64"
+          },
+          "installedSize": {
+            "type": "integer",
+            "description": "Size the package occupies once installed, in bytes.",
+            "format": "int64"
+          },
+          "buildDate": {
+            "type": "string",
+            "description": "When the package was built.",
+            "format": "date-time"
+          },
+          "sha256Sum": {
+            "type": "string",
+            "description": "SHA-256 checksum of the published bytes, for a caller that wants to verify a download."
+          },
+          "licenses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Licenses the package is distributed under."
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Groups the package belongs to."
+          },
+          "provides": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Virtual packages this package provides, in pacman's own spelling (e.g. `foo=1.2`)."
+          },
+          "replaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Packages this package replaces, in pacman's own spelling."
+          },
+          "depends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Runtime dependencies, in pacman's own spelling (e.g. `foo>=1.2`)."
+          },
+          "optDepends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional dependencies, in pacman's own spelling (e.g. `bar: reason`)."
+          },
+          "makeDepends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Build time dependencies, in pacman's own spelling."
+          },
+          "checkDepends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Check time dependencies, in pacman's own spelling."
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Packages this one conflicts with, in pacman's own spelling."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When this package first appeared in this repository.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "When this package was last published.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A package published into a hosted repository, as callers see it."
+      },
+      "PackagePaginatedResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Package"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PackageSortField": {
+        "enum": [
+          "Name",
+          "Updated",
+          "Created",
+          "InstalledSize"
+        ],
+        "type": "string",
+        "description": "The properties a package listing may be ordered by."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "PublicUserInfo": {
+        "required": [
+          "displayName",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicUserInfoPaginatedResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicUserInfo"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Repository": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Internal database Id for the repository. Can be used for API calls but\npacman is unaware of this value.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Repository name (e.g., \"core\", \"extra\", \"custom-repo\")."
+          },
+          "supportedArchitectures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The machine architectures the repository publishes a database for (e.g., `[\"x86_64\"]`).\nNever `any`: a package built for `any` is listed in every one of these."
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the repository is public."
+          },
+          "owner": {
+            "$ref": "#/components/schemas/PublicUserInfo"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the repository was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "When the repository was last modified.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a pacman repository that can be hosted and managed."
+      },
+      "RepositoryPaginatedResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RepositorySortField": {
+        "enum": [
+          "Name",
+          "Created",
+          "Updated"
+        ],
+        "type": "string",
+        "description": "The properties a repository listing may be ordered by."
+      },
+      "SortDirection": {
+        "enum": [
+          "Ascending",
+          "Descending"
+        ],
+        "type": "string",
+        "description": "The direction a listing is ordered in."
+      },
+      "UserSortField": {
+        "enum": [
+          "DisplayName"
+        ],
+        "type": "string",
+        "description": "The properties a user listing may be ordered by."
+      },
+      "WriteRepositoryRequest": {
+        "required": [
+          "name",
+          "supportedArchitectures"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "\\A[a-zA-Z0-9@_\\+]([-\\.]?[a-zA-Z0-9@_\\+])*\\z",
+            "type": "string",
+            "description": "Repository name (e.g., \"core\", \"extra\", \"custom-repo\")."
+          },
+          "supportedArchitectures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The machine architectures the repository publishes a database for. Defaults to every\narchitecture a repository may support. Must be non-empty, and each element must be one a\nrepository may support; `any` is never one, since it describes a package rather than a\nrepository. A package built for `any` is published into every one of these\narchitectures' databases."
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the repository is public."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request model for creating a new repository."
+      },
+      "WriteUserRequest": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string",
+            "description": "The name the user has chosen to be shown by. Not unique."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The writable surface of the caller's own user record. `POST /api/v1/users/me` takes it as it is,\nreplacing every property. `PATCH /api/v1/users/me` takes it as an\n`IPatchObject<WriteUserRequest>`, so every property is optional on the wire."
+      },
+      "WriteUserRequestIPatchObject": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string",
+            "description": "The name the user has chosen to be shown by. Not unique."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Partial update of WriteUserRequest. Omitted properties are left unchanged."
+      }
+    },
+    "securitySchemes": {
+      "OpenId": {
+        "type": "openIdConnect",
+        "openIdConnectUrl": "http://localhost:8080/realms/localdev/.well-known/openid-configuration"
+      }
+    }
+  },
+  "security": [
+    {
+      "OpenId": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "pacman-manager",
+        "pacman-manager:*:*",
+        "pacman-manager:repositories:read",
+        "pacman-manager:repositories:create",
+        "pacman-manager:repositories:update",
+        "pacman-manager:repositories:delete",
+        "pacman-manager:packages:read",
+        "pacman-manager:packages:create",
+        "pacman-manager:packages:delete",
+        "pacman-manager:users:read",
+        "pacman-manager:users:update",
+        "pacman-manager:tokens:read",
+        "pacman-manager:tokens:create",
+        "pacman-manager:tokens:delete",
+        "pacman-manager:repositories:*",
+        "pacman-manager:packages:*",
+        "pacman-manager:users:*",
+        "pacman-manager:tokens:*",
+        "pacman-manager:*:read",
+        "pacman-manager:*:create",
+        "pacman-manager:*:update",
+        "pacman-manager:*:delete"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "AccessTokens"
+    },
+    {
+      "name": "Healthcheck"
+    },
+    {
+      "name": "Packages"
+    },
+    {
+      "name": "Repositories"
+    },
+    {
+      "name": "Users"
+    }
+  ]
+}

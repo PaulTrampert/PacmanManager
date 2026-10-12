@@ -45,6 +45,11 @@ jobs:
       - name: Restore
         run: dotnet restore PacmanManager.sln
 
+      # The Swashbuckle CLI, which OpenApiDocumentTests runs to generate RepoHost's OpenAPI
+      # document and compare it with the committed one.
+      - name: Restore tools
+        run: dotnet tool restore
+
       - name: Build
         run: dotnet build PacmanManager.sln --configuration Release --no-restore
 
