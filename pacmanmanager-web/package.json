@@ -8,7 +8,7 @@
   },
   "scripts": {
     "postinstall": "msw init",
-    "generate": "tsr generate",
+    "generate": "tsr generate && node scripts/generate-api-schema.ts",
     "compose-up": "docker compose -f ../compose.yaml up -d --build",
     "predev": "npm run generate && npm run compose-up",
     "dev": "vite",
@@ -39,6 +39,7 @@
     "@mui/material": "^9.5.0",
     "@tanstack/react-query": "^5.104.2",
     "@tanstack/react-router": "^1.170.42",
+    "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -66,6 +67,7 @@
     "jsdom": "^30.1.2",
     "msw": "^3.0.2",
     "msw-storybook-addon": "^3.0.3",
+    "openapi-typescript": "^7.13.0",
     "playwright": "^1.64.0",
     "prettier": "^3.9.10",
     "storybook": "^10.6.1",
@@ -76,5 +78,10 @@
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
