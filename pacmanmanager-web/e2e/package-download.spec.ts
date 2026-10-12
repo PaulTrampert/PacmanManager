@@ -1,12 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
 import {
-  antiforgeryCookie,
-  antiforgeryHeader,
-  antiforgeryPath,
-} from "../src/api/antiforgery.ts";
-import { expect, signIn, test, users } from "./fixtures.ts";
+  antiforgeryHeaders,
+  expect,
+  signIn,
+  test,
+  uniqueName,
+  users,
+} from "./fixtures.ts";
 
 const packageFileName = "pacmanmanager-test-1.2.3-4-x86_64.pkg.tar.zst";
 
@@ -18,17 +19,6 @@ const packagePath = fileURLToPath(
 /** RepoHost's API as the web host proxies it. */
 const api = "/api/pacmanmanager/v1";
 
-/** Fetches an antiforgery token for `page`'s cookie session, as the app's API client does. */
-async function antiforgeryToken(page: Page): Promise<string> {
-  const response = await page.request.get(antiforgeryPath);
-  expect(response.ok()).toBe(true);
-  const cookie = (await page.context().cookies()).find(
-    (c) => c.name === antiforgeryCookie,
-  );
-  expect(cookie, `${antiforgeryPath} sets ${antiforgeryCookie}`).toBeDefined();
-  return decodeURIComponent(cookie!.value);
-}
-
 test("a package downloaded through the web host is the uploaded file, saved under its own name", async ({
   page,
 }) => {
@@ -36,8 +26,8 @@ test("a package downloaded through the web host is the uploaded file, saved unde
   await signIn(page, users.test);
 
   const created = await page.request.post(`${api}/Repositories`, {
-    headers: { [antiforgeryHeader]: await antiforgeryToken(page) },
-    data: { name: `e2e-download-${crypto.randomUUID().slice(0, 8)}` },
+    headers: await antiforgeryHeaders(page),
+    data: { name: uniqueName("e2e-download") },
   });
   expect(created.status()).toBe(201);
   const repository = (await created.json()) as { id: string };
@@ -46,7 +36,7 @@ test("a package downloaded through the web host is the uploaded file, saved unde
     `${api}/repositories/${repository.id}/packages`,
     {
       headers: {
-        [antiforgeryHeader]: await antiforgeryToken(page),
+        ...(await antiforgeryHeaders(page)),
         "Content-Type": "application/octet-stream",
       },
       data: upload,
