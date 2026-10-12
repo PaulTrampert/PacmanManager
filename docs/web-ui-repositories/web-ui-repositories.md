@@ -346,16 +346,43 @@ Server = <serverUrl>
 
 ## Creating a repository
 
-`/repositories/new` is a form with:
+`/repositories/new` shows the [breadcrumbs](#navigation), the heading **New repository**, and
+`RepositoryForm`.
 
-| Field | Control | Default | Sent as |
+### `RepositoryForm`
+
+**One component serves both creating and [editing](#editing-a-repository).** It takes an optional
+repository; whether that repository has an `id` is the only thing that decides which it is doing:
+
+| | No `id` (create) | An `id` (edit) |
+| :--- | :--- | :--- |
+| Initial values | empty name, **Private** | the repository's name and visibility |
+| Submit button | **Create**, reading **Creating…** while pending | **Save**, reading **Saving…** while pending |
+| Request | `POST /v1/Repositories` | `PUT /v1/Repositories/{id}`, after [confirmation](#confirming-consequential-changes) where one applies |
+| On success | navigates to the new repository's page | navigates to the repository's page |
+| **Cancel** | returns to `/repositories` | returns to the repository's page |
+
+The routes own the page around it — breadcrumbs, heading, loading the repository to edit — and the
+form owns everything inside: its fields, validation, the mutation and the `409`.
+
+Its fields:
+
+| Field | Control | Helper text | Sent as |
 | :--- | :--- | :--- | :--- |
-| Name | text | empty | `name` |
-| Visibility | Public / Private choice | **Private** | `isPublic` |
-| Architectures | the `displayValue`s from `GET /v1/Architectures`, **disabled** | all of them | not sent |
+| Name | outlined text field | "Letters, digits and @ _ + - . This is the section name in pacman.conf." | `name` |
+| Visibility | radio group: **Private** — "Only you can see it and read its packages."; **Public** — "Anyone, signed in or not, can see it and read its packages." | — | `isPublic` |
+| Architectures | outlined select listing the `displayValue`s from `GET /v1/Architectures`, **disabled** | "Every supported architecture is published." | not sent on create; the repository's existing `supportedArchitectures` on edit |
 
-* On success it navigates to the new repository's page.
-* **Cancel** returns to `/repositories`.
+* A field's validation error replaces its helper text, in the error colour.
+* Errors are shown once a field has been left or the form submitted, not while first typing.
+  **Create** stays enabled whenever no request is pending; **Save** is also disabled until the name
+  or the visibility differs from the stored value. Submitting an invalid form shows every error and
+  sends nothing.
+* While a request is pending, the submit button is disabled and reads **Creating…** or **Saving…**.
+
+**Why:**
+
+* [create and edit are one form](#why-create-and-edit-are-one-form)
 
 ### Name validation
 
@@ -418,13 +445,12 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
 
 ## Editing a repository
 
-`/repositories/$repositoryId/edit` is the create form's fields, filled with the repository's current
-values, and uses the same [name validation](#name-validation) and `409` handling.
+`/repositories/$repositoryId/edit` loads `repositoryQuery(id)` and shows the
+[breadcrumbs](#navigation), the heading **Edit repository**, and [`RepositoryForm`](#repositoryform)
+given that repository, which puts it in its edit behaviour.
 
-* It sends `PUT /v1/Repositories/{id}` with the edited `name` and `isPublic` and the repository's
-  **existing** `supportedArchitectures`, unchanged.
-* **Save** is disabled until the name or the visibility differs from the stored value.
-* On success it navigates to the repository's page. **Cancel** returns there without saving.
+* The `PUT` carries the edited `name` and `isPublic` and the repository's **existing**
+  `supportedArchitectures`, unchanged.
 
 ### Confirming consequential changes
 
@@ -606,6 +632,14 @@ a button beside Edit and Delete was also considered, and rejected because an acc
 snippet in the page, where it is found by reading rather than by guessing at a button. The collapsed
 state is not remembered: a visitor who needs the snippet needs it once per machine, and remembering
 it would make the page's height depend on history.
+
+### Why create and edit are one form
+
+The two have the same fields, the same validation and the same `409`, and differ only in their
+initial values, their request and where they go afterwards. Two components would duplicate the part
+most likely to change — the fields and their rules — and drift the first time a field is added to
+one of them. The project owner asked for one component keyed on the presence of an `id`, rather than
+a `mode` prop, so the form cannot be told it is editing a repository it has no id for.
 
 ### Why repositories are addressed by id
 
