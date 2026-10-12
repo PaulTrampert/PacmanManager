@@ -21,9 +21,6 @@ const client = createClient<paths>({
 });
 client.use(antiforgeryMiddleware, signInOnUnauthorizedMiddleware(navigate));
 
-const unauthorized = () =>
-  HttpResponse.json({ title: "Unauthorized" }, { status: 401 });
-
 /** Whether `call` is still pending once everything already queued has run. */
 async function isPending(call: Promise<unknown>): Promise<boolean> {
   const pending = Symbol("pending");
@@ -51,7 +48,11 @@ afterEach(() => {
 
 describe("a 401 from the API", () => {
   it("sends the browser to sign in, returning it to the current path and query", async () => {
-    server.use(apiHandler("get", "/v1/Users/me", unauthorized));
+    server.use(
+      apiHandler("get", "/v1/Users/me", () =>
+        HttpResponse.json({ title: "Unauthorized" }, { status: 401 }),
+      ),
+    );
 
     void client.GET("/v1/Users/me");
 
@@ -64,7 +65,11 @@ describe("a 401 from the API", () => {
   });
 
   it("leaves the call pending, so nothing renders an error while the browser leaves", async () => {
-    server.use(apiHandler("get", "/v1/Users/me", unauthorized));
+    server.use(
+      apiHandler("get", "/v1/Users/me", () =>
+        HttpResponse.json({ title: "Unauthorized" }, { status: 401 }),
+      ),
+    );
 
     const call = client.GET("/v1/Users/me");
 
@@ -75,7 +80,9 @@ describe("a 401 from the API", () => {
   it("sends the browser to sign in from a mutation too", async () => {
     server.use(
       antiforgeryHandler("token"),
-      apiHandler("delete", "/v1/Repositories/{id}", unauthorized),
+      apiHandler("delete", "/v1/Repositories/{id}", () =>
+        HttpResponse.json({ title: "Unauthorized" }, { status: 401 }),
+      ),
     );
 
     void client.DELETE("/v1/Repositories/{id}", {
