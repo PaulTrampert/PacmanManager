@@ -284,6 +284,8 @@ Every filter follows one rule: **a filter with one possible value or none is sho
 | Owner | typeahead over users, the signed-in user first | `GET /v1/Users?pageSize=1` reports `total` ≤ 1 | **All** |
 | Architecture | All, then each of `GET /v1/Architectures` by `displayValue` | that array has ≤ 1 entry | **All** |
 
+* Every filter's unfiltered value reads **All**, in the normal text colour while the filter is
+  enabled; there is no "Any …" placeholder.
 * **Visibility.** Signed in, it defaults to **All** (`isPublic` absent). Anonymous, it is disabled on
   **Public** and sends **no** `isPublic`: the API already shows an anonymous caller public
   repositories only.
