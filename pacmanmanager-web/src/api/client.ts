@@ -1,11 +1,13 @@
 import createClient from "openapi-fetch";
 import { antiforgeryMiddleware } from "./antiforgery";
 import { apiBaseUrl } from "./apiPaths";
+import { signInOnUnauthorizedMiddleware } from "./signInOnUnauthorized";
 import type { paths } from "./schema.gen";
 
 /**
  * The one API client. It calls RepoHost through the web host's proxy, with the browser's cookie
  * session; the web host attaches the access token. Nothing else calls `fetch` against `/api`.
+ * Mutations carry an antiforgery token, and a `401` sends the browser to sign in again.
  *
  * Call it through {@link unwrap}, which returns the data or throws an `ApiError`.
  */
@@ -17,4 +19,4 @@ export const client = createClient<paths>({
   fetch: (request) => globalThis.fetch(request),
 });
 
-client.use(antiforgeryMiddleware);
+client.use(antiforgeryMiddleware, signInOnUnauthorizedMiddleware());
