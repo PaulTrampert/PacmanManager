@@ -7,3 +7,6 @@ coverage/
 package-lock.json
 # Written by the Swashbuckle CLI and never hand-edited.
 openapi/
+playwright-report/
+test-results/
+blob-report/

@@ -25,7 +25,9 @@
     "storybook": "storybook dev --port 6006",
     "build-storybook": "storybook build",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "pree2e": "npm run compose-up",
+    "e2e": "playwright test"
   },
   "msw": {
     "workerDirectory": [
@@ -45,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
     "@storybook/addon-vitest": "^10.6.1",
     "@storybook/react-vite": "^10.6.1",
     "@tanstack/eslint-plugin-query": "^5.104.2",
