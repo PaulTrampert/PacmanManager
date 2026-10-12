@@ -114,7 +114,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
-            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh run rerun:*),Bash(gh issue view:*)"
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh run rerun:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"
           prompt: |
             The `${{ github.event.workflow_run.name }}` workflow failed on pull request
@@ -139,7 +139,10 @@ jobs:
                timeout, a runner problem -- do not change code. Rerun the failed jobs once with
                `gh run rerun ${{ github.event.workflow_run.id }} --failed` and stop.
             5. For a code fix: `dotnet build` must pass with no new warnings, and so must the unit
-               tests of the projects you touched. Run an E2E fixture only if the failure is in one.
+               tests of the projects you touched. For a change under `pacmanmanager-web`, run
+               `npm ci` there, then `npm run format:check`, `lint`, `typecheck` and `test` (after
+               `npx playwright install chromium`, which the story tests need). Run an E2E fixture
+               or `npm run e2e` only if the failure is in one.
                Commit on the PR branch. The commit message must carry this trailer on a line of its
                own, or a failure of the fix will not be recognised as one and will be fixed again:
 

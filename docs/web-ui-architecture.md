@@ -157,6 +157,7 @@ environment variables on the service:
 | `AuthConfig__OidcConfig__Scopes__0…` | `openid`, `offline_access`, `profile`, `email`, `pacman-manager`, `pacman-manager:*:*` |
 | `ApiProxy__PacmanManager__BaseUrl` | `http://pacmanmanager.repohost:8080/api/` |
 | `ApiProxy__PacmanManager__AuthType` | `PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost` |
+| `ApiProxy__PacmanManager__MaxRequestBodySize` | the same value as `pacmanmanager.repohost`'s `PackagePublishing__MaxUploadBytes` |
 | `RedisConfig__UseForDataProtection` | `false` |
 
 * The service is configured for local development only. `ASPNETCORE_ENVIRONMENT=Development` is
@@ -170,7 +171,11 @@ environment variables on the service:
   `pacmanmanager.repohost` service carries the environment it needs (`ASPNETCORE_ENVIRONMENT=Development`,
   `Auth__Authority` and a connection string) and starts once `pacmanmanager.migrations` has completed,
   and `pacmanmanager.web` depends on it and on `auth`.
-* `ResponseHeaders` and `MaxRequestBodySize` on the proxied API are #185's and #184's to add.
+* `MaxRequestBodySize` on the proxied API and `PackagePublishing__MaxUploadBytes` on
+  `pacmanmanager.repohost` are one value, set once in `compose.yaml` (#184). The publish route's
+  body is the raw package file, so an upload the web host forwards is never refused by RepoHost
+  for its size.
+* `ResponseHeaders` on the proxied API is #185's to add.
 
 **Why:**
 

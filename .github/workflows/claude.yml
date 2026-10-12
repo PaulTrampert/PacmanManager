@@ -119,5 +119,5 @@ jobs:
           prompt: ${{ needs.review.outputs.prompt }}
           track_progress: true
           claude_args: >-
-            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh issue view:*)"
+            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"
