@@ -309,24 +309,60 @@ Server = <serverUrl>
 
 ### Name validation
 
-The name is checked in the browser before submitting, and the form does not submit while it fails:
+The name is checked in the browser before submitting, and the form does not submit while it fails.
+**The rules are not written in the web app.** They are read from `WriteRepositoryRequest.name` in the
+committed OpenAPI document, which RepoHost generates from the attributes it validates with:
 
-| Rule | Message |
-| :--- | :--- |
-| empty | Name is required. |
-| longer than 255 characters | Name must be 255 characters or fewer. |
-| does not match the repository name pattern | Use letters, digits and `@ _ + - .`; `-` and `.` cannot start or end the name, or appear twice in a row. |
+| Rule | From the document | Message |
+| :--- | :--- | :--- |
+| required | `required`, and `minLength: 1` | Name is required. |
+| maximum length | `maxLength` | Name must be 255 characters or fewer. |
+| pattern | `pattern`, translated | Use letters, digits and `@ _ + - .`; `-` and `.` cannot start or end the name, or appear twice in a row. |
 
-* The pattern is the JavaScript form of `RegularExpressions.RepositoryName`:
-  `^[a-zA-Z0-9@_+]([-.]?[a-zA-Z0-9@_+])*$`. It lives in one constant in the web app, whose unit test
-  checks the same accepted and rejected names as RepoHost's `RegularExpressionsTests`.
+* A change to `[Required]`, `[MinLength]`, `[MaxLength]` or `[RegularExpression]` on
+  `WriteRepositoryRequest` reaches the form by regenerating `openapi/v1.json`, with **no web change**.
+  The length in the maximum-length message is the document's value, not a literal.
+* The pattern's message is the one piece written in the web app, since the document carries no
+  message for a pattern.
 * A `409` from the API is shown **on the name field** as "A repository with this name already
   exists." It is never shown as a `ProblemDetailsAlert`.
 * Any other error follows [Error handling](../web-ui-architecture/web-ui-architecture.md#error-handling).
 
 **Why:**
 
-* [the name pattern is mirrored, not shared](#why-the-name-pattern-is-mirrored-not-shared)
+* [validation rules come from the OpenAPI document](#why-validation-rules-come-from-the-openapi-document)
+
+### Validation rules from the OpenAPI document
+
+`npm run generate` gains a step, `scripts/generate-validation.ts`, that writes the gitignored
+`src/api/validation.gen.ts` from `openapi/v1.json`. It is general, not specific to repositories:
+
+* For **every** request-body schema, it emits each property's `required`, `minLength`, `maxLength`
+  and `pattern`, keyed by schema and property name, typed so that a schema or property that does not
+  exist is a type error.
+* Each `pattern` is translated from .NET to JavaScript syntax:
+
+  | .NET | JavaScript |
+  | :--- | :--- |
+  | `\A` | `^` |
+  | `\z` | `$` |
+  | anything else | unchanged |
+
+* The translated pattern is compiled with `new RegExp(pattern, "u")` **during generation**. A
+  pattern containing a .NET-only construct — `\Z`, `\G`, an inline option group such as `(?i)`, an
+  atomic group `(?>…)`, a conditional `(?(…)…)`, a possessive quantifier, or a `\p{Is…}` block name —
+  or one that does not compile, **fails generation**, naming the schema, the property and the
+  pattern. It is never silently dropped or loosened.
+* A small helper in `src/api` turns a property's rules into a field validator producing messages of
+  the kind shown in [Name validation](#name-validation), so a form names its schema, property and
+  field label, and writes only the pattern's message.
+* The translator has unit tests covering each row of the table and each rejected construct, and a
+  test asserts that the generated `WriteRepositoryRequest.name` pattern accepts and rejects the same
+  names as RepoHost's `RegularExpressionsTests`.
+
+**Why:**
+
+* [validation rules come from the OpenAPI document](#why-validation-rules-come-from-the-openapi-document)
 
 ---
 
@@ -505,9 +541,21 @@ The walking skeleton's home page is a placeholder. Repositories are what every v
 not, comes to see, and the product name in the app bar links to `/`. A dashboard was considered and
 left until there is something to put on it.
 
-### Why the name pattern is mirrored, not shared
+### Why validation rules come from the OpenAPI document
 
-The OpenAPI document carries the `[RegularExpression]` pattern, but in .NET syntax — `\A` and `\z` —
-which a JavaScript `RegExp` rejects or misreads. Translating it at build time was rejected as more
-machinery than one regular expression deserves. Mirroring it by hand, with the same test cases on
-both sides, catches drift in review rather than at runtime.
+Mirroring the rules by hand in the web app — a constant holding the pattern and the length, with
+the same test cases on both sides — was the first plan. It catches drift only when someone remembers
+to update both, and the project owner preferred one source of truth. RepoHost's validation
+attributes already reach the OpenAPI document, which the web app is already generated from, so
+reading them there adds one generation step and no new contract.
+
+The pattern needs translating because Swashbuckle copies the `[RegularExpression]` verbatim, in .NET
+syntax: `\A` and `\z` are not anchors in JavaScript, where `\A` is an error under the `u` flag. Only
+the anchors are translated because they are the only .NET-only syntax the API uses; every other
+construct either means the same in both or is refused at generation. Refusing is the point: a
+pattern quietly mistranslated would accept names the API rejects, or reject names it accepts, and
+nobody would notice until a user did.
+
+The pattern's message stays in the web app because the OpenAPI document has nowhere to carry one.
+Emitting it as a vendor extension from a Swashbuckle schema filter was considered and left until a
+second pattern needs a message.
