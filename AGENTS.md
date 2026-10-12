@@ -41,8 +41,16 @@ npm test                   # Vitest, once: the unit project (jsdom) and the stor
 npm run test:watch         # the same, watching
 npm run build              # production bundle in dist/
 npm run storybook          # Storybook on port 6006 (`npm run build-storybook` builds it)
-npx playwright install chromium   # once, for the storybook project's browser
+npm run e2e                # Playwright against the compose stack: compose-up, then the tests in e2e/
+npx playwright install chromium   # once, for the storybook project's and the e2e tests' browser
 ```
+
+`npm run e2e` runs `compose-up` first, so the stack is built from the current sources; Playwright
+never starts it, and its global setup only waits up to two minutes for `http://localhost:8081/` and
+Keycloak's discovery document to answer. Tests sign in through the real Keycloak form with `signIn`
+from `e2e/fixtures.ts`, as the realm's `test` and `other` users, and share one stack and database,
+so each creates what it needs under a unique name. Playwright tests are `e2e/**/*.spec.ts`; the
+`e2e/**/*.test.ts` beside them are Vitest unit tests of the harness's own helpers.
 
 `npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree, and
 `src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`.
@@ -213,6 +221,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
 | `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `web` | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
+| `e2e` | In `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `npm run e2e` against the compose stack it brings up. On failure it prints `docker compose logs` and uploads them with the Playwright report and traces as the `e2e-report` artifact; `docker compose down -v` always runs. |
 | `docker` | Builds the RepoHost, Migrations and web images from their Dockerfiles with `push: false`, as a sanity check that they still build. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
 
 The `test` job publishes its `.trx` files with
