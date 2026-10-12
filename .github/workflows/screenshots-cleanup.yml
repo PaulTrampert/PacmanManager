@@ -1,0 +1,41 @@
+name: Screenshots cleanup
+
+# A PR that changes the UI keeps its screenshots on a `screenshots/pr-<n>` branch of its own, which
+# exists only for that PR's description (AGENTS.md, "Screenshots"). When the PR closes, merged or
+# not, this deletes the branch, so nobody has to and they do not accumulate. A PR without one passes
+# quietly.
+on:
+  # pull_request_target, not pull_request: a pull_request run for a PR from a fork gets a read-only
+  # token, but the screenshot branch lives in this repository, so deleting it needs write access.
+  # That is safe here because the job never checks out or runs anything from the PR -- it reads only
+  # the PR's number from the event.
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    name: Delete screenshot branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete screenshots/pr-${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          branch="screenshots/pr-$NUMBER"
+          # git/ref (singular) matches the name exactly and answers 404 when there is no such branch,
+          # where git/refs would also list branches that merely start with it. Any other failure fails
+          # the job rather than passing as "no branch".
+          if ! error="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>&1)"; then
+            if [[ $error == *"HTTP 404"* ]]; then
+              echo "No $branch branch; nothing to delete."
+              exit 0
+            fi
+            echo "$error" >&2
+            exit 1
+          fi
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+          echo "Deleted $branch."
