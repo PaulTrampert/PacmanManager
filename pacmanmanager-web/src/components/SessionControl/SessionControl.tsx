@@ -1,7 +1,8 @@
 import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import { useLocation } from "@tanstack/react-router";
+import { useState } from "react";
 import { loginUrl, signOut, type Session } from "../../session";
 
 /** The props {@link SessionControl} takes. */
@@ -14,13 +15,15 @@ export interface SessionControlProps {
 
 /**
  * The app bar's session control: **Sign in** for an anonymous visitor, returning them to the page
- * they are on, or the signed-in user's display name with **Sign out**.
+ * they are on, or the signed-in user's display name, which opens a menu whose only item for now
+ * is **Sign out**.
  */
 export function SessionControl({
   session,
   onSignOut = signOut,
 }: SessionControlProps) {
   const { pathname, searchStr } = useLocation();
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   if (session.status === "anonymous") {
     return (
@@ -30,12 +33,36 @@ export function SessionControl({
     );
   }
 
+  const close = () => setAnchor(null);
+
   return (
-    <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-      <Typography>{session.user.displayName}</Typography>
-      <Button color="inherit" onClick={() => void onSignOut()}>
-        Sign out
+    <>
+      <Button
+        color="inherit"
+        id="session-menu-button"
+        aria-haspopup="menu"
+        aria-controls={anchor ? "session-menu" : undefined}
+        aria-expanded={anchor ? "true" : undefined}
+        onClick={(event) => setAnchor(event.currentTarget)}
+      >
+        {session.user.displayName}
       </Button>
-    </Stack>
+      <Menu
+        id="session-menu"
+        anchorEl={anchor}
+        open={anchor !== null}
+        onClose={close}
+        slotProps={{ list: { "aria-labelledby": "session-menu-button" } }}
+      >
+        <MenuItem
+          onClick={() => {
+            close();
+            void onSignOut();
+          }}
+        >
+          Sign out
+        </MenuItem>
+      </Menu>
+    </>
   );
 }

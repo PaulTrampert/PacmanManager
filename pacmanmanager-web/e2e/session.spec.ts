@@ -27,10 +27,12 @@ test("a user signs in from a deep link, lands back on it, and signs out again", 
   expect(me.ok()).toBe(true);
   const { displayName } = (await me.json()) as { displayName: string };
   const banner = page.getByRole("banner");
-  await expect(banner.getByText(displayName, { exact: true })).toBeVisible();
+  const menuButton = banner.getByRole("button", { name: displayName });
+  await expect(menuButton).toBeVisible();
   await expect(banner.getByRole("link", { name: "Sign in" })).not.toBeVisible();
 
-  await banner.getByRole("button", { name: "Sign out" }).click();
+  await menuButton.click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
 
   await page.waitForURL(
     (url) => url.origin === webHostUrl && url.pathname === "/",

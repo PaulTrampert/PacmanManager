@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect, fn, screen } from "storybook/test";
 import { currentUser } from "../../testing/fixtures";
 import { SessionControl } from "./SessionControl";
 
@@ -34,12 +34,21 @@ export const SignedIn: Story = {
     },
   },
   play: async ({ args, canvas, userEvent }) => {
-    await expect(await canvas.findByText("Ada Lovelace")).toBeVisible();
+    const trigger = await canvas.findByRole("button", {
+      name: "Ada Lovelace",
+    });
     await expect(
       canvas.queryByRole("link", { name: "Sign in" }),
     ).not.toBeInTheDocument();
+    // The menu stays closed until the display name is clicked.
+    await expect(
+      screen.queryByRole("menuitem", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("button", { name: "Sign out" }));
+    await userEvent.click(trigger);
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Sign out" }),
+    );
 
     await expect(args.onSignOut).toHaveBeenCalledOnce();
   },

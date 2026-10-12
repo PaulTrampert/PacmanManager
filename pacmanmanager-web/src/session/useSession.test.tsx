@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { server } from "../mocks/node";
 import { signedInHandlers } from "../mocks/session";
@@ -19,16 +20,22 @@ describe("the session in the app", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a signed-in user their display name and Sign out", async () => {
+  it("shows a signed-in user their display name, with Sign out in its menu", async () => {
     server.use(
       ...signedInHandlers(currentUser({ displayName: "Ada Lovelace" })),
     );
 
     renderRoute("/");
 
-    expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
+    const trigger = await screen.findByRole("button", {
+      name: "Ada Lovelace",
+    });
     expect(
-      screen.getByRole("button", { name: "Sign out" }),
+      screen.queryByRole("menuitem", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(trigger);
+    expect(
+      await screen.findByRole("menuitem", { name: "Sign out" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Sign in" }),
