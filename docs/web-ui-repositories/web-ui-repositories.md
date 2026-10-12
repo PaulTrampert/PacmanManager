@@ -302,19 +302,30 @@ used for every empty list:
 `/repositories/$repositoryId` loads `repositoryQuery(id)`. A `404` is the route's not-found
 component, whatever the reason the API had.
 
-It shows:
+The page is a compact header that the **Web UI: Packages** milestone's package list will sit
+beneath. Top to bottom:
 
-* the name, the owner's display name, the visibility, the architectures' `displayValue`s, and when
-  the repository was created and last updated;
-* an **Edit** button linking to `/repositories/$repositoryId/edit`, only when `permissions.update`
-  is `true`;
-* a **Delete** button opening the [delete dialog](#deleting-a-repository), only when
-  `permissions.delete` is `true`;
-* the [`pacman.conf` section](#the-pacmanconf-section).
+1. the [breadcrumbs](#navigation);
+2. a title row: the name as the page's `h1` with a Public or Private chip beside it, and on the
+   right
+   * an outlined **Edit** button linking to `/repositories/$repositoryId/edit`, only when
+     `permissions.update` is `true`;
+   * an outlined, error-coloured **Delete** button opening the
+     [delete dialog](#deleting-a-repository), only when `permissions.delete` is `true`;
+3. one row of label-over-value details: **Owner** (display name), **Architectures** (the
+   `displayValue`s), **Created** and **Updated**;
+4. the [`pacman.conf` section](#the-pacmanconf-section), collapsed.
+
+**Why:**
+
+* [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 
 ### The `pacman.conf` section
 
-A read-only code block holds exactly:
+An MUI `Accordion` titled **Use this repository**, with the secondary text "The pacman.conf section
+for this repository". It is **collapsed** each time the page loads; its state is not remembered.
+Expanded, it shows an instruction to add the section to `/etc/pacman.conf` and run `pacman -Sy`, a
+**Copy** button, and a read-only code block holding exactly:
 
 ```ini
 [<name>]
@@ -323,7 +334,7 @@ Server = <serverUrl>
 ```
 
 * `<name>` is the repository's name as stored, and `<serverUrl>` the field's value verbatim.
-* A **Copy** button copies the block's text to the clipboard and confirms that it did.
+* **Copy** copies the block's text to the clipboard, then reads **Copied** for a few seconds.
 * For a **private** repository, a note below the block says that `pacman` must authenticate to read
   it, and that the `Server` line needs credentials. The note does not generate or link to any.
 
@@ -584,6 +595,17 @@ A separate sort dropdown with a direction toggle, beside the filters, was the fi
 column headers are the convention for a data table, put the sort beside the data it orders, and keep
 the filter bar for filters. The cost is a **Created** column, which the list had not otherwise
 shown, so that it can be sorted on.
+
+### Why the repository page is a header for its packages
+
+The page's long-term job is managing packages, which arrive in the next milestone; most visits will
+be for that, not for configuring `pacman`. The details are therefore a single row rather than a card
+or a description list, and the `pacman.conf` section — about 240 px expanded — is collapsed so it
+never pushes the package list down. Showing it expanded was the first wireframe; a dialog opened from
+a button beside Edit and Delete was also considered, and rejected because an accordion keeps the
+snippet in the page, where it is found by reading rather than by guessing at a button. The collapsed
+state is not remembered: a visitor who needs the snippet needs it once per machine, and remembering
+it would make the page's height depend on history.
 
 ### Why repositories are addressed by id
 
