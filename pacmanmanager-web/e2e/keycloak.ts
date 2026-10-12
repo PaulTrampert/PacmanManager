@@ -121,15 +121,14 @@ async function clientRepresentation(
 
 /**
  * Sets how long the access tokens Keycloak issues to the client `clientId` live, in seconds,
- * overriding the realm's lifespan; `undefined` removes the override. Tokens already issued keep
- * their lifespan. Returns the override it replaced, so a test can put it back.
+ * overriding the realm's lifespan; `undefined` removes the override, which keycloak/localdev.json
+ * does not have. Tokens already issued keep their lifespan.
  */
 export async function setAccessTokenLifespan(
   clientId: string,
   seconds: number | undefined,
-): Promise<number | undefined> {
+): Promise<void> {
   const client = await clientRepresentation(clientId);
-  const previous = client.attributes?.[accessTokenLifespanAttribute];
   await adminRequest(
     `/clients/${client.id}`,
     `set the access token lifespan of ${clientId}`,
@@ -147,5 +146,4 @@ export async function setAccessTokenLifespan(
       }),
     },
   );
-  return previous ? Number(previous) : undefined;
 }

@@ -68,15 +68,21 @@ async function expectSignedIn(page: Page): Promise<void> {
 }
 
 // Signs the `other` user's sessions out in Keycloak, so no other test signs in as `other`.
-test("a user whose session can no longer be refreshed is sent to sign in, and back", async ({
-  page,
-}) => {
-  const deepLink = "/repositories?offset=0&pageSize=10";
+test.describe("a session that can no longer be refreshed", () => {
   // The web host refreshes a token only once it is about to expire, and the realm's live for five
   // minutes. Tokens this short are refreshed on every request, so the dead session shows at once.
   // Another test signing in meanwhile gets them too, and is merely refreshed more often.
-  const previousLifespan = await setAccessTokenLifespan(webHostClientId, 10);
-  try {
+  test.beforeEach(async () => {
+    await setAccessTokenLifespan(webHostClientId, 10);
+  });
+
+  // In a hook rather than a `finally`, so that it runs after a timeout too.
+  test.afterEach(async () => {
+    await setAccessTokenLifespan(webHostClientId, undefined);
+  });
+
+  test("sends the user to sign in, and back", async ({ page }) => {
+    const deepLink = "/repositories?offset=0&pageSize=10";
     await signIn(page, users.other, deepLink);
     await expectSignedIn(page);
 
@@ -89,7 +95,5 @@ test("a user whose session can no longer be refreshed is sent to sign in, and ba
 
     await submitSignInForm(page, users.other, deepLink);
     await expectSignedIn(page);
-  } finally {
-    await setAccessTokenLifespan(webHostClientId, previousLifespan);
-  }
+  });
 });

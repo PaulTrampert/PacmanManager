@@ -167,9 +167,8 @@ describe("setAccessTokenLifespan", () => {
       recordsUpdate(sent),
     );
 
-    await expect(
-      setAccessTokenLifespan(webHostClientId, 10),
-    ).resolves.toBeUndefined();
+    await setAccessTokenLifespan(webHostClientId, 10);
+
     expect(sent).toEqual([
       {
         id: "client-uuid",
@@ -179,7 +178,7 @@ describe("setAccessTokenLifespan", () => {
     ]);
   });
 
-  it("removes the override and returns the one it replaced", async () => {
+  it("removes the override", async () => {
     const sent: unknown[] = [];
     server.use(
       issuesToken(),
@@ -187,9 +186,8 @@ describe("setAccessTokenLifespan", () => {
       recordsUpdate(sent),
     );
 
-    await expect(
-      setAccessTokenLifespan(webHostClientId, undefined),
-    ).resolves.toBe(10);
+    await setAccessTokenLifespan(webHostClientId, undefined);
+
     expect(sent).toEqual([
       {
         id: "client-uuid",
