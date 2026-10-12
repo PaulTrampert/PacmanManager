@@ -16,6 +16,9 @@ export default defineConfig(
     ".tanstack/",
     "**/*.gen.ts",
     ".storybook/public/",
+    "playwright-report/",
+    "test-results/",
+    "blob-report/",
   ]),
   // Storybook's config directory is a dot-directory, which ESLint skips unless asked.
   { files: ["**/*.{js,ts,tsx}", ".storybook/**/*.{ts,tsx}"] },
@@ -31,7 +34,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["*.{js,ts}"],
+    files: ["*.{js,ts}", "e2e/**/*.ts"],
     languageOptions: {
       globals: { ...globals.node },
     },

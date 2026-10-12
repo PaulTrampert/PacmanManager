@@ -14,3 +14,8 @@ coverage/
 __screenshots__/
 .vitest-attachments/
 *storybook.log
+
+# Playwright output (`npm run e2e`)
+playwright-report/
+test-results/
+blob-report/
