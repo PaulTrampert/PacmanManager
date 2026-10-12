@@ -4,8 +4,8 @@
 #
 # The cloud image is Ubuntu, but this repository is a pacman repository host: it needs the .NET 10
 # SDK, pacman's own tooling (repo-add/repo-remove and libalpm, which LibAlpmSharp P/Invokes), a JRE
-# for the ANTLR grammar build, and a Docker daemon for the Testcontainers end to end tests. This
-# installs all of it. A local Arch checkout already has the pacman half, so the hook is a no-op
+# for the ANTLR grammar build, a Docker daemon for the Testcontainers end to end tests, and the Node
+# LTS with Chromium for pacmanmanager-web. This installs all of it. A local Arch checkout already has the pacman half, so the hook is a no-op
 # outside the remote environment.
 set -euo pipefail
 
@@ -60,6 +60,31 @@ else
   log "apt packages already present"
 fi
 
+# --- node ---------------------------------------------------------------------------------------
+#
+# pacmanmanager-web builds with the Node LTS (its .nvmrc says `lts/*`). Ubuntu's own nodejs package
+# lags well behind, so the current LTS comes from nodejs.org's official binaries, installed under
+# /usr/local, unless that version is already the one on the PATH.
+node_arch=$(uname -m)
+case "$node_arch" in
+  x86_64) node_arch=x64 ;;
+  aarch64) node_arch=arm64 ;;
+esac
+node_lts=$(curl -fsSL https://nodejs.org/dist/index.json \
+  | python3 -c 'import json, sys; print(next(r["version"] for r in json.load(sys.stdin) if r["lts"]))' \
+  2>/dev/null || true)
+if [ -z "$node_lts" ]; then
+  log "could not look up the Node LTS on nodejs.org; using $(node --version 2>/dev/null || echo 'no node')"
+elif [ "$(/usr/local/bin/node --version 2>/dev/null || true)" = "$node_lts" ]; then
+  log "node $node_lts already present"
+else
+  log "installing node $node_lts"
+  curl -fsSL "https://nodejs.org/dist/$node_lts/node-$node_lts-linux-$node_arch.tar.xz" \
+    | as_root tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude LICENSE --exclude README.md \
+    || log "installing node $node_lts failed"
+  hash -r
+fi
+
 # --- docker -------------------------------------------------------------------------------------
 #
 # PacmanManager.RepoHost.Test starts Postgres and Keycloak with Testcontainers and builds the
@@ -97,4 +122,13 @@ dotnet tool restore >&2 || log "dotnet tool restore failed"
 log "restoring NuGet packages"
 dotnet restore PacmanManager.sln >&2 || log "dotnet restore failed"
 
-log "ready: .NET $(dotnet --version), $(pacman --version | grep -o 'Pacman v[^ ]*'), libalpm $(pacman --version | grep -o 'libalpm v[^ ]*' | cut -dv -f2)"
+# --- npm ----------------------------------------------------------------------------------------
+#
+# The web app's dependencies, and the Chromium its Storybook stories run in under `npm test`.
+if command -v npm >/dev/null 2>&1; then
+  log "installing the web app's npm dependencies"
+  (cd pacmanmanager-web && npm ci >&2 && npx playwright install --with-deps chromium >&2) \
+    || log "npm ci or the Chromium install failed"
+fi
+
+log "ready: .NET $(dotnet --version), $(pacman --version | grep -o 'Pacman v[^ ]*'), libalpm $(pacman --version | grep -o 'libalpm v[^ ]*' | cut -dv -f2), node $(node --version 2>/dev/null || echo missing)"

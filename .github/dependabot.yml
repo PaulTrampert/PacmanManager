@@ -44,6 +44,17 @@ updates:
     commit-message:
       prefix: "(PATCH) "
 
+  # pacmanmanager-web's package.json and package-lock.json.
+  - package-ecosystem: npm
+    directory: /pacmanmanager-web
+    schedule:
+      interval: daily
+    groups:
+      npm:
+        patterns: ["*"]
+    commit-message:
+      prefix: "(PATCH) "
+
   # "/" covers .github/workflows; the local composite actions have to be named separately.
   - package-ecosystem: github-actions
     directories:

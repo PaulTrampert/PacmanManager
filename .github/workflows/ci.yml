@@ -1,7 +1,7 @@
 name: CI
 
-# The repository is unreleased, so this pipeline is purely a gate: it builds, it tests, and it
-# proves both container images still build. Nothing is published.
+# The repository is unreleased, so this pipeline is purely a gate: it builds and tests the solution
+# and the web app, and it proves both container images still build. Nothing is published.
 on:
   push:
     branches: [main]
@@ -142,6 +142,50 @@ jobs:
           name: test-results-arch
           path: artifacts/test-results
           if-no-files-found: warn
+
+  # The web app is an npm project beside the solution, not in it, so it has its own job and needs
+  # none of the .NET toolchain. Its component tests are Storybook stories run by Vitest in
+  # Chromium, hence the Playwright browser install.
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pacmanmanager-web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: pacmanmanager-web/.nvmrc
+          cache: npm
+          cache-dependency-path: pacmanmanager-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Storybook
+        run: npm run build-storybook
 
   docker:
     name: Build ${{ matrix.name }} image

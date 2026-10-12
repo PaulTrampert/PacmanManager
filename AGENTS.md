@@ -9,9 +9,10 @@ A self-hosted **private pacman (Arch Linux) repository host**. `PacmanManager.Re
 ASP.NET Core API that lets authenticated users create and manage pacman repositories; repository
 database files (`.db.tar.gz`) live under `DATA_DIR` (default `/data`) and are manipulated with
 `repo-add`. `LibAlpmSharp` is a from-scratch P/Invoke binding and `pacman.conf` parser (ANTLR
-grammar) over libalpm.
+grammar) over libalpm. `pacmanmanager-web` is the web front end: a React app, built with Vite, that
+`docs/web-ui-architecture.md` describes.
 
-Target framework is **net10.0** across every project. Nullable reference types and implicit usings
+Target framework is **net10.0** across every .NET project. Nullable reference types and implicit usings
 are enabled everywhere.
 
 ## Build and test commands
@@ -25,6 +26,26 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"  # one 
 ```
 
 There is no separate lint or typecheck step — `dotnet build` is both.
+
+The web app is an npm project and has its own commands, run from `pacmanmanager-web/` with the Node
+LTS (`.nvmrc` is `lts/*`):
+
+```bash
+npm ci                     # install exactly what package-lock.json pins; all a fresh clone needs
+npm run dev                # Vite dev server on port 3000, proxying the web host's paths to :8081
+npm run format:check       # Prettier (`npm run format` rewrites)
+npm run lint               # ESLint
+npm run typecheck          # tsc
+npm test                   # Vitest, once: the unit project (jsdom) and the storybook project (Chromium)
+npm run test:watch         # the same, watching
+npm run build              # production bundle in dist/
+npm run storybook          # Storybook on port 6006 (`npm run build-storybook` builds it)
+npx playwright install chromium   # once, for the storybook project's browser
+```
+
+`npm run generate` writes the gitignored `*.gen.ts` files (currently the TanStack Router route
+tree). `dev`, `build`, `typecheck`, `lint`, `test` and `storybook` run it first, so nothing generated
+is ever committed or needed before them.
 
 **Note on `dotnet test`:** `PacmanManager.RepoHost.Test` contains Testcontainers-based E2E tests
 that build the RepoHost and Migrations Docker images and start Postgres and Keycloak containers.
@@ -73,8 +94,9 @@ OAuth against Keycloak with PKCE.
 | `PacmanManager.RepoHost` | The API: controllers, services, authentication, authorization. |
 | `PacmanManager.TestUtils` | Shared test helpers (`DirUtils.FindSolutionDirectory`, `TestOutputLogger`, wait strategies). |
 | `*.Test` | One test project per production project. |
+| `pacmanmanager-web` | The web front end: an npm project beside the solution, **not** in `PacmanManager.sln`. Its layout is set out in `docs/web-ui-architecture.md`. |
 
-Adding a project means adding it to `PacmanManager.sln` (and to the relevant `Dockerfile` `COPY`
+Adding a .NET project means adding it to `PacmanManager.sln` (and to the relevant `Dockerfile` `COPY`
 lines if it becomes a build dependency of RepoHost or Migrations).
 
 ## Architecture notes worth knowing before changing things
@@ -169,6 +191,10 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 * Test stack: **NUnit** (globally imported via `GlobalUsings.cs` / `<Using Include="NUnit.Framework" />`),
   **Moq**, **Testcontainers**, and `Microsoft.EntityFrameworkCore.InMemory` for service-level tests.
 * `InternalsVisibleTo` exposes RepoHost internals to `PacmanManager.RepoHost.Test`.
+* In `pacmanmanager-web`, logic gets a Vitest unit test beside it (`Name.test.ts(x)`), and every
+  component in `src/components` a story per meaningful state (`Name.stories.tsx`), with a `play`
+  function for each interaction. Stories run as tests under `npm test`. Unit tests and stories talk
+  to MSW handlers from `src/mocks`, and a request no handler matches fails the test.
 * A PR is expected to have a passing `dotnet build` and `dotnet test`.
 
 ## Continuous integration
@@ -180,6 +206,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | :--- | :--- |
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
 | `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
+| `web` | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
 | `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
 
 The `test` job publishes its `.trx` files with
@@ -366,7 +393,8 @@ ones.
 * `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`; never replace the symlink with a copy,
   since the point is that there is only one set of instructions to keep current.
 * `.claude/hooks/session-start.sh` provisions a remote (cloud) session: the .NET SDK, pacman
-  tooling, libalpm, a JRE for ANTLR, and the Docker daemon. It is a no-op locally.
+  tooling, libalpm, a JRE for ANTLR, the Docker daemon, and the Node LTS with the web app's npm
+  dependencies and Chromium. It is a no-op locally.
   `docs/cloud-environment.md` is the companion, and covers the network allowlist a cloud
   environment needs before the E2E tests can run.
 * `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command: it assigns
@@ -375,7 +403,8 @@ ones.
   [Worktrees](#worktrees).
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). The toolchain they build with is installed
-  by the local composite action `.github/actions/setup-toolchain`, which mirrors
+  by the local composite action `.github/actions/setup-toolchain` (the Node LTS included, for the
+  web app), which mirrors
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
 * `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
   and its known gaps. `docs/web-ui-architecture.md` fixes the web front end's architecture — read it
@@ -387,7 +416,7 @@ ones.
   implement it as written. Deviating from one during implementation needs sign-off from a project
   owner, and the same change must update the plan, add an Appendix entry saying why, and update
   every dependent issue.
-* `.github/dependabot.yml` checks each ecosystem (NuGet, Docker, Compose, GitHub Actions) daily
+* `.github/dependabot.yml` checks each ecosystem (NuGet, npm, Docker, Compose, GitHub Actions) daily
   and batches its version updates into one pull request per ecosystem, and leaves security updates
   ungrouped so each arrives as its own PR. Its PR titles carry the `(PATCH) ` prefix the title check requires.
 * `.run/` holds Rider run configurations.

@@ -3,7 +3,8 @@
 [Claude Code on the web](https://claude.ai/code) runs each session on an Ubuntu 24.04 VM with the
 common toolchains preinstalled. This repository needs three things that VM does not ship: the
 **.NET 10 SDK**, **pacman's own tooling** (`repo-add`, `repo-remove` and `libalpm`, which
-`LibAlpmSharp` P/Invokes), and a **running Docker daemon** for the Testcontainers end to end tests.
+`LibAlpmSharp` P/Invokes), a **running Docker daemon** for the Testcontainers end to end tests, and
+the **Node LTS** with Chromium for `pacmanmanager-web`.
 
 `.claude/hooks/session-start.sh` installs all of it, and `.claude/settings.json` registers it as a
 `SessionStart` hook, so a session started against this branch is ready without any configuration.
@@ -31,6 +32,9 @@ geo.mirror.pkgbuild.com
 *.pkgbuild.com
 archlinux.org
 *.archlinux.org
+nodejs.org
+cdn.playwright.dev
+playwright.download.prss.microsoft.com
 ```
 
 Why each one is needed:
@@ -40,6 +44,8 @@ Why each one is needed:
 | `production.cloudfront.docker.com` | Docker Hub image **layers**. The Trusted list allows `registry-1.docker.io` and the older `production.cloudflare.docker.com`, but Docker Hub now serves blobs from CloudFront. | Every `docker pull` and every `FROM` resolves its manifest and then fails with `403 Forbidden` on the blob — `postgres:18` and `archlinux/archlinux` both. |
 | `quay.io`, `*.quay.io` | `quay.io/keycloak/keycloak`, started by `KeycloakContainer`. | The Keycloak container never starts. |
 | `geo.mirror.pkgbuild.com`, `*.pkgbuild.com`, `archlinux.org`, `*.archlinux.org` | The `pacman -Syu` inside `PacmanManager.RepoHost/Dockerfile`, and `PacmanManager.AurClient`'s live AUR tests, which call `aur.archlinux.org`. | The RepoHost image build fails, and six `AurClient` tests fail. |
+| `nodejs.org` | The SessionStart hook looks up the current Node LTS and downloads its official binaries, since Ubuntu's `nodejs` is too old for the web app. | The hook keeps whatever Node the image has, if any, and the web app may not build. |
+| `cdn.playwright.dev`, `playwright.download.prss.microsoft.com` | `npx playwright install chromium`: the browser `pacmanmanager-web`'s Storybook stories run in under `npm test`. | The web app's story tests fail to launch a browser. |
 
 **Trusted** on its own is enough for `dotnet build`, `dotnet test` on the unit fixtures, and NuGet
 restore: `archive.ubuntu.com` and `api.nuget.org` are already on the default list. Choosing **Full**
@@ -103,7 +109,9 @@ outside a cloud session (`CLAUDE_CODE_REMOTE`), and in one it:
   environment with no setup script;
 * **starts `dockerd`**, which the setup script cannot do for you — the environment cache is a
   filesystem snapshot, so pulled images survive but running processes do not;
-* runs `dotnet tool restore` (for `dotnet-ef`) and `dotnet restore`.
+* runs `dotnet tool restore` (for `dotnet-ef`) and `dotnet restore`;
+* installs the current Node LTS under `/usr/local` from nodejs.org, unless it is already there;
+* runs `npm ci` in `pacmanmanager-web` and installs Chromium for its story tests.
 
 ## 5. What works, and what does not
 
@@ -117,6 +125,8 @@ With the environment above:
 | `PacmanManager.RepoHost.Test` unit fixtures, `repo-add`/`repo-remove` included | Works |
 | `PacmanManager.AurClient.Test` | Works only with the `archlinux.org` domains allowed; those six tests call the live AUR |
 | `PacmanManager.RepoHost.Test` end to end fixtures | Works only with the Docker and Arch domains allowed |
+| `pacmanmanager-web`: `npm run lint`, `typecheck`, `build` | Works with `nodejs.org` allowed |
+| `pacmanmanager-web`: `npm test` | Works only with the Playwright domains allowed too, for Chromium |
 
 **`LibAlpmSharp.Test` needs no filter here.** The fixtures that want installed packages seed a
 local database under a temporary root (`PacmanManager.TestUtils.LocalPackageDatabase`) and point

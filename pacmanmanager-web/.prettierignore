@@ -1,0 +1,9 @@
+dist/
+storybook-static/
+coverage/
+.tanstack/
+*.gen.ts
+.storybook/public/mockServiceWorker.js
+package-lock.json
+# Written by the Swashbuckle CLI and never hand-edited.
+openapi/

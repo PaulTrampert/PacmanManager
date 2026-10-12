@@ -1,8 +1,9 @@
 name: Set up the build toolchain
 description: >-
   Installs what building and testing the solution on an Ubuntu runner needs: pacman tooling and
-  libalpm, a JRE for the ANTLR build task, the .NET SDK, and a NuGet package cache. Expects the
-  repository to be checked out already, since the cache key hashes its project files.
+  libalpm, a JRE for the ANTLR build task, the .NET SDK, and a NuGet package cache, plus the Node
+  LTS and an npm cache for pacmanmanager-web. Expects the repository to be checked out already,
+  since the cache keys hash its project files and the web app's lockfile.
 
 runs:
   using: composite
@@ -43,3 +44,12 @@ runs:
         path: ~/.nuget/packages
         key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '.config/dotnet-tools.json') }}
         restore-keys: nuget-${{ runner.os }}-
+
+    # The web app's Node, read from its .nvmrc (`lts/*`), so the Claude workflows can build and
+    # test pacmanmanager-web as well as the solution. The CI `web` job sets Node up the same way.
+    - name: Set up Node
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: pacmanmanager-web/.nvmrc
+        cache: npm
+        cache-dependency-path: pacmanmanager-web/package-lock.json

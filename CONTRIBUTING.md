@@ -36,6 +36,7 @@ Thank you for your interest in contributing! To maintain code quality and consis
 *   **PR Description**: The description should include:
     *   A reference to any GitHub issues that this PR fixes (e.g., `Fixes #123`).
     *   Detailed explanations of the change that are not immediately obvious from the code diff.
+    *   For any change to the UI (component changes, style changes, and so on), screenshots of the UI **before** and **after** the change. "Before" is not required if the change is purely additive. If the change is a new component that is not used anywhere yet, screenshots of its Storybook render are enough.
 
 ## Repository Metadata
 
