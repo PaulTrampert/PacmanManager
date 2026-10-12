@@ -20,7 +20,7 @@ globalThis.Request = class extends NodeRequest {
 };
 
 // A request no handler matches fails the test that made it.
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 
 afterEach(() => {
   cleanup();
