@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "generate": "tsr generate",
+    "generate": "tsr generate && node scripts/generate-api-schema.ts",
     "predev": "npm run generate",
     "dev": "vite",
     "prebuild": "npm run generate",
@@ -37,6 +37,7 @@
     "@mui/material": "^9.5.0",
     "@tanstack/react-query": "^5.104.2",
     "@tanstack/react-router": "^1.170.42",
+    "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -64,6 +65,7 @@
     "jsdom": "^30.1.2",
     "msw": "^2.15.0",
     "msw-storybook-addon": "^3.0.3",
+    "openapi-typescript": "^7.13.0",
     "playwright": "^1.64.0",
     "prettier": "^3.9.10",
     "storybook": "^10.6.1",
@@ -75,5 +77,10 @@
   "allowScripts": {
     "msw": true,
     "esbuild": true
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
