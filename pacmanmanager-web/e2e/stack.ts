@@ -1,5 +1,5 @@
 // Where the compose stack the end-to-end tests run against answers. See compose.yaml and
-// docs/web-ui-architecture.md, "End-to-end tests".
+// docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
 
 /** The web host (SpaHost serving the built app), which every test's page talks to. */
 export const webHostUrl = "http://localhost:8081";

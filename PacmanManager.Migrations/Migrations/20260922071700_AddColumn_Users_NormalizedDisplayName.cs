@@ -21,7 +21,7 @@ namespace PacmanManager.Migrations.Migrations
             // Postgres's lower() stands in for string.ToLowerInvariant() here. The two agree on ASCII
             // but can differ on some non-ASCII characters depending on the database's collation; a
             // row that differs is corrected the next time its display name is written. See
-            // docs/user-management.md, "Why a display name has a normalized copy".
+            // docs/user-management/user-management.md, "Why a display name has a normalized copy".
             migrationBuilder.Sql("""UPDATE "Users" SET "NormalizedDisplayName" = lower("DisplayName");""");
         }
 

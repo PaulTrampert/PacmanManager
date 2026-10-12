@@ -189,7 +189,7 @@ jobs:
 
   # The Playwright tests, against the whole compose stack. `npm run e2e` is the one command, as it is
   # locally: its `pree2e` script runs `docker compose up -d --build`, so a broken image fails that
-  # step rather than surfacing as a test failure. See docs/web-ui-architecture.md, "End-to-end tests".
+  # step rather than surfacing as a test failure. See docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
   e2e:
     name: End-to-end tests
     runs-on: ubuntu-latest

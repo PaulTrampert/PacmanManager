@@ -10,7 +10,7 @@ ASP.NET Core API that lets authenticated users create and manage pacman reposito
 database files (`.db.tar.gz`) live under `DATA_DIR` (default `/data`) and are manipulated with
 `repo-add`. `LibAlpmSharp` is a from-scratch P/Invoke binding and `pacman.conf` parser (ANTLR
 grammar) over libalpm. `pacmanmanager-web` is the web front end: a React app, built with Vite, that
-`docs/web-ui-architecture.md` describes.
+`docs/web-ui-architecture/web-ui-architecture.md` describes.
 
 Target framework is **net10.0** across every .NET project. Nullable reference types and implicit usings
 are enabled everywhere.
@@ -108,7 +108,7 @@ OAuth against Keycloak with PKCE.
 | `PacmanManager.RepoHost` | The API: controllers, services, authentication, authorization. |
 | `PacmanManager.TestUtils` | Shared test helpers (`DirUtils.FindSolutionDirectory`, `TestOutputLogger`, wait strategies). |
 | `*.Test` | One test project per production project. |
-| `pacmanmanager-web` | The web front end: an npm project beside the solution, **not** in `PacmanManager.sln`. Its layout is set out in `docs/web-ui-architecture.md`. |
+| `pacmanmanager-web` | The web front end: an npm project beside the solution, **not** in `PacmanManager.sln`. Its layout is set out in `docs/web-ui-architecture/web-ui-architecture.md`. |
 
 Adding a .NET project means adding it to `PacmanManager.sln` (and to the relevant `Dockerfile` `COPY`
 lines if it becomes a build dependency of RepoHost or Migrations).
@@ -163,7 +163,7 @@ regenerating. A change that breaks the contract regenerates the document in the 
 Generation runs the whole of `Program.cs` against a server that never listens, but without hosted
 services, so startup work that needs `DATA_DIR` or the database belongs in an `IHostedService`
 (like `PacmanDirectoriesInitializer`), never after `builder.Build()`. See
-`docs/web-ui-architecture.md`.
+`docs/web-ui-architecture/web-ui-architecture.md`.
 
 ### Database and migrations
 
@@ -469,9 +469,14 @@ ones.
   by the local composite action `.github/actions/setup-toolchain` (the Node LTS included, for the
   web app), which mirrors
   `.claude/hooks/session-start.sh`; if a build dependency changes, both need updating.
-* `docs/` holds design documents. `docs/authorization-plan.md` documents the authorization design
-  and its known gaps. `docs/web-ui-architecture.md` fixes the web front end's architecture — read it
-  before working on anything under the Web UI milestones. A new design document starts from `docs/design-doc-template.md`, which carries
+* `docs/` holds design documents. A milestone's planning documents live in a folder named for the
+  milestone, its title as a lowercase, hyphenated slug (`docs/web-ui-architecture/`,
+  `docs/basic-auth/`), together with the images they show; exports of Penpot wireframes go in a
+  `wireframes/` folder inside it. Documents that belong to no one milestone, such as the template,
+  stay at the top of `docs/`. `docs/authorization-plan.md` documents the authorization design and
+  its known gaps. `docs/web-ui-architecture/web-ui-architecture.md` fixes the web front end's
+  architecture — read it before working on anything under the Web UI milestones. A new design
+  document starts from `docs/design-doc-template.md`, which carries
   both the skeleton and the rules behind it: the body states *what* will be built, the argument for
   each decision lives in an Appendix that records what was rejected, each section ends with a
   bulleted **Why** footer linking those entries, and every `###` under the implementation plan is one

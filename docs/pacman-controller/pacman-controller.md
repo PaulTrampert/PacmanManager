@@ -1,8 +1,8 @@
 # Pacman Controller
 
 Status: **accepted**. This document is the source the implementation issues are cut from. It follows
-the conventions established in [`authorization-plan.md`](authorization-plan.md) and
-[`packages-api.md`](packages-api.md); where it departs from them, it says so.
+the conventions established in [`authorization-plan.md`](../authorization-plan.md) and
+[`packages-api.md`](../package-management-api/packages-api.md); where it departs from them, it says so.
 
 **How to read it.** The plan states what will be built. The argument for each decision — including
 what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
@@ -19,18 +19,18 @@ have sign-off from a project owner, and **must** carry all three of:
 
 It is one of three documents that together let a `pacman` client install from a hosted repository:
 
-1. [**User Management**](user-management.md) — reading users, and changing your own display name.
-2. [**Basic Auth**](basic-auth.md) — the credentials a `pacman.conf` carries for a private
+1. [**User Management**](../user-management/user-management.md) — reading users, and changing your own display name.
+2. [**Basic Auth**](../basic-auth/basic-auth.md) — the credentials a `pacman.conf` carries for a private
    repository.
 3. **Pacman Controller** (this document) — the repository routes themselves.
 
-It depends on [Basic Auth](basic-auth.md), and not on [User Management](user-management.md).
+It depends on [Basic Auth](../basic-auth/basic-auth.md), and not on [User Management](../user-management/user-management.md).
 
 A person configuring a machine to install from a hosted repository wants
-[Consuming a hosted repository](consuming-a-repository.md) instead, which says what to put in
+[Consuming a hosted repository](../consuming-a-repository.md) instead, which says what to put in
 `pacman.conf` without the design behind it.
 
-It closes the first item under [`packages-api.md`'s deferred work](packages-api.md#deferred-work):
+It closes the first item under [`packages-api.md`'s deferred work](../package-management-api/packages-api.md#deferred-work):
 the API can publish packages, but nothing can install them, because a `pacman` client configured
 with `Server = …` needs the `.db.tar.gz` and every package file resolvable under one base URL by the
 basename `repo-add` recorded. There is no such URL today.
@@ -58,7 +58,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * A browsable **directory index** at the repository root. `pacman` never asks for one.
 * **Delta packages** (`.delta`), which pacman removed support for in 5.0 and nothing generates.
 * **Writing anything.** Every route under this root is a read, and the credential that reaches them
-  [cannot write in the first place](basic-auth.md#authority-is-a-property-of-the-actor-not-of-the-route).
+  [cannot write in the first place](../basic-auth/basic-auth.md#authority-is-a-property-of-the-actor-not-of-the-route).
 * **Rate limiting** and download quotas.
 * **A dispute process for repository names.** Names are first-come, first-served, and nothing
   arbitrates between two people who want the same one.
@@ -105,7 +105,7 @@ SigLevel = Optional TrustAll
 
 For a private repository the same line carries credentials, which libcurl reads out of the userinfo
 and sends as an `Authorization: Basic` header. The username is
-[the token's identifier and the password its secret](basic-auth.md#the-identifier-goes-in-the-username-the-secret-in-the-password):
+[the token's identifier and the password its secret](../basic-auth/basic-auth.md#the-identifier-goes-in-the-username-the-secret-in-the-password):
 
 ```ini
 Server = https://pmt_0199…:pms_kJ8…@packages.example.com/pacman/$repo/$arch
@@ -175,8 +175,8 @@ are.** A user who needs the name itself to be unguessable should choose an ungue
   breaking change to a public service signature.
 * Creating or renaming into a taken name raises `ItemExistsException` → `409`, rather than the
   `DbUpdateException` → `500` that
-  [`authorization-plan.md`](authorization-plan.md#known-gaps) records as a known gap.
-* [`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name) says a repository
+  [`authorization-plan.md`](../authorization-plan.md#known-gaps) records as a known gap.
+* [`authorization-plan.md`](../authorization-plan.md#looking-a-repository-up-by-name) says a repository
   name on its own identifies nothing, and that a friendlier URL form needs a user-facing name on
   `User`. Both sentences become wrong. The issue updates that section.
 
@@ -473,7 +473,7 @@ it expected a `200` unless it accounts for that.
 When [resolution](#resolution) finds no repository the caller may see, and the request carried no
 credentials, the response is **`401` with `WWW-Authenticate: Basic realm="pacman"`** — the same
 challenge the Basic scheme issues for
-[a credential it refuses](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
+[a credential it refuses](../basic-auth/basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong).
 That is what makes `pacman` send the credentials in its `Server` URL.
 
 | Request | Response |
@@ -483,7 +483,7 @@ That is what makes `pacman` send the credentials in its `Server` URL.
 | Anonymous, public repository, anything missing in it (an unsupported architecture, a `.sig`, a package not on disk) | `404` |
 | Authenticated, repository it may not see, or no such repository | `404` |
 | Authenticated, visible repository, anything missing in it | `404` |
-| A Basic credential that was offered and refused, on any of the above | `401`, Basic challenge, [before the route runs](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong) |
+| A Basic credential that was offered and refused, on any of the above | `401`, Basic challenge, [before the route runs](../basic-auth/basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong) |
 
 * **Only the repository decides it.** Once a repository is visible, nothing missing inside it is
   challenged: a credential could not make it appear, and challenging would only make `pacman` repeat a
@@ -492,7 +492,7 @@ That is what makes `pacman` send the credentials in its `Server` URL.
   `Bearer` token, or a Basic token with or without the read scope — and presenting it again would not
   change the answer.
 * **"Authenticated" means the request authenticated**, not that the actor may read: a credential
-  [that cannot read reads as anonymous](basic-auth.md#a-credential-that-cannot-read-reads-as-anonymous)
+  [that cannot read reads as anonymous](../basic-auth/basic-auth.md#a-credential-that-cannot-read-reads-as-anonymous)
   for visibility, but it is still not challenged.
 * The decision is the controller's, from the resolution and the request's authentication result. It
   adds no visibility rule: which repositories the caller may see is still decided by
@@ -527,9 +527,9 @@ One issue per heading. Dependencies are noted; anything without a dependency can
 
 Raise `ItemExistsException` on the **existing** `(OwnerId, Name, Architecture)` collision, from create
 and from update, replacing the `DbUpdateException` → `500` that
-[`authorization-plan.md`](authorization-plan.md#known-gaps) records as a known gap. The mapping to
-`409` is [a story of its own](authorization-plan.md#itemexistsexception--409--patch), shared with
-[Basic Auth](basic-auth.md#5-accesstokenscontroller--minor).
+[`authorization-plan.md`](../authorization-plan.md#known-gaps) records as a known gap. The mapping to
+`409` is [a story of its own](../authorization-plan.md#itemexistsexception--409--patch), shared with
+[Basic Auth](../basic-auth/basic-auth.md#5-accesstokenscontroller--minor).
 
 The unique index decides the collision. `RepositoryService` does not check for one before writing:
 it translates the index's unique violation into `ItemExistsException`. It identifies the index by
@@ -544,7 +544,7 @@ collision produces a `409`. **A test asserts the body names neither
 the owner nor anything else about the colliding repository.** The `packages-api.md` deferred bullet
 recording the exception as unused is deleted.
 
-*Depends on:* [`ItemExistsException` → `409`](authorization-plan.md#itemexistsexception--409--patch).
+*Depends on:* [`ItemExistsException` → `409`](../authorization-plan.md#itemexistsexception--409--patch).
 
 **Why:**
 
@@ -556,7 +556,7 @@ recording the exception as unused is deleted.
 
 The service change that follows the index: `RepositoryKey` collapses to a name,
 `GetRepositoryByNameAsync` takes a `string`, and this issue makes the correction to
-[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name). Uniqueness itself
+[`authorization-plan.md`](../authorization-plan.md#looking-a-repository-up-by-name). Uniqueness itself
 belongs to [issue 1c](#1c-the-global-name-index-and-its-migration--major). The index decides it, and
 1a's translation reports it, so there is no collision check here to change.
 
@@ -708,7 +708,7 @@ behaviour: `Last-Modified`, `ETag`, `304`, `Range`/`206`, `Content-Length`, `Var
 `application/octet-stream`, and `[ApiVersionNeutral]`. Most of that is one `File(stream, contentType,
 fileName, lastModified, entityTag, enableRangeProcessing)` call with the right arguments. The routes
 are `[AllowAnonymous]`; they name no scheme, because
-[the `Authorization` prefix selects the handler](basic-auth.md#the-authorization-prefix-picks-the-handler)
+[the `Authorization` prefix selects the handler](../basic-auth/basic-auth.md#the-authorization-prefix-picks-the-handler)
 before any endpoint metadata is consulted.
 
 *Acceptance:* E2E tests fetching the database, the files database and a package from a public
@@ -719,14 +719,14 @@ repository anonymously
 ([the challenge](#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged) was added
 after this issue shipped, by #172, which updated these tests);
 a mistyped token producing `401` rather than `404` — the
-[`[AllowAnonymous]` trap](basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong),
+[`[AllowAnonymous]` trap](../basic-auth/basic-auth.md#present-but-invalid-credentials-are-a-401-and-this-is-easy-to-get-wrong),
 which this is the first real endpoint able to test; a conditional request returning `304`; a `Range`
 request returning `206` with the right bytes; and `Vary: Authorization` present with no
 `Cache-Control` on any of them, so that the omission is a decision the tests hold rather than
 something a later change drifts back into. A test asserts the routes are absent from every Swagger
 document, which `[ApiExplorerSettings(IgnoreApi = true)]` gives and `[ApiVersionNeutral]` alone does not.
 
-*Depends on:* 3, and [Basic Auth](basic-auth.md#4-the-basic-scheme-and-its-handler--minor).
+*Depends on:* 3, and [Basic Auth](../basic-auth/basic-auth.md#4-the-basic-scheme-and-its-handler--minor).
 
 **Why:**
 
@@ -783,7 +783,7 @@ conditional-GET path end to end.
 
 The fixture package under `test-fixtures/packages` is what gets published; locate it with
 `PacmanManager.TestUtils.PackageFixtures` rather than composing the path again. The
-[`libalpm` CI job](../AGENTS.md#continuous-integration) already runs an `archlinux/archlinux`
+[`libalpm` CI job](../../AGENTS.md#continuous-integration) already runs an `archlinux/archlinux`
 container, so the image and the toolchain are precedented.
 
 *Acceptance:* as described. This is the acceptance criterion for all three documents together —
@@ -818,7 +818,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   hard, and this design currently relies on each write path cleaning up after itself. A periodic
   sweep would delete repository directories with no row, unlink package files nothing references,
   and rebuild a `.db.tar.gz` that disagrees with the packages table — the last of which is
-  [already filed under `packages-api.md`](packages-api.md#deferred-work) and is the same job.
+  [already filed under `packages-api.md`](../package-management-api/packages-api.md#deferred-work) and is the same job.
   Because of [the ordering rule](#what-file-names-are-served), this reclaims space rather than
   restoring correctness, which is what makes it deferrable at all.
 * **Support for other architectures.** `aarch64` and `armv7h` are the obvious candidates, and the
@@ -846,14 +846,14 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **A generated repository configuration or installer script.** Nothing yet produces a `repo.conf`
   fragment — section, `Server` line with the token's username and secret, and `SigLevel` — or a script
   that installs one. This is the intended way for users to configure a client, and it is what makes
-  [a token being two values](basic-auth.md#format) cost nothing in practice; until it exists,
+  [a token being two values](../basic-auth/basic-auth.md#format) cost nothing in practice; until it exists,
   [issue 5](#5-document-consuming-a-hosted-repository--patch) documents the manual form.
 * **Mirrorlists.** Nothing generates a mirrorlist for a user, which is the obvious convenience once
   more than one host serves the same repositories.
 * **Rate limiting and download quotas.** Nothing bounds how often an anonymous caller can pull a
   public repository.
 * **Reconciling a repository database from the rows**, already filed under
-  [`packages-api.md`](packages-api.md#deferred-work) and made more visible by this work: a
+  [`packages-api.md`](../package-management-api/packages-api.md#deferred-work) and made more visible by this work: a
   `.db.tar.gz` that disagrees with the rows is now something a `pacman` client sees directly.
 
 ---
@@ -906,7 +906,7 @@ it.
 ### Why repository names became globally unique
 
 The obvious effect is that the URL loses its owner segment, and with it
-[the username on `User`](user-management.md#why-there-is-no-username) that only ever existed to fill
+[the username on `User`](../user-management/user-management.md#why-there-is-no-username) that only ever existed to fill
 that segment — along with its case-insensitivity rule, its generation and backfill, its reserved-name
 list, and the retired-name table that stopped a renamed user's clients silently following whoever
 picked up their old name.
@@ -930,7 +930,7 @@ Making a name globally unique means a collision is observable, and therefore tha
 is discoverable one guess at a time even when the repository holding it is private.
 
 This is a real narrowing of the promise in
-[`authorization-plan.md`](authorization-plan.md#authorization-rules), which reports a private
+[`authorization-plan.md`](../authorization-plan.md#authorization-rules), which reports a private
 repository a caller may not see as `404` specifically to hide its existence. That still holds
 everywhere it is stated — the listing, the get, the packages, the pacman routes — and a private
 repository is still absent from every one of them. What is no longer hidden is the *name*.
@@ -1011,8 +1011,8 @@ depends on the choice; keeping one collection type across the entities does.
 
 ### Why resolution owns no database access
 
-[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) and
-[`packages-api.md`](packages-api.md#where-it-is-enforced) both rest on there being exactly one method
+[`authorization-plan.md`](../authorization-plan.md#why-this-is-hard-to-get-wrong) and
+[`packages-api.md`](../package-management-api/packages-api.md#where-it-is-enforced) both rest on there being exactly one method
 in the solution that touches `DbContext.PacmanRepositories` and exactly one that touches
 `DbContext.PacmanPackages`, each asserted by an enforcement test. A third service reaching into
 either `DbSet` would be a second copy of the visibility rule to keep in step — precisely what that
@@ -1133,7 +1133,7 @@ more widely.
 Renaming breaks clients, and under a global namespace it can break them *silently*: the moment
 `custom` is free, somebody else may take it, and Alice's un-updated clients start syncing from Bob's
 repository. That is precisely the failure
-[dropping the username](user-management.md#why-there-is-no-username) was supposed to have removed,
+[dropping the username](../user-management/user-management.md#why-there-is-no-username) was supposed to have removed,
 reappearing one level up.
 
 The sliding hold is the part that earns its complexity. A fixed expiry either releases a name while

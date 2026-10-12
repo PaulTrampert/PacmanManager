@@ -1,5 +1,5 @@
 // Writes src/api/schema.gen.ts, the API types, from RepoHost's committed OpenAPI document. Run by
-// `npm run generate`; see docs/web-ui-architecture.md, "Types and the client".
+// `npm run generate`; see docs/web-ui-architecture/web-ui-architecture.md, "Types and the client".
 //
 // The document's paths are RepoHost's own (`/api/v1/…`), but the client calls them through the web
 // host's proxy, under its `/api/pacmanmanager` base URL. The types are generated for the paths the

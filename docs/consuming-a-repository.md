@@ -1,8 +1,8 @@
 # Consuming a hosted repository
 
 How to point a machine's `pacman` at a repository hosted by PacmanManager, public or private.
-This is the user-facing counterpart to [Pacman Controller](pacman-controller.md),
-[Basic Auth](basic-auth.md) and [User Management](user-management.md); those documents say why
+This is the user-facing counterpart to [Pacman Controller](pacman-controller/pacman-controller.md),
+[Basic Auth](basic-auth/basic-auth.md) and [User Management](user-management/user-management.md); those documents say why
 things are the way they are, and this one says what to type.
 
 Throughout, `packages.example.com` stands for wherever your PacmanManager is deployed, and `myrepo`

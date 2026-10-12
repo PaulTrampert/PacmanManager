@@ -1,5 +1,5 @@
 # The build context is this directory, so the image never sees the .NET sources.
-# See docs/web-ui-architecture.md, "Hosting".
+# See docs/web-ui-architecture/web-ui-architecture.md, "Hosting".
 FROM node:lts AS build
 WORKDIR /src
 # The manifests on their own first, so a source change reuses the installed dependencies.

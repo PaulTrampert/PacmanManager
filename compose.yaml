@@ -26,7 +26,7 @@ services:
 
   # The web front end: the app's bundle in SpaHost, which signs users in against Keycloak and
   # proxies /api/pacmanmanager/... to RepoHost with their access token. Local development only; see
-  # docs/web-ui-architecture.md, "The compose service".
+  # docs/web-ui-architecture/web-ui-architecture.md, "The compose service".
   pacmanmanager.web:
     image: pacmanmanager.web
     build:

@@ -26,7 +26,7 @@ it, and one narrowing is accepted deliberately.
 **A repository's name is public, even when the repository is private.** Repository names are a
 global namespace, unique on `Name` alone across the deployment, so that a `pacman.conf`
 section name and the name this application knows are always the same string —
-[`pacman-controller.md`](pacman-controller.md#repository-names-are-globally-unique) has the full
+[`pacman-controller.md`](pacman-controller/pacman-controller.md#repository-names-are-globally-unique) has the full
 reasoning. A namespace that refuses duplicates cannot avoid telling a caller that a duplicate is
 what they have, so creating or renaming into a taken name fails, and that failure is observable.
 Anyone can therefore discover whether a name is in use, one guess at a time, **including when the
@@ -134,15 +134,15 @@ neither an owner nor an architecture to reach at most one row.
 The lookup selects from the already-visible set, like every other query in `RepositoryService`, so
 naming someone else's private repository returns nothing — the same `404` a caller gets by id. What
 a global name does disclose is that the name is taken, through the `409` a colliding create or
-rename returns; [`pacman-controller.md`](pacman-controller.md#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not)
+rename returns; [`pacman-controller.md`](pacman-controller/pacman-controller.md#the-trade-a-repositorys-name-is-public-even-when-the-repository-is-not)
 records that trade and its bounds.
 
 An earlier design keyed the lookup on `(OwnerId, Name, Architecture)`, and called for a user-facing
 name on `User` so the URL could read `{owner}/{name}/{arch}`. Both were abandoned: architecture moves
 onto the repository as a set (see
-[`pacman-controller.md`](pacman-controller.md#why-the-key-is-name-alone)), and a globally unique
+[`pacman-controller.md`](pacman-controller/pacman-controller.md#why-the-key-is-name-alone)), and a globally unique
 repository name removes the owner from the URL entirely —
-[`user-management.md`](user-management.md#why-there-is-no-username) records why that is the better
+[`user-management.md`](user-management/user-management.md#why-there-is-no-username) records why that is the better
 trade.
 
 ## Known gaps
@@ -158,8 +158,8 @@ Stories that no single feature document owns, because more than one feature need
 
 The arm on `AuthorizationExceptionHandler` that maps `ItemExistsException` to `409 Conflict`, and
 nothing else. Nothing raises the exception yet; that is left to the stories with a collision to
-report — [Pacman Controller 1a](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
-for a repository name and [Basic Auth 5](basic-auth.md#5-accesstokenscontroller--minor) for a token
+report — [Pacman Controller 1a](pacman-controller/pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
+for a repository name and [Basic Auth 5](basic-auth/basic-auth.md#5-accesstokenscontroller--minor) for a token
 name — and both depend on this one.
 
 It is a story of its own because both of those need it and neither depends on the other. Folding it

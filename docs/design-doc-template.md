@@ -1,8 +1,11 @@
 # Design Document Template
 
-Status: **template**. Copy everything below the first horizontal rule into `docs/<name>.md` and fill
-it in. [`user-management.md`](user-management.md) is the reference implementation of the format —
-read it if a section here is unclear.
+Status: **template**. Copy everything below the first horizontal rule into
+`docs/<milestone>/<name>.md` and fill it in, where `<milestone>` is the milestone's title as a
+lowercase, hyphenated slug (**Web UI: Repositories** is `docs/web-ui-repositories/`). Images the
+document shows live in the same folder, and exports of Penpot wireframes in a `wireframes/` folder
+inside it. [`user-management.md`](user-management/user-management.md) is the reference implementation
+of the format — read it if a section here is unclear.
 
 ## How to use this file
 
@@ -53,8 +56,8 @@ less settled than a section with three links: what settles the plan is the docum
 ## Restructuring an existing document into this format
 
 **Preserve the exact heading text of any section that another document links to by anchor.** Other
-design docs link into each other as `[…](packages-api.md#listing)`; renaming the heading breaks the
-link silently. Grep the `docs/` directory for `<filename>#` before you rename anything, and if a
+design docs link into each other as `[…](../package-management-api/packages-api.md#listing)`;
+renaming the heading breaks the link silently. Grep the `docs/` directory for `<filename>#` before you rename anything, and if a
 heading must change, fix every inbound link in the same commit.
 
 ---

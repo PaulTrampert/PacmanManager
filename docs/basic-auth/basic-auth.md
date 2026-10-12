@@ -1,8 +1,8 @@
 # Basic Auth
 
 Status: **accepted**. This document is the source the implementation issues are cut from. It follows
-the conventions established in [`authorization-plan.md`](authorization-plan.md) and
-[`packages-api.md`](packages-api.md); where it departs from them, it says so.
+the conventions established in [`authorization-plan.md`](../authorization-plan.md) and
+[`packages-api.md`](../package-management-api/packages-api.md); where it departs from them, it says so.
 
 **How to read it.** The plan states what will be built. The argument for each decision — including
 what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
@@ -19,12 +19,12 @@ have sign-off from a project owner, and **must** carry all three of:
 
 It is one of three documents that together let a `pacman` client install from a hosted repository:
 
-1. [**User Management**](user-management.md) — reading users, and changing your own display name.
+1. [**User Management**](../user-management/user-management.md) — reading users, and changing your own display name.
 2. **Basic Auth** (this document) — access tokens, and the HTTP Basic scheme.
-3. [**Pacman Controller**](pacman-controller.md) — the repository routes themselves.
+3. [**Pacman Controller**](../pacman-controller/pacman-controller.md) — the repository routes themselves.
 
 This document depends on neither of the others and can land at any time. [Pacman
-Controller](pacman-controller.md) depends on it, for the credentials a private repository needs.
+Controller](../pacman-controller/pacman-controller.md) depends on it, for the credentials a private repository needs.
 
 `pacman` has one credential mechanism: a URL with userinfo in it, which libcurl turns into an
 `Authorization: Basic` header. A private repository is therefore reachable by `pacman` only if this
@@ -128,7 +128,7 @@ Four rules govern the claim, and all four are requirements rather than observati
   `pacman-manager:packages:create`, `pacman-manager:packages:read` and
   `pacman-manager:repositories:read`.
 * **A scope never grants, it only narrows.** What it names is a *ceiling*, not a permission: every
-  rule in [`authorization-plan.md`](authorization-plan.md#authorization-rules) still runs afterwards,
+  rule in [`authorization-plan.md`](../authorization-plan.md#authorization-rules) still runs afterwards,
   unchanged, so `pacman-manager:repositories:update` on a repository somebody else owns is still a
   refusal. An identity provider can hand out any scope it likes; it cannot hand out access.
 * **A value that is not ours is ignored**, never fatal and never permissive. `scope` legitimately
@@ -525,7 +525,7 @@ tokens as its subject, so a caller can never name another user's.
 **Which service owns the `DbSet`.** `PacmanAccessTokens` is touched by `UserService` and
 `AccessTokenService`, and the enforcement test names both and asserts that nothing else does. This is
 a deliberate departure from the one-method rule
-[`authorization-plan.md`](authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
+[`authorization-plan.md`](../authorization-plan.md#why-this-is-hard-to-get-wrong) holds for
 `PacmanRepositories`.
 
 **Why:**
@@ -594,7 +594,7 @@ Server = https://pmt_0199…:pms_kJ8…@packages.example.com/pacman/$repo/$arch
 ```
 
 The username is not an account name, and nothing compares it to one. It names the token, and the
-token names its owner. [There is no username on `User`](user-management.md#why-there-is-no-username)
+token names its owner. [There is no username on `User`](../user-management/user-management.md#why-there-is-no-username)
 for it to be confused with.
 
 **Why:**
@@ -637,7 +637,7 @@ The *absence* of credentials is challenged in one place too: under `/pacman`, an
 for a repository the caller cannot see, or one that does not exist, is a `401` with the same
 `WWW-Authenticate: Basic realm="pacman"`, because `pacman` sends the credentials in its `Server` URL
 only once challenged. That is the route's decision, not this middleware's; see
-[Pacman Controller](pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged).
+[Pacman Controller](../pacman-controller/pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged).
 
 **Why:**
 
@@ -679,7 +679,7 @@ rule says so: the refusal is the scope arm of `AccessTokenAccessPolicy.CheckCrea
 `tokens:create`. Until that issue lands, nothing checks a scope on tokens.
 
 `me` is the only subject, for the reason
-[User Management](user-management.md#me-is-the-only-way-to-reach-the-write-route) gives. This
+[User Management](../user-management/user-management.md#me-is-the-only-way-to-reach-the-write-route) gives. This
 document does not otherwise depend on that one; the reasoning is shared, the code is not.
 
 **Why:**
@@ -689,7 +689,7 @@ document does not otherwise depend on that one; the reasoning is shared, the cod
 ### The listing follows the standard shape
 
 `GET /api/v1/users/me/tokens` takes `PaginationParams`, an `AccessTokenFilter` and
-`SortOptions<AccessTokenSortField>`, exactly as [every other listing](packages-api.md#listing) does.
+`SortOptions<AccessTokenSortField>`, exactly as [every other listing](../package-management-api/packages-api.md#listing) does.
 
 | Parameter | Applied by | Meaning |
 | :--- | :--- | :--- |
@@ -702,8 +702,8 @@ document does not otherwise depend on that one; the reasoning is shared, the cod
   only ever remove rows.
 * `409` on `POST` is a duplicate token name for that user, raised as `ItemExistsException`. The arm
   on `AuthorizationExceptionHandler` that maps it to `409` is
-  [a story of its own](authorization-plan.md#itemexistsexception--409--patch), because
-  [Pacman Controller](pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
+  [a story of its own](../authorization-plan.md#itemexistsexception--409--patch), because
+  [Pacman Controller](../pacman-controller/pacman-controller.md#1a-raise-itemexistsexception-on-repository-name-collisions--patch)
   needs the same arm and neither document depends on the other.
 
 **Why:**
@@ -970,7 +970,7 @@ the client address, from the logging scope the handler opens.
 
 The `[AllowAnonymous]`-plus-`401` behaviour needs an anonymous endpoint to test against, and the
 pacman routes do not exist yet. Add a test-only anonymous endpoint, or defer that single assertion to
-[Pacman Controller](pacman-controller.md#4-pacmancontroller--minor) — the implementing issue picks,
+[Pacman Controller](../pacman-controller/pacman-controller.md#4-pacmancontroller--minor) — the implementing issue picks,
 but it must not go untested in both.
 
 *Depends on:* 2a, 3, 7.
@@ -997,7 +997,7 @@ pages, filters and sorts, and never shows another user's token; and every route 
 unauthenticated. That a Basic-authenticated caller cannot mint a token is tested by
 [issue 12](#12-accesstokenaccesspolicy--minor), which adds the check that refuses it.
 
-*Depends on:* 2b, 4, and [`ItemExistsException` → `409`](authorization-plan.md#itemexistsexception--409--patch).
+*Depends on:* 2b, 4, and [`ItemExistsException` → `409`](../authorization-plan.md#itemexistsexception--409--patch).
 
 **Why:**
 
@@ -1110,7 +1110,7 @@ grammar fails the test. The existing `KeycloakScopeTests` pass against the new v
   take the user from `Actor.User`, and throw `NoCurrentUserException` when there is none, as they do
   today.
 * `ICurrentUserService`, `CurrentUserService` and their registration in `Program.cs` are deleted.
-* [`user-management.md`](user-management.md), which says the `me` methods use
+* [`user-management.md`](../user-management/user-management.md), which says the `me` methods use
   `ICurrentUserService`, is updated to say `IActorAccessor`.
 
 This changes no behaviour. It gives the accessor the principal, which it needs in order to read the
@@ -1137,7 +1137,7 @@ changes no behaviour. `RepositoryService` and `PackageService` call the verdict 
 operation. Where a private helper loads a row for either change, it takes the verdict to apply
 rather than choosing one.
 
-[`authorization-plan.md`](authorization-plan.md) and [`packages-api.md`](packages-api.md) name
+[`authorization-plan.md`](../authorization-plan.md) and [`packages-api.md`](../package-management-api/packages-api.md) name
 `CheckWrite`, and say that `CheckPublish` answers for delete. Both are updated to match.
 
 *Acceptance:* `RepositoryAccessPolicyTests` and `PackageAccessPolicyTests` carry every row the
@@ -1167,7 +1167,7 @@ issue 3 adds, which is a `403`.
 `ListUsersAsync` and `GetUserByIdAsync` ask nothing. They serve anonymous routes, so a credential
 without `users:read` reads them exactly as a stranger does, which is in full.
 
-[`user-management.md`](user-management.md#there-is-no-iuseraccesspolicy) said there would be no
+[`user-management.md`](../user-management/user-management.md#there-is-no-iuseraccesspolicy) said there would be no
 policy for users; it records that this has been reversed, and why.
 
 *Acceptance:* `UserAccessPolicyTests` covers every row of both verdicts as a plain unit test, with no
@@ -1178,7 +1178,7 @@ and `GET /api/v1/users` and `GET /api/v1/users/{userId}` are `200`. Another carr
 `pacman-manager:users:read`, for which `GET /api/v1/users/me` succeeds and the `PATCH` is `403`.
 
 *Depends on:* 3, and User Management's
-[`PATCH /api/v1/users/me`](user-management.md#6-patch-apiv1usersme--minor) issue, whose method it
+[`PATCH /api/v1/users/me`](../user-management/user-management.md#6-patch-apiv1usersme--minor) issue, whose method it
 guards.
 
 **Why:**
@@ -1240,7 +1240,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   repository, and distinct from these — is the obvious next thing to want.
 * **Publishing to a repository somebody else owns.** `pacman-manager:packages:create` is a ceiling,
   and underneath it only a repository's owner may publish to it. Letting other users publish is a
-  change to the ownership rules in [`authorization-plan.md`](authorization-plan.md), not to the
+  change to the ownership rules in [`authorization-plan.md`](../authorization-plan.md), not to the
   scope grammar, and it is left for later.
 * **Token expiry notifications.** An `ExpiresAt` that nothing warns about produces a build that
   breaks on a date nobody remembers.
@@ -1273,13 +1273,13 @@ anywhere else would mean two statements of one rule.
 ### Authority is a property of the actor, not of the route
 
 The requirement is that Basic auth can never write. The obvious implementation is to accept the
-`Basic` scheme only on the [pacman routes](pacman-controller.md), which are all reads. That is true
+`Basic` scheme only on the [pacman routes](../pacman-controller/pacman-controller.md), which are all reads. That is true
 today and stops being true the first time somebody adds a write route and reaches for the scheme
 list without thinking about it.
 
 So the restriction goes where this codebase already puts its authorization invariants — into the
 `Actor`, which is
-[the single thing every service authorizes against](authorization-plan.md#the-pieces). The
+[the single thing every service authorizes against](../authorization-plan.md#the-pieces). The
 credential decides what its bearer may do; the route never does, and no service ever asks which
 scheme a request arrived under.
 
@@ -1311,7 +1311,7 @@ be granted by an oversight, and a bug in the parser fails closed.
 The intersection rule — a scope narrows and never grants — is what makes trusting a provider's
 `scope` claim safe at all. It is the same rule AWS session policies and GitHub App installation
 tokens use. An identity provider can hand out any scope it likes; it cannot hand out access, because
-every rule in [`authorization-plan.md`](authorization-plan.md#authorization-rules) still runs
+every rule in [`authorization-plan.md`](../authorization-plan.md#authorization-rules) still runs
 afterwards.
 
 The cost is [Every existing token becomes powerless](#every-existing-token-becomes-powerless).
@@ -1416,7 +1416,7 @@ So each entity lists the actions that exist for it, and nothing else parses:
 
 * **Repositories** are read, created, updated and deleted.
 * **Packages** are read, created and deleted. Publishing a new version replaces the old one in the
-  same operation, because [pacman rolls forward](packages-api.md), so there is no separate update.
+  same operation, because [pacman rolls forward](../package-management-api/packages-api.md), so there is no separate update.
 * **Users** are read and updated. They are created on first sign-in by `ClaimsTransformer`, which
   runs before any actor exists, and they are never deleted.
 * **Tokens** are read, created and deleted. A token is never changed after it is minted.
@@ -1506,7 +1506,7 @@ caller does not own it. A create has no repository to name, and ownership is not
 
 *Added during implementation of issue 3, with the project owner's sign-off.* Repositories and packages
 each have an access policy, and their scope arms go there. Users and tokens had none, and
-[`user-management.md`](user-management.md#there-is-no-iuseraccesspolicy) declined one deliberately,
+[`user-management.md`](../user-management/user-management.md#there-is-no-iuseraccesspolicy) declined one deliberately,
 on the grounds that "yourself only" left a policy nothing to decide.
 
 The scope check is something to decide, and the policy is where it belongs. More will follow:
@@ -1549,7 +1549,7 @@ A **scheme check** (`if (scheme == "Basic")`) is the route-shaped version of the
 stops being true the first time a second read-only credential exists.
 
 An **authorization filter** on the write routes only protects HTTP callers, which is the reason
-[`authorization-plan.md`](authorization-plan.md#architecture-strategy-enforcement-in-the-service-layer)
+[`authorization-plan.md`](../authorization-plan.md#architecture-strategy-enforcement-in-the-service-layer)
 rejected a filter for the repository rules.
 
 Checking the scope in the **`IActorAccessor`** cannot work at all: the accessor produces the actor,
@@ -1583,7 +1583,7 @@ string in the password, has three consequences worth having:
 
 The cost is two values to copy rather than one. That is acceptable because hand-written client
 configuration is not the expected path: a generated repository configuration or installer script is
-[planned](pacman-controller.md#deferred-work), and it writes both.
+[planned](../pacman-controller/pacman-controller.md#deferred-work), and it writes both.
 
 Knowing an identifier without the matching secret is worth nothing, so the fact that ids are
 enumerable and that a v7 GUID discloses its creation time costs nothing here.
@@ -1814,7 +1814,7 @@ unauthenticated client. **ASP.NET Core's default behaviour on an `[AllowAnonymou
 ignore a failed authentication result and continue as anonymous.** A user who mistypes their token
 would then get a `404` on their private repository — indistinguishable from the repository not
 existing, and the single most confusing failure this feature could produce. (The pacman routes have
-since come to [challenge an anonymous request](pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged)
+since come to [challenge an anonymous request](../pacman-controller/pacman-controller.md#an-anonymous-request-for-a-repository-it-cannot-see-is-challenged)
 for a repository it cannot see, so there the fall-through would be a `401` as well; but a mistyped
 token on a public repository would still be served silently as anonymous, and every other
 `[AllowAnonymous]` route would still swallow it.)
