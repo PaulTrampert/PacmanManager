@@ -1,7 +1,7 @@
 name: CI
 
 # The repository is unreleased, so this pipeline is purely a gate: it builds and tests the solution
-# and the web app, and it proves both container images still build. Nothing is published.
+# and the web app, and it proves the container images still build. Nothing is published.
 on:
   push:
     branches: [main]
@@ -196,9 +196,15 @@ jobs:
       matrix:
         include:
           - name: repohost
+            context: .
             dockerfile: PacmanManager.RepoHost/Dockerfile
           - name: migrations
+            context: .
             dockerfile: PacmanManager.Migrations/Dockerfile
+          # The web image's context is its own directory, so it never sees the .NET sources.
+          - name: web
+            context: pacmanmanager-web
+            dockerfile: pacmanmanager-web/Dockerfile
     steps:
       - uses: actions/checkout@v7
 
@@ -211,7 +217,7 @@ jobs:
       - name: Build ${{ matrix.name }} image
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: false
           load: false
