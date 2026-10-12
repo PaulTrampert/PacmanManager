@@ -278,6 +278,15 @@ because default setup cannot exclude individual queries; the exclusions live in
 `cs/log-forging`, since logging uses structured message templates. Default setup must stay off in
 the repository settings, or this workflow's uploads are rejected.
 
+### Screenshot branch cleanup (`screenshots-cleanup.yml`)
+
+`.github/workflows/screenshots-cleanup.yml` runs when a pull request closes, merged or not, and
+deletes its `screenshots/pr-<n>` branch from [Screenshots](#screenshots), so nobody deletes it by
+hand. A PR without one passes quietly; any other failure to look the branch up fails the job. Its
+token has only `contents: write`. It triggers on `pull_request_target` rather than `pull_request`
+so that it also works for PRs from forks, whose `pull_request` runs get a read-only token; that is
+safe because it never checks out or runs anything from the PR, only reads its number.
+
 ### Claude on pull requests (`claude.yml`)
 
 `.github/workflows/claude.yml` runs
@@ -396,11 +405,12 @@ PR that changes it. "Before" may be left out when the change is purely additive,
 not yet used anywhere needs only its Storybook render.
 
 GitHub has no API for attaching an image to a description, so the images live on a branch of their
-own, `screenshots/pr-<n>`, which holds only images, is never merged, and is deleted once the PR
-merges. Never commit them to the PR's branch. `scripts/pr-screenshots.sh <n> <image>...` adds
-images to that branch, replacing any of the same name and keeping the rest, and prints the Markdown
-that embeds each one. The links name the commit, not the branch, so an image a description
-already shows never changes under it. Put the images under a `## Screenshots` heading, with
+own, `screenshots/pr-<n>`, which holds only images and is never merged. It is deleted
+automatically when the PR closes, merged or not, by
+[`screenshots-cleanup.yml`](#screenshot-branch-cleanup-screenshots-cleanupyml). Never commit them to
+the PR's branch. `scripts/pr-screenshots.sh <n> <image>...` adds images to that branch, replacing
+any of the same name and keeping the rest, and prints the Markdown that embeds each one. The links
+name the commit, not the branch, so an image a description already shows never changes under it. Put the images under a `## Screenshots` heading, with
 **Before** and **After** subheadings, and say how they were taken.
 
 Take them with Playwright (`npx playwright install chromium` once). The real app is best, run
