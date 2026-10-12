@@ -324,13 +324,16 @@ Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://pe
 * The **Name**, **Created** and **Updated** column headers sort the list, as MUI's
   `TableSortLabel`. Clicking the active header reverses `direction`; clicking another sets `sortBy`
   to it and removes `direction`, so the field's default applies. There is no other sort control.
-* With no `sortBy` in the URL, **Name** shows as the active header; with no `direction`, the arrow
-  shows that field's default direction.
+* The active header and its arrow are drawn from the response's [`sort`](#6-echo-the-applied-sort-on-paginated-responses--minor),
+  the sort the API applied with its defaults resolved — never from the URL, and never from defaults
+  written in the web app. While the next page loads, the previous response's sort stays shown with
+  the rest of the [dimmed previous state](#loading).
 * Paging uses the response's `total` and `offset`, with page sizes 25, 50 and 100.
 
 **Why:**
 
 * [the list sorts from its column headers](#why-the-list-sorts-from-its-column-headers)
+* [the arrow comes from the applied sort](#why-the-arrow-comes-from-the-applied-sort)
 
 ### Loading
 
@@ -707,9 +710,31 @@ the document lacks fails `npm run typecheck`.
 
 * [validation rules come from the OpenAPI document](#why-validation-rules-come-from-the-openapi-document)
 
+### 6. Echo the applied sort on paginated responses — MINOR
+
+`PaginatedResponse<T>` gains a required `sort` object, the sort the API actually applied with the
+field's default direction resolved:
+
+```jsonc
+{ "results": [ … ], "offset": 0, "total": 5, "sort": { "sortBy": "Created", "direction": "Descending" } }
+```
+
+It is on every paginated listing, and the regenerated `openapi/v1.json` lists it, and `sortBy` and
+`direction` inside it, as required.
+
+*Acceptance:* unit tests assert `sort` for an explicit field and direction, a field with no
+direction, and no sort at all. An E2E test asserts the raw JSON of `GET /v1/Repositories` for each
+of `Name`, `Created` and `Updated` with no `direction`, giving their default directions.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [the arrow comes from the applied sort](#why-the-arrow-comes-from-the-applied-sort)
+
 **Groundwork components**
 
-### 6. `PageHeader` — PATCH
+### 7. `PageHeader` — PATCH
 
 A page's top: optional MUI `Breadcrumbs` (every crumb but the last a router link), the `h1`, an
 optional adornment beside it, and optional actions aligned right. See [Navigation](#navigation).
@@ -721,7 +746,7 @@ optional adornment beside it, and optional actions aligned right. See [Navigatio
 
 *Depends on:* nothing.
 
-### 7. `EmptyState` — PATCH
+### 8. `EmptyState` — PATCH
 
 A heading, a message and an optional action, in an outlined box. See [Empty states](#empty-states).
 
@@ -731,7 +756,7 @@ A heading, a message and an optional action, in an outlined box. See [Empty stat
 
 *Depends on:* nothing.
 
-### 8. `FilterSelect` — PATCH
+### 9. `FilterSelect` — PATCH
 
 An outlined select for one filter: an **All** option plus the given options. With one option or
 none it is disabled on **All**; it can also be told to be disabled on a given value. See
@@ -752,7 +777,7 @@ value; `play` functions assert the disabled states cannot be opened and that cho
 
 * [single-option filters are disabled, not hidden](#why-single-option-filters-are-disabled-not-hidden)
 
-### 9. `AsyncAutocomplete` — PATCH
+### 10. `AsyncAutocomplete` — PATCH
 
 An outlined MUI `Autocomplete` whose options come from an async search, called 300 ms after typing
 stops; with optional **pinned options** shown first and followed by a divider, filtered by the typed
@@ -768,11 +793,12 @@ does not match the text is hidden, and that a pinned option returned by the sear
 
 *Depends on:* nothing.
 
-### 10. `PaginatedTable` — PATCH
+### 11. `PaginatedTable` — PATCH
 
 An outlined MUI table with column definitions, `TableSortLabel` on the sortable ones, and
 `TablePagination` whose page sizes are a `rowsPerPageOptions` prop, defaulting to 25, 50 and 100. It takes the sort, the offset and the page size as
-props and reports changes through callbacks. See [Sorting and paging](#sorting-and-paging).
+props and reports changes through callbacks. The active column and its arrow come from an
+**applied sort** prop, not from the requested one. See [Sorting and paging](#sorting-and-paging).
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)).
 
@@ -788,7 +814,7 @@ column with **no** direction, so the field's default applies.
 
 * [the list sorts from its column headers](#why-the-list-sorts-from-its-column-headers)
 
-### 11. `Form` and `FormField` — PATCH
+### 12. `Form` and `FormField` — PATCH
 
 `Form`: a `<form noValidate>` with an optional `ProblemDetailsAlert` above its fields and an actions
 row of a submit button (with a pending label) and **Cancel**. `FormField`: an outlined text field
@@ -807,7 +833,7 @@ the submit button is disabled while pending.
 
 *Depends on:* 5.
 
-### 12. `Dialog` — PATCH
+### 13. `Dialog` — PATCH
 
 A standard MUI `Dialog`: a title, content, an optional `ProblemDetailsAlert` at the top of the
 content, and actions; it disables its actions while pending.
@@ -819,7 +845,7 @@ and the backdrop do nothing while pending.
 
 *Depends on:* nothing.
 
-### 13. `CopyableCodeBlock` — PATCH
+### 14. `CopyableCodeBlock` — PATCH
 
 A read-only monospace block with a **Copy** button that copies the block's text and reads **Copied**
 for a few seconds. See [The `pacman.conf` section](#the-pacmanconf-section).
@@ -833,7 +859,7 @@ exact text, newlines included, and that the label reverts.
 
 **Repository components**
 
-### 14. `VisibilityChip` — PATCH
+### 15. `VisibilityChip` — PATCH
 
 The Public or Private chip used in the table and the repository page's title.
 
@@ -843,7 +869,7 @@ The Public or Private chip used in the table and the repository page's title.
 
 *Depends on:* nothing.
 
-### 15. `RepositoryFilters` — PATCH
+### 16. `RepositoryFilters` — PATCH
 
 The filter bar — name search, visibility, owner and architecture. The owner filter pins the signed-in user as "(you)". See [Filters](#filters).
 
@@ -855,21 +881,21 @@ fetch them. The name search reports 300 ms after typing stops.
 *Acceptance:* a story per wireframe above; `play` functions assert each control reports its filter
 parameter, and that anonymous visibility and a single-user owner filter are disabled as specified.
 
-*Depends on:* 8, 9.
+*Depends on:* 9, 10.
 
-### 16. `RepositoryTable` — PATCH
+### 17. `RepositoryTable` — PATCH
 
-`PaginatedTable` configured with the list's columns, the name linking to the repository's page. See
-[The repository list](#the-repository-list).
+`PaginatedTable` configured with the list's columns, the name linking to the repository's page,
+passing the response's `sort` as the applied sort. See [The repository list](#the-repository-list).
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-loading](wireframes/list-loading.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e363bd4e7e)).
 
 *Acceptance:* stories for several rows, each sort, a second page, loading with previous rows (dimmed,
 spinner over them) and a first load (spinner, no rows).
 
-*Depends on:* 10, 14.
+*Depends on:* 6, 11, 15.
 
-### 17. `RepositoryHeader` — PATCH
+### 18. `RepositoryHeader` — PATCH
 
 The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
 **Edit** and **Delete** by `permissions`, and the row of details. See [The repository page](#the-repository-page).
@@ -879,9 +905,9 @@ The repository page's header: `PageHeader` with breadcrumbs, the name and its `V
 *Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
 function asserts **Delete** calls its callback and **Edit** links to the edit route.
 
-*Depends on:* 6, 14.
+*Depends on:* 7, 15.
 
-### 18. `PacmanConfSection` — PATCH
+### 19. `PacmanConfSection` — PATCH
 
 The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of the
 `pacman.conf` section, and the private note.
@@ -891,9 +917,9 @@ The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of
 *Acceptance:* stories collapsed, expanded public and expanded private; `play` functions assert it
 starts collapsed and the copied text is exactly the section, built from `name` and `serverUrl`.
 
-*Depends on:* 13.
+*Depends on:* 14.
 
-### 19. `RepositoryForm` — PATCH
+### 20. `RepositoryForm` — PATCH
 
 The one form for creating and editing, built from `Form` and `FormField`, behaving by whether its
 repository has an `id`. See [`RepositoryForm`](#repositoryform).
@@ -908,13 +934,13 @@ values, that **Save** is disabled until something changes, that `onSubmit` recei
 values with the existing `supportedArchitectures` when editing, and that a `409` error appears on
 the name field and not in an alert.
 
-*Depends on:* 11.
+*Depends on:* 12.
 
 **Why:**
 
 * [create and edit are one form](#why-create-and-edit-are-one-form)
 
-### 20. `ConfirmRepositoryChangesDialog` — PATCH
+### 21. `ConfirmRepositoryChangesDialog` — PATCH
 
 The **Save these changes?** dialog, given the stored and the edited repository, listing the
 consequences that apply. See
@@ -925,9 +951,9 @@ consequences that apply. See
 *Acceptance:* stories for a rename, each visibility change, and a rename with a visibility change;
 `play` functions assert the consequences shown and their order.
 
-*Depends on:* 12.
+*Depends on:* 13.
 
-### 21. `DeleteRepositoryDialog` — PATCH
+### 22. `DeleteRepositoryDialog` — PATCH
 
 The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repository).
 
@@ -936,7 +962,7 @@ The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repos
 *Acceptance:* stories per wireframe; `play` functions assert **Delete** is enabled only for the exact,
 case-sensitive name, and that a failure keeps the typed name.
 
-*Depends on:* 12.
+*Depends on:* 13.
 
 **Queries and mutations**
 
@@ -944,51 +970,51 @@ Each is a query-options factory or mutation hook under `src/queries`, following
 [Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data), with a unit test
 against MSW asserting the request it sends and, for a mutation, the cache it invalidates or updates.
 
-### 22. `repositoryListQuery` — PATCH
+### 23. `repositoryListQuery` — PATCH
 
 `repositoryListQuery(search)`, sending every filter, sort and paging parameter it is given and no
 others.
 
 *Depends on:* nothing.
 
-### 23. `repositoryQuery` — PATCH
+### 24. `repositoryQuery` — PATCH
 
 `repositoryQuery(id)`. A `404` is an `ApiError` the route turns into not-found.
 
 *Depends on:* nothing.
 
-### 24. `architecturesQuery` — PATCH
+### 25. `architecturesQuery` — PATCH
 
 `architecturesQuery()`, with a long `staleTime`, since the list is static.
 
 *Depends on:* 3.
 
-### 25. `userListQuery` — PATCH
+### 26. `userListQuery` — PATCH
 
 `userListQuery(search)` over `GET /v1/Users`, used both for the owner search and, with
 `pageSize=1`, for the user count.
 
 *Depends on:* nothing.
 
-### 26. `userQuery` — PATCH
+### 27. `userQuery` — PATCH
 
 `userQuery(id)` over `GET /v1/Users/{id}`, used to label an `ownerId` from the URL.
 
 *Depends on:* nothing.
 
-### 27. `useCreateRepository` — PATCH
+### 28. `useCreateRepository` — PATCH
 
 Invalidates the repository list queries on success.
 
 *Depends on:* 4.
 
-### 28. `useUpdateRepository` — PATCH
+### 29. `useUpdateRepository` — PATCH
 
 Invalidates the list queries and sets the repository's detail query to the response on success.
 
 *Depends on:* 4.
 
-### 29. `useDeleteRepository` — PATCH
+### 30. `useDeleteRepository` — PATCH
 
 Invalidates the list queries and removes the repository's detail query on success.
 
@@ -999,7 +1025,7 @@ Invalidates the list queries and removes the repository's detail query on succes
 Each issue adds a route that renders what its loader fetched, with its callbacks not yet connected
 to anything; a route test renders it against MSW for each state its wireframes show.
 
-### 30. The repository list page — MINOR
+### 31. The repository list page — MINOR
 
 `/repositories` with its `validateSearch` over the [search params](#the-repository-list), its loader
 as [Loading](#loading) sets out,
@@ -1016,13 +1042,13 @@ architecture, `?ownerId=…` with one user, and `?isPublic=false` anonymously, a
 removed by a history-replacing redirect and absent from the list request; a Playwright test
 signs in, and sees a repository it created through the API.
 
-*Depends on:* 6, 7, 15, 16, 22, 24, 25.
+*Depends on:* 6, 7, 8, 16, 17, 23, 25, 26.
 
 **Why:**
 
 * [`/` redirects to the list](#why--redirects-to-the-list)
 
-### 31. The repository page — MINOR
+### 32. The repository page — MINOR
 
 `/repositories/$repositoryId`: `RepositoryHeader` and `PacmanConfSection`, not-found on a `404`.
 
@@ -1031,14 +1057,14 @@ signs in, and sees a repository it created through the API.
 *Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
 
-*Depends on:* 17, 18, 23.
+*Depends on:* 18, 19, 24.
 
 **Why:**
 
 * [repositories are addressed by id](#why-repositories-are-addressed-by-id)
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 
-### 32. The new repository page — MINOR
+### 33. The new repository page — MINOR
 
 `/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository.
 
@@ -1046,9 +1072,9 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 
 *Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
 
-*Depends on:* 6, 19, 24.
+*Depends on:* 7, 20, 25.
 
-### 33. The edit repository page — MINOR
+### 34. The edit repository page — MINOR
 
 `/repositories/$repositoryId/edit` behind `requireUser`: `PageHeader` and `RepositoryForm` with the
 repository, or the `403` message when `permissions.update` is `false`.
@@ -1057,14 +1083,14 @@ repository, or the `403` message when `permissions.update` is `false`.
 
 *Acceptance:* route tests for the filled form, the `403` message and not-found.
 
-*Depends on:* 6, 19, 23, 24.
+*Depends on:* 7, 20, 24, 25.
 
 **Behaviour**
 
 Each issue connects a page's callbacks, and carries a Playwright test of the behaviour against the
 compose stack, signed in as the realm's `test` and `other` users as needed.
 
-### 34. List filters, sort and paging — MINOR
+### 35. List filters, sort and paging — MINOR
 
 `RepositoryFilters` and `RepositoryTable` read and write the URL's search params, resetting `offset`
 on any filter, sort or page-size change; the owner filter searches with `userListQuery`, pins the
@@ -1076,9 +1102,9 @@ removes every filter parameter.
 *Acceptance:* Playwright tests filter by name, by visibility and by owner ("(you)" and another user),
 sort by each column in both directions, and reload to find the same state from the URL.
 
-*Depends on:* 26, 30.
+*Depends on:* 27, 31.
 
-### 35. Create a repository — MINOR
+### 36. Create a repository — MINOR
 
 `RepositoryForm` on the new page calls `useCreateRepository`, navigates to the new repository on
 success, and returns to the list on **Cancel**.
@@ -1088,9 +1114,9 @@ success, and returns to the list on **Cancel**.
 *Acceptance:* Playwright tests create a public and a private repository and land on each one's page,
 and submit a taken name to see the error on the name field.
 
-*Depends on:* 27, 31, 32.
+*Depends on:* 28, 32, 33.
 
-### 36. Edit a repository — MINOR
+### 37. Edit a repository — MINOR
 
 **Save** opens `ConfirmRepositoryChangesDialog`; confirming calls `useUpdateRepository` and navigates
 to the repository's page; a `409` closes the dialog and shows on the name field.
@@ -1100,9 +1126,9 @@ to the repository's page; a `409` closes the dialog and shows on the name field.
 *Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
 list, make one private and confirm `other` can no longer see it, and rename to a taken name.
 
-*Depends on:* 20, 28, 31, 33.
+*Depends on:* 21, 29, 32, 34.
 
-### 37. Delete a repository — MINOR
+### 38. Delete a repository — MINOR
 
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
 `useDeleteRepository` and navigates to the list; a failure is shown in the dialog.
@@ -1112,7 +1138,7 @@ list, make one private and confirm `other` can no longer see it, and rename to a
 *Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
 list; its page then shows not-found.
 
-*Depends on:* 21, 29, 31.
+*Depends on:* 22, 30, 32.
 
 ---
 
@@ -1247,6 +1273,16 @@ records this as the rule for paged lists, so the packages list follows it.
 
 A progress bar across the table was drawn first; the project owner preferred the dimmed previous
 state with a spinner over it.
+
+### Why the arrow comes from the applied sort
+
+The default direction of each sort field — `Name` ascending, `Created` and `Updated` descending —
+lives only in C#, in `[DefaultSortDirection]` and `SortFieldDefaults.Fallback`; the OpenAPI document
+does not carry it. Hard-coding it in the web app would re-derive API knowledge, which this design
+rejects for validation too. Emitting it as a vendor extension on each sort-field enum, and generating
+a map from it as the validation rules are, was considered. Echoing the applied sort on the response
+was chosen instead: it reports what the API actually did rather than a promise about what it would
+do, needs no generation step, cannot drift, and serves every paginated list.
 
 ### Why the list sorts from its column headers
 
