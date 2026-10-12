@@ -32,9 +32,9 @@ public class PacmanDirectoriesInitializerTests
     }
 
     [Test]
-    public async Task StartAsync_CreatesSyncAndLocalUnderTheDatabasePath()
+    public async Task StartingAsync_CreatesSyncAndLocalUnderTheDatabasePath()
     {
-        await _subject.StartAsync(CancellationToken.None);
+        await _subject.StartingAsync(CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -44,23 +44,25 @@ public class PacmanDirectoriesInitializerTests
     }
 
     [Test]
-    public async Task StartAsync_LeavesExistingDirectoriesAndTheirContentsAlone()
+    public async Task StartingAsync_LeavesExistingDirectoriesAndTheirContentsAlone()
     {
-        await _subject.StartAsync(CancellationToken.None);
+        await _subject.StartingAsync(CancellationToken.None);
         var marker = Path.Combine(_dbPath, "local", "marker");
         await File.WriteAllTextAsync(marker, "kept");
 
-        await _subject.StartAsync(CancellationToken.None);
+        await _subject.StartingAsync(CancellationToken.None);
 
         Assert.That(await File.ReadAllTextAsync(marker), Is.EqualTo("kept"));
     }
 
     [Test]
-    public async Task StopAsync_LeavesTheDirectoriesInPlace()
+    public async Task StoppingTheHost_LeavesTheDirectoriesInPlace()
     {
-        await _subject.StartAsync(CancellationToken.None);
+        await _subject.StartingAsync(CancellationToken.None);
 
+        await _subject.StoppingAsync(CancellationToken.None);
         await _subject.StopAsync(CancellationToken.None);
+        await _subject.StoppedAsync(CancellationToken.None);
 
         Assert.That(Directory.Exists(Path.Combine(_dbPath, "sync")), Is.True);
     }
