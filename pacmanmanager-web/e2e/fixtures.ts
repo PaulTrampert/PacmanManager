@@ -34,6 +34,18 @@ export async function signIn(
   path = "/",
 ): Promise<void> {
   await page.goto(`/login?${new URLSearchParams({ redirectUri: path })}`);
+  await submitSignInForm(page, user, path);
+}
+
+/**
+ * Fills in and submits the Keycloak sign-in form the page is showing as `user`, and waits until the
+ * browser is back on the web host at `path`, a path with its query string.
+ */
+export async function submitSignInForm(
+  page: Page,
+  user: RealmUser,
+  path: string,
+): Promise<void> {
   await page.getByLabel("Username or email").fill(user.username);
   await page.getByLabel("Password", { exact: true }).fill(user.password);
   await page.getByRole("button", { name: "Sign In" }).click();

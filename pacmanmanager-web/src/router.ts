@@ -1,10 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter, type RouterHistory } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import type { Session } from "./session";
 
 /** What every route can read from the router context. */
 export interface RouterContext {
   queryClient: QueryClient;
+  /** The session, which the root route's `beforeLoad` resolves before any other route loads. */
+  session: Session;
 }
 
 /** The options {@link createAppRouter} takes. */
@@ -21,7 +24,8 @@ export interface AppRouterOptions {
 export function createAppRouter({ queryClient, history }: AppRouterOptions) {
   return createRouter({
     routeTree,
-    context: { queryClient },
+    // The root route's `beforeLoad` replaces the session before any route can read it.
+    context: { queryClient, session: undefined! },
     history,
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,

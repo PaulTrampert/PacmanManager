@@ -65,7 +65,8 @@ function renderTestRoute(path: string) {
   const queryClient = createQueryClient();
   const router = createRouter({
     routeTree: rootRoute.addChildren([repositoryRoute, brokenRoute]),
-    context: { queryClient },
+    // The root route's beforeLoad replaces the session before any route reads it.
+    context: { queryClient, session: { status: "anonymous" } },
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   render(
