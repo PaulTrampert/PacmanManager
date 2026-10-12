@@ -3,7 +3,7 @@
 Status: **implemented**. This document was the design for publishing, listing and removing packages
 in a hosted repository, and was the source the implementation issues were cut from. Every issue in
 the Package Management API milestone has landed and the milestone is closed. It follows the
-conventions established in [`authorization-plan.md`](authorization-plan.md); where it departs from
+conventions established in [`authorization-plan.md`](../authorization-plan.md); where it departs from
 them, it says so.
 
 Two places where the shipped code went further than the design below, so that reading this as a
@@ -13,7 +13,7 @@ member, rather than the per-listing `switch` sketched under [Listing](#listing);
 `PackageService` takes `Lazy<ILibAlpm>`, so the anonymous read routes do not pay for
 `alpm_initialize`. The [Deferred work](#deferred-work) at the end of this document is still
 outstanding, though one of its items is now designed rather than merely noted: serving a
-pacman-consumable repository, which [`pacman-controller.md`](pacman-controller.md) picks up. A
+pacman-consumable repository, which [`pacman-controller.md`](../pacman-controller/pacman-controller.md) picks up. A
 second, the unused `ItemExistsException`, has since landed: a repository name collision is a `409`.
 
 ## Goals
@@ -35,7 +35,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * Serving a repository in the layout a `pacman` client expects (`Server = …`), which needs the
   `.db.tar.gz` and the package files under one base URL. The `content` route below downloads a
   package by id; it is a management route, not a pacman mirror. This is the subject of
-  [`pacman-controller.md`](pacman-controller.md).
+  [`pacman-controller.md`](../pacman-controller/pacman-controller.md).
 
 ---
 
@@ -179,7 +179,7 @@ repository means owning it.
 ### Where it is enforced
 
 In `PackageService`, structurally, the same way `RepositoryService` does it — see
-[`authorization-plan.md`](authorization-plan.md) for why this is not an action filter.
+[`authorization-plan.md`](../authorization-plan.md) for why this is not an action filter.
 
 The one thing worth spelling out is how package visibility reuses the repository rule instead of
 restating it. `RepositoryAccessPolicy.VisibleTo` already returns
@@ -211,7 +211,7 @@ mapping and a title of its own ("You may not publish to this repository.").
 Note the signatures. Because the permission is repository-scoped, neither check needs a package
 argument. `CheckPublish` answers for publish and replace; `CheckDelete` answers for delete, and has
 the same rules today, but is a verdict of its own because a caller that may publish need not be able
-to delete (see [`basic-auth.md`](basic-auth.md#why-delete-is-its-own-action)). Both are nonetheless
+to delete (see [`basic-auth.md`](../basic-auth/basic-auth.md#why-delete-is-its-own-action)). Both are nonetheless
 separate from `RepositoryAccessPolicy.CheckUpdate` and `CheckDelete` even though they all agree
 today, because `Publish` and "may edit the repository itself" are different questions that a grant
 table will answer differently.
@@ -632,7 +632,7 @@ creation is unchanged.
 
 `CheckPublish(repository, actor)` returning `RepositoryAccess`, answering for publish, replace and
 delete alike (since split, so that `CheckDelete` answers for delete — see
-[`basic-auth.md`](basic-auth.md#10-a-verdict-per-action--patch)); `PackageForbiddenException`; `AuthorizationExceptionHandler` extended with an arm
+[`basic-auth.md`](../basic-auth/basic-auth.md#10-a-verdict-per-action--patch)); `PackageForbiddenException`; `AuthorizationExceptionHandler` extended with an arm
 mapping it to `403` (without which it would fall through to a `500`).
 
 *Acceptance:* `PackageAccessPolicyTests` covers every row of the rules table above as a plain unit
@@ -755,7 +755,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
   `.db.tar.gz` cannot be fetched at all. A `pacman` client configured with `Server = …` needs the
   database and every package file resolvable under one base URL by the basename `repo-add` recorded.
   Until that exists, this API can publish packages but nothing can install them.
-  **Designed in [`pacman-controller.md`](pacman-controller.md)**; the issue that adds the controller
+  **Designed in [`pacman-controller.md`](../pacman-controller/pacman-controller.md)**; the issue that adds the controller
   deletes this bullet.
 * **Postgres full-text search** with a generated `tsvector` column, a GIN index and relevance
   ranking, replacing the substring match inside `PackageFilter.BuildQueryExpression`. Ranking also

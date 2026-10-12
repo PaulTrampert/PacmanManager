@@ -4,7 +4,7 @@ import { webHostUrl } from "./e2e/stack.ts";
 const ci = !!process.env.CI;
 
 // End-to-end tests against the compose stack, which `npm run e2e` starts first through its `pree2e`
-// script; global setup only waits for it. See docs/web-ui-architecture.md, "End-to-end tests".
+// script; global setup only waits for it. See docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
 export default defineConfig({
   testDir: "e2e",
   // `*.test.ts` under e2e/ are Vitest unit tests of the helpers, not Playwright tests.

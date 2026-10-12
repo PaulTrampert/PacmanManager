@@ -1,5 +1,5 @@
 // The Keycloak admin REST calls the end-to-end tests need, made as the bootstrap admin that
-// compose.yaml creates. See docs/web-ui-architecture.md, "End-to-end tests".
+// compose.yaml creates. See docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
 import { keycloakUrl, realm } from "./stack.ts";
 
 const admin = { username: "admin", password: "admin" };

@@ -1,8 +1,8 @@
 # User Management
 
 Status: **accepted**. This document is the source the implementation issues are cut from. It follows
-the conventions established in [`authorization-plan.md`](authorization-plan.md) and
-[`packages-api.md`](packages-api.md); where it departs from them, it says so.
+the conventions established in [`authorization-plan.md`](../authorization-plan.md) and
+[`packages-api.md`](../package-management-api/packages-api.md); where it departs from them, it says so.
 
 **How to read it.** The plan states what will be built. The argument for each decision — including
 what was considered and rejected — is in the [Appendix](#appendix), and each section ends with a
@@ -20,9 +20,9 @@ have sign-off from a project owner, and **must** carry all three of:
 It is one of three documents that together let a `pacman` client install from a hosted repository:
 
 1. **User Management** (this document) — reading users, and changing your own display name.
-2. [**Basic Auth**](basic-auth.md) — access tokens, and the HTTP Basic scheme that lets a
+2. [**Basic Auth**](../basic-auth/basic-auth.md) — access tokens, and the HTTP Basic scheme that lets a
    `pacman.conf` carry credentials.
-3. [**Pacman Controller**](pacman-controller.md) — the repository routes themselves.
+3. [**Pacman Controller**](../pacman-controller/pacman-controller.md) — the repository routes themselves.
 
 The three are independent. Nothing here blocks either of the others, and nothing here depends on
 them.
@@ -48,7 +48,7 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * **Registration and deletion.** Users are still provisioned exclusively by `ClaimsTransformer` on
   first login, and there is no way to remove one.
 * **Profiles.** No avatar, biography or organisation.
-* **Access tokens**, which are [Basic Auth](basic-auth.md)'s subject even though they hang off
+* **Access tokens**, which are [Basic Auth](../basic-auth/basic-auth.md)'s subject even though they hang off
   `/api/v1/users/me`.
 
 **Why:**
@@ -78,10 +78,10 @@ Recorded here so the issues stay bounded; each has a follow-up in
   only the properties its body names. Both call the same `UpdateCurrentUserAsync`.
 * There is no visibility predicate on the user query. Every user is readable by everyone; only `me`
   is writable. The `me` methods ask a `UserAccessPolicy` whether the credential's scope permits them,
-  which [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds; the anonymous routes ask
+  which [Basic Auth](../basic-auth/basic-auth.md#11-useraccesspolicy--minor) adds; the anonymous routes ask
   nothing.
 * The token routes under `/api/v1/users/me/tokens` share this path prefix but belong to
-  [Basic Auth](basic-auth.md#routes), and are served by a controller of their own — they hang off a
+  [Basic Auth](../basic-auth/basic-auth.md#routes), and are served by a controller of their own — they hang off a
   different resource.
 
 **Why:**
@@ -119,7 +119,7 @@ user — today just `displayName` — and gains a property when something else b
 the route changing shape.
 
 The entity stays `User`, unprefixed, against the `Pacman` convention in
-[`packages-api.md`](packages-api.md#entity); the wire models take the distinct names above.
+[`packages-api.md`](../package-management-api/packages-api.md#entity); the wire models take the distinct names above.
 
 **Why:**
 
@@ -215,7 +215,7 @@ The users API is served by a new **`IUserManagementService`**, not by `IUserServ
 * The service returns wire models, never the `User` entity, so no caller can project an email into an
   anonymous response by accident.
 * **`IUserService` is not changed by this document.** It stays the pre-authentication service that
-  `ClaimsTransformer` and [Basic Auth's token verification](basic-auth.md#two-services-own-this-not-one)
+  `ClaimsTransformer` and [Basic Auth's token verification](../basic-auth/basic-auth.md#two-services-own-this-not-one)
   use.
 
 **Why:**
@@ -382,7 +382,7 @@ Worth filing as issues, but explicitly out of scope for the work above.
 
 * **Administrative user management** — an operator's ability to rename, suspend or delete an account,
   with a real access policy behind it. Its rules go in the `UserAccessPolicy` that
-  [Basic Auth](basic-auth.md#11-useraccesspolicy--minor) adds for scopes.
+  [Basic Auth](../basic-auth/basic-auth.md#11-useraccesspolicy--minor) adds for scopes.
 * **Account deletion**, which needs an answer for the repositories and packages a user owns before
   it can be specified at all.
 * **A creation timestamp on `User`**, which is what a `Created` member on
@@ -404,12 +404,12 @@ in an issue, rather than something to quietly depart from.
 
 An earlier draft of this design routed repositories under their owner's name, which required a
 unique username on `User` and made this document a prerequisite for the other two. [Repositories are
-now addressed by a globally unique name](pacman-controller.md#repository-names-are-globally-unique)
+now addressed by a globally unique name](../pacman-controller/pacman-controller.md#repository-names-are-globally-unique)
 instead, so nothing here blocks anything else — and the username, along with the client breakage that
 renaming one would have caused, is gone from the design entirely.
 
 What remains is worth doing on its own. The API has no way to read a user at all today, not even
-your own, which is a gap [`authorization-plan.md`](authorization-plan.md#filtering) already names:
+your own, which is a gap [`authorization-plan.md`](../authorization-plan.md#filtering) already names:
 it rejected an "only mine" repository filter on the grounds that it means the same thing as passing
 your own id in `ownerId`, and noted that "callers that do not yet know their own id will get an
 endpoint that tells them." This is that endpoint.
@@ -420,23 +420,23 @@ A username would be a second identifier for a user, and this design has no use f
 
 The reason to want it was the route. Addressing a repository as
 `/repos/{ownerName}/{repoName}/{architecture}` needs a stable, unique, URL-safe name on `User`, and
-[`authorization-plan.md`](authorization-plan.md#looking-a-repository-up-by-name) once recorded that
+[`authorization-plan.md`](../authorization-plan.md#looking-a-repository-up-by-name) once recorded that
 the absence of one was what stood between this application and a pacman-consumable URL. Adding it brought
 a schema decision about case-insensitive uniqueness, a normalisation and generation rule, a backfill
 migration, a reserved-name list, and — worst — a rename that silently broke every `pacman.conf`
 naming the old value, along with a table of retired names to stop a released name being picked up by
 somebody else.
 
-All of that existed to support one path segment. [Dropping the segment](pacman-controller.md#the-route-root)
+All of that existed to support one path segment. [Dropping the segment](../pacman-controller/pacman-controller.md#the-route-root)
 removes the whole apparatus.
 
 It does not, on its own, remove the class of failure where a user's client quietly starts tracking a
 stranger's repository: a *repository* rename releases a name into a global namespace with the same
 consequence, one level up. What it does is reduce two occurrences of that hazard to one, and the
 remaining one
-[lives with repositories](pacman-controller.md#renaming-a-repository), where reserving a
+[lives with repositories](../pacman-controller/pacman-controller.md#renaming-a-repository), where reserving a
 renamed-away name is
-[deferred](pacman-controller.md#why-renaming-does-not-reserve-the-old-name) for as long as the
+[deferred](../pacman-controller/pacman-controller.md#why-renaming-does-not-reserve-the-old-name) for as long as the
 deployment is personal. A user rename, by contrast, now
 has no effect on any URL at all, which is the stronger outcome and the one worth having.
 
@@ -499,7 +499,7 @@ route already settles.
 If an administrative capability ever arrives, it brings a real question with it, and a policy with
 it.
 
-*Amended by [Basic Auth](basic-auth.md#why-users-and-tokens-get-access-policies), with the project
+*Amended by [Basic Auth](../basic-auth/basic-auth.md#why-users-and-tokens-get-access-policies), with the project
 owner's sign-off.* Scopes gave users a question with more than one answer before an administrative
 capability did: whether this credential may read or change `me`. The check went into a
 `UserAccessPolicy` rather than into the service, so that the administrative rules expected later have
@@ -516,7 +516,7 @@ is a guarantee rather than a convention.
 
 ### Why `User` keeps its bare name
 
-[`packages-api.md`](packages-api.md#entity) records that entities take a `Pacman` prefix and the wire
+[`packages-api.md`](../package-management-api/packages-api.md#entity) records that entities take a `Pacman` prefix and the wire
 model keeps the bare name. `User` is the exception: the entity shipped unprefixed, and renaming it to
 `PacmanUser` would touch the whole solution for consistency alone — a user is not a pacman-domain
 concept the way a repository or a package is. Since the bare name is taken by the entity, the wire
@@ -536,13 +536,13 @@ member rather than a new query parameter.
 
 *Amended by #118, with the project owner's sign-off.* The original plan was to lower both sides in the
 query — `u.DisplayName.ToLower().Contains(term)`, with `term` lowered once in C# — as
-[`packages-api.md`](packages-api.md#listing) does for the package search. It was needed at all because
+[`packages-api.md`](../package-management-api/packages-api.md#listing) does for the package search. It was needed at all because
 the naive `Contains` is case-sensitive under both Npgsql, where it translates to a case-sensitive
 `LIKE`, and `Microsoft.EntityFrameworkCore.InMemory`, where it is `string.Contains`.
 
 It was replaced by a stored `NormalizedDisplayName`, matched with an ordinary `StringContainsQuery`,
 because that is the idiom token names already use
-([`basic-auth.md`](basic-auth.md#why-a-token-name-has-a-normalized-copy)): the two listings of
+([`basic-auth.md`](../basic-auth/basic-auth.md#why-a-token-name-has-a-normalized-copy)): the two listings of
 user-chosen labels then match case-insensitively the same way, and neither lowers anything in the
 query. The lowering happens once, in C#, with the invariant culture, so it cannot vary with the
 host's culture — the Turkish dotted and dotless `i` being the standard example — or with the database
@@ -597,10 +597,10 @@ listing in this API is built on it, so this is the same ecosystem rather than a 
 
 `IUserService` already exists and would have been the obvious home. It was not used, because of who
 calls it: `ClaimsTransformer` provisions users through it on first login, and
-[Basic Auth](basic-auth.md#why-verification-is-on-iuserservice) verifies access tokens through it,
+[Basic Auth](../basic-auth/basic-auth.md#why-verification-is-on-iuserservice) verifies access tokens through it,
 both before any actor or current user exists. Adding methods that depend on `IActorAccessor` to
 that type would put pre-authentication and post-authentication methods side by side, which is the
-mixed shape [Basic Auth](basic-auth.md#why-token-management-is-not-on-iuserservice) already declined
+mixed shape [Basic Auth](../basic-auth/basic-auth.md#why-token-management-is-not-on-iuserservice) already declined
 for token management.
 
 A separate service also keeps the wire models on one side of a line: `IUserService` deals in the

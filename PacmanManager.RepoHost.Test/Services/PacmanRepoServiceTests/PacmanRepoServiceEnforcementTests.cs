@@ -11,7 +11,7 @@ namespace PacmanManager.RepoHost.Test.Services.PacmanRepoServiceTests;
 /// <remarks>
 /// If one of these fails, resolution has started to state the repository visibility rule a second
 /// time. Route the new need through <see cref="IRepositoryService"/> or <see cref="IPackageService"/>
-/// rather than relaxing the assertion; see <c>docs/pacman-controller.md</c>, "Why resolution owns no
+/// rather than relaxing the assertion; see <c>docs/pacman-controller/pacman-controller.md</c>, "Why resolution owns no
 /// database access".
 /// </remarks>
 [TestFixture]

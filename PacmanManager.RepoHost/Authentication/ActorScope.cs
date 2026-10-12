@@ -11,7 +11,7 @@ namespace PacmanManager.RepoHost.Authentication;
 /// A scope only ever narrows. It is a ceiling on what the actor's user may do, never a grant: every
 /// ownership and visibility rule still runs after it. Values are <c>OR</c>'d, so an operation is
 /// permitted when any one of them names it, and absent means denied, so <see cref="Empty"/> permits
-/// nothing. See <c>docs/basic-auth.md</c>, "The <c>scope</c> claim".
+/// nothing. See <c>docs/basic-auth/basic-auth.md</c>, "The <c>scope</c> claim".
 /// </para>
 /// <para>
 /// Two scopes are equal when they permit exactly the same values, whatever order the claim listed

@@ -13,7 +13,7 @@ public class ScopeValuesTests
         "^pacman-manager:(repositories|packages|users|tokens|\\*):(read|create|update|delete|\\*)$");
 
     /// <summary>
-    /// The 21 values listed in <c>docs/basic-auth.md</c>, "Configuring another identity provider",
+    /// The 21 values listed in <c>docs/basic-auth/basic-auth.md</c>, "Configuring another identity provider",
     /// in order.
     /// </summary>
     private static readonly string[] Expected =

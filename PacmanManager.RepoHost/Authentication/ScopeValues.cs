@@ -7,7 +7,7 @@ namespace PacmanManager.RepoHost.Authentication;
 /// <remarks>
 /// This is the vocabulary only. <see cref="ActorScope.Parse"/> reads a claim against it, and the
 /// access policies enforce what that produces; see
-/// <c>docs/basic-auth.md</c>, "The <c>scope</c> claim", for the grammar and the rules that govern it.
+/// <c>docs/basic-auth/basic-auth.md</c>, "The <c>scope</c> claim", for the grammar and the rules that govern it.
 /// Every value in <see cref="All"/> is registered as a client scope in <c>keycloak/localdev.json</c>.
 /// </remarks>
 public static class ScopeValues
