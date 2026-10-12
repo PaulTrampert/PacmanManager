@@ -49,6 +49,8 @@ services:
       ApiProxy__PacmanManager__AuthType: "PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost"
       # Raised from Kestrel's 30 MB default, which a package upload routinely exceeds.
       ApiProxy__PacmanManager__MaxRequestBodySize: *max-upload-bytes
+      # Passed through so a package download is saved under the package's own filename.
+      ApiProxy__PacmanManager__ResponseHeaders__0: Content-Disposition
       # SpaHost's Development settings keep its data-protection keys in Redis, for replicas sharing
       # a session cookie. This stack runs one replica and has no Redis.
       RedisConfig__UseForDataProtection: "false"
