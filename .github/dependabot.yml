@@ -52,6 +52,12 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    # typescript-eslint pins TypeScript to a range of minor versions as a peer, and a TypeScript
+    # major outside it fails `npm ci` with ERESOLVE, stalling the whole group. Take TypeScript
+    # majors by hand once typescript-eslint supports them.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "(PATCH) "
 
