@@ -264,6 +264,9 @@ architecture document requires:
 * The list is a table with the columns **Name** (linking to the repository's page), **Owner** (the
   display name), **Visibility** (a Public or Private chip), **Architectures** (the
   `displayValue`s), **Created** and **Updated**.
+* `pageSize` accepts only **25, 50 or 100**. Any other value, or one that is not a number, is
+  dropped from the search params by `validateSearch`, so the page uses 50 and the URL never
+  disagrees with it. This narrows only what the web app sends; the API still accepts 1 to 500.
 * Changing a filter, the sort or the page size resets `offset` to `0`.
 * The name search updates the URL **300 ms after typing stops**, not on every keystroke.
 * A signed-in user sees a **New repository** button linking to `/repositories/new`. An anonymous
@@ -734,7 +737,7 @@ does not match the text is hidden, and that a pinned option returned by the sear
 ### 10. `PaginatedTable` — PATCH
 
 An outlined MUI table with column definitions, `TableSortLabel` on the sortable ones, and
-`TablePagination` with page sizes 25, 50 and 100. It takes the sort, the offset and the page size as
+`TablePagination` whose page sizes are a `rowsPerPageOptions` prop, defaulting to 25, 50 and 100. It takes the sort, the offset and the page size as
 props and reports changes through callbacks. See [Sorting and paging](#sorting-and-paging).
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)).
@@ -969,7 +972,8 @@ or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to i
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)).
 
-*Acceptance:* route tests for each listing wireframe, including all three empty states; a Playwright test
+*Acceptance:* route tests for each listing wireframe, including all three empty states, and one that
+loads `?pageSize=7` and gets 50 rows per page with `pageSize` removed from the URL; a Playwright test
 signs in, and sees a repository it created through the API.
 
 *Depends on:* 6, 7, 15, 16, 22, 24, 25.
