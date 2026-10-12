@@ -58,18 +58,20 @@ Recorded here so the issues stay bounded; each has a follow-up in
 ## Wireframes
 
 The wireframes are drawn in Penpot, on the **Repositories** page of the *Wireframes* file, and
-exported to [`wireframes/`](wireframes/). Their font is Roboto; the exports render it in a serif
+exported to [`wireframes/`](wireframes/); each wireframe is linked twice, to its committed PNG and to its board in
+Penpot. The PNGs are the record of what was agreed; the Penpot boards are where the design is edited,
+and need a Penpot account with access to the file. Their font is Roboto; the exports render it in a serif
 fallback, so judge them by layout, sizes, weights and colours, not typeface.
 
 | Area | Wireframes |
 | :--- | :--- |
-| Repository list | [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) |
-| Empty list | [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png) |
-| Repository page | [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png) |
-| `pacman.conf` section | [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png) |
-| Create | [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png) |
-| Edit | [edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png), [edit-confirm-changes](wireframes/edit-confirm-changes.png) |
-| Delete | [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png) |
+| Repository list | [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)) |
+| Empty list | [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)) |
+| Repository page | [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)) |
+| `pacman.conf` section | [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a969ca1435)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)) |
+| Create | [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)) |
+| Edit | [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)), [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)), [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)) |
+| Delete | [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)) |
 
 The specification below is authoritative where a wireframe and the text disagree.
 
@@ -199,7 +201,7 @@ navigation menu: no drawer, and no links in the app bar.
 
 * A crumb naming a repository shows its current name, from `repositoryQuery(id)`.
 
-Wireframes: [repository-owner-public](wireframes/repository-owner-public.png), [new-empty](wireframes/new-empty.png), [edit-unchanged](wireframes/edit-unchanged.png).
+Wireframes: [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)).
 
 **Why:**
 
@@ -289,7 +291,7 @@ Every filter follows one rule: **a filter with one possible value or none is sho
 * A disabled filter never sends a value. Its state is a consequence of the data, so the list still
   answers exactly as an unfiltered one would.
 
-Wireframes: [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png).
+Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)).
 
 **Why:**
 
@@ -323,7 +325,7 @@ used for every empty list:
   absent. Disabled filters never count as applied.
 * The component knows nothing about repositories; the list route chooses the text and the action.
 
-Wireframes: [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+Wireframes: [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)).
 
 ---
 
@@ -348,7 +350,7 @@ beneath. Top to bottom:
    `displayValue`s), **Created** and **Updated**;
 4. the [`pacman.conf` section](#the-pacmanconf-section), collapsed.
 
-Wireframes: [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
+Wireframes: [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 **Why:**
 
@@ -368,7 +370,7 @@ Server = <serverUrl>
 ```
 
 * `<name>` is the repository's name as stored, and `<serverUrl>` the field's value verbatim.
-* Wireframes: [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
+* Wireframes: [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a969ca1435)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)).
 * **Copy** copies the block's text to the clipboard, then reads **Copied** for a few seconds.
 * For a **private** repository, a note below the block says that `pacman` must authenticate to read
   it, and that the `Server` line needs credentials. The note does not generate or link to any.
@@ -384,7 +386,7 @@ Server = <serverUrl>
 ![The new repository form](wireframes/new-empty.png)
 
 `/repositories/new` shows the [breadcrumbs](#navigation), the heading **New repository**, and
-`RepositoryForm`. Wireframes: [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png).
+`RepositoryForm`. Wireframes: [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 
 ### `RepositoryForm`
 
@@ -487,7 +489,7 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
 `/repositories/$repositoryId/edit` loads `repositoryQuery(id)` and shows the
 [breadcrumbs](#navigation), the heading **Edit repository**, and [`RepositoryForm`](#repositoryform)
 given that repository, which puts it in its edit behaviour. Wireframes:
-[edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png).
+[edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)), [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)).
 
 * The `PUT` carries the edited `name` and `isPublic` and the repository's **existing**
   `supportedArchitectures`, unchanged.
@@ -522,7 +524,7 @@ consequence that applies, in this order:
 
 ![The delete dialog with the name typed](wireframes/delete-name-typed.png)
 
-Wireframes: [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+Wireframes: [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 **Delete** on the repository page opens a dialog titled **Delete *name*?** that:
 
@@ -661,7 +663,7 @@ the document lacks fails `npm run typecheck`.
 A page's top: optional MUI `Breadcrumbs` (every crumb but the last a router link), the `h1`, an
 optional adornment beside it, and optional actions aligned right. See [Navigation](#navigation).
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [repository-owner-public](wireframes/repository-owner-public.png), [new-empty](wireframes/new-empty.png), [edit-unchanged](wireframes/edit-unchanged.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)).
 
 *Acceptance:* stories for a title alone, with actions, with breadcrumbs, and with an adornment; a
 `play` function asserts the last crumb is not a link and the others are.
@@ -672,7 +674,7 @@ optional adornment beside it, and optional actions aligned right. See [Navigatio
 
 A heading, a message and an optional action, in an outlined box. See [Empty states](#empty-states).
 
-*Wireframes:* [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+*Wireframes:* [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)).
 
 *Acceptance:* stories with and without an action; the action is reachable by role.
 
@@ -684,7 +686,7 @@ An outlined select for one filter: an **All** option plus the given options. Wit
 none it is disabled on **All**; it can also be told to be disabled on a given value. See
 [Filters](#filters).
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)).
 
 *Constraints:* the "one option or none" rule lives here, not in each caller. While disabled, it
 reports no value.
@@ -705,7 +707,7 @@ An outlined MUI `Autocomplete` whose options come from an async search, called 3
 stops; with optional **pinned options** shown first and followed by a divider, filtered by the typed
 text; and disabled on **All** when told it has one option or none.
 
-*Wireframes:* [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png).
+*Wireframes:* [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)).
 
 *Constraints:* a pinned option is never repeated from the search results.
 
@@ -721,7 +723,7 @@ An outlined MUI table with column definitions, `TableSortLabel` on the sortable 
 `TablePagination` with page sizes 25, 50 and 100. It takes the sort, the offset and the page size as
 props and reports changes through callbacks. See [Sorting and paging](#sorting-and-paging).
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-own-repositories](wireframes/list-own-repositories.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)).
 
 *Constraints:* clicking the active header reverses the direction; clicking another reports that
 column with **no** direction, so the field's default applies.
@@ -743,7 +745,7 @@ validated by the [rules generated from the OpenAPI document](#validation-rules-f
 whose error replaces its helper text, shown once the field is left or the form submitted. See
 [`RepositoryForm`](#repositoryform).
 
-*Wireframes:* [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png).
+*Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 
 *Constraints:* a `FormField` names a schema and a property, never a length or a pattern.
 
@@ -759,7 +761,7 @@ the submit button is disabled while pending.
 A standard MUI `Dialog`: a title, content, an optional `ProblemDetailsAlert` at the top of the
 content, and actions; it disables its actions while pending.
 
-*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png), [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-failed](wireframes/delete-failed.png).
+*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)), [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 *Acceptance:* stories for plain, with an error, and pending; a `play` function asserts **Escape**
 and the backdrop do nothing while pending.
@@ -771,7 +773,7 @@ and the backdrop do nothing while pending.
 A read-only monospace block with a **Copy** button that copies the block's text and reads **Copied**
 for a few seconds. See [The `pacman.conf` section](#the-pacmanconf-section).
 
-*Wireframes:* [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
+*Wireframes:* [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)).
 
 *Acceptance:* stories for idle and copied; a `play` function asserts the clipboard receives the
 exact text, newlines included, and that the label reverts.
@@ -784,7 +786,7 @@ exact text, newlines included, and that the label reverts.
 
 The Public or Private chip used in the table and the repository page's title.
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [repository-owner-private](wireframes/repository-owner-private.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)).
 
 *Acceptance:* a story for each value, with an accessible name naming the visibility.
 
@@ -794,7 +796,7 @@ The Public or Private chip used in the table and the repository page's title.
 
 The filter bar — name search, visibility, owner and architecture. The owner filter pins the signed-in user as "(you)". See [Filters](#filters).
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)).
 
 *Constraints:* it takes the users search, the architectures and the session as props; it does not
 fetch them. The name search reports 300 ms after typing stops.
@@ -809,7 +811,7 @@ parameter, and that anonymous visibility and a single-user owner filter are disa
 `PaginatedTable` configured with the list's columns, the name linking to the repository's page. See
 [The repository list](#the-repository-list).
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-own-repositories](wireframes/list-own-repositories.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)).
 
 *Acceptance:* stories for several rows, each sort, and a second page.
 
@@ -820,7 +822,7 @@ parameter, and that anonymous visibility and a single-user owner filter are disa
 The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
 **Edit** and **Delete** by `permissions`, and the row of details. See [The repository page](#the-repository-page).
 
-*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
 function asserts **Delete** calls its callback and **Edit** links to the edit route.
@@ -832,7 +834,7 @@ function asserts **Delete** calls its callback and **Edit** links to the edit ro
 The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of the
 `pacman.conf` section, and the private note.
 
-*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a969ca1435)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)).
 
 *Acceptance:* stories collapsed, expanded public and expanded private; `play` functions assert it
 starts collapsed and the copied text is exactly the section, built from `name` and `serverUrl`.
@@ -844,7 +846,7 @@ starts collapsed and the copied text is exactly the section, built from `name` a
 The one form for creating and editing, built from `Form` and `FormField`, behaving by whether its
 repository has an `id`. See [`RepositoryForm`](#repositoryform).
 
-*Wireframes:* [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png), [edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png).
+*Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)), [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)), [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)).
 
 *Constraints:* it takes `onSubmit`, `onCancel`, a pending flag and the mutation's error; it maps a
 `409` to the name field and a validation `400` through `useFormErrors`. It does not call the API.
@@ -866,7 +868,7 @@ The **Save these changes?** dialog, given the stored and the edited repository, 
 consequences that apply. See
 [Confirming consequential changes](#confirming-consequential-changes).
 
-*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png).
+*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)).
 
 *Acceptance:* stories for a rename, each visibility change, and a rename with a visibility change;
 `play` functions assert the consequences shown and their order.
@@ -877,7 +879,7 @@ consequences that apply. See
 
 The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repository).
 
-*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 *Acceptance:* stories per wireframe; `play` functions assert **Delete** is enabled only for the exact,
 case-sensitive name, and that a failure keeps the typed name.
@@ -951,7 +953,7 @@ to anything; a route test renders it against MSW for each state its wireframes s
 `PageHeader` with **New repository** for a signed-in user, `RepositoryFilters`, and `RepositoryTable`
 or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to it.
 
-*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-single-user](wireframes/list-single-user.png), [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)).
 
 *Acceptance:* route tests for each listing wireframe, including all three empty states; a Playwright test
 signs in, and sees a repository it created through the API.
@@ -966,7 +968,7 @@ signs in, and sees a repository it created through the API.
 
 `/repositories/$repositoryId`: `RepositoryHeader` and `PacmanConfSection`, not-found on a `404`.
 
-*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
@@ -982,7 +984,7 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 
 `/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository.
 
-*Wireframes:* [new-empty](wireframes/new-empty.png).
+*Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)).
 
 *Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
 
@@ -993,7 +995,7 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 `/repositories/$repositoryId/edit` behind `requireUser`: `PageHeader` and `RepositoryForm` with the
 repository, or the `403` message when `permissions.update` is `false`.
 
-*Wireframes:* [edit-unchanged](wireframes/edit-unchanged.png).
+*Wireframes:* [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)).
 
 *Acceptance:* route tests for the filled form, the `403` message and not-found.
 
@@ -1011,7 +1013,7 @@ on any filter, sort or page-size change; the owner filter searches with `userLis
 session's user, labels a URL `ownerId` with `userQuery` and drops it on a `404`; **Clear filters**
 removes every filter parameter.
 
-*Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png), [list-empty-filtered](wireframes/list-empty-filtered.png).
+*Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)).
 
 *Acceptance:* Playwright tests filter by name, by visibility and by owner ("(you)" and another user),
 sort by each column in both directions, and reload to find the same state from the URL.
@@ -1023,7 +1025,7 @@ sort by each column in both directions, and reload to find the same state from t
 `RepositoryForm` on the new page calls `useCreateRepository`, navigates to the new repository on
 success, and returns to the list on **Cancel**.
 
-*Wireframes:* [new-filled-in](wireframes/new-filled-in.png), [new-name-taken](wireframes/new-name-taken.png), [new-submitting](wireframes/new-submitting.png).
+*Wireframes:* [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 
 *Acceptance:* Playwright tests create a public and a private repository and land on each one's page,
 and submit a taken name to see the error on the name field.
@@ -1035,7 +1037,7 @@ and submit a taken name to see the error on the name field.
 **Save** opens `ConfirmRepositoryChangesDialog`; confirming calls `useUpdateRepository` and navigates
 to the repository's page; a `409` closes the dialog and shows on the name field.
 
-*Wireframes:* [edit-changed](wireframes/edit-changed.png), [edit-confirm-changes](wireframes/edit-confirm-changes.png), [edit-name-taken](wireframes/edit-name-taken.png).
+*Wireframes:* [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)).
 
 *Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
 list, make one private and confirm `other` can no longer see it, and rename to a taken name.
@@ -1047,7 +1049,7 @@ list, make one private and confirm `other` can no longer see it, and rename to a
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
 `useDeleteRepository` and navigates to the list; a failure is shown in the dialog.
 
-*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 *Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
 list; its page then shows not-found.
