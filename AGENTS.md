@@ -110,6 +110,25 @@ version:
   what a caller sees. The first member of a sort-field enum is the default.
 * Controllers are thin: they log, call the service, and translate `null` to `NotFound()`.
 
+### The OpenAPI document
+
+`pacmanmanager-web/openapi/v1.json` is RepoHost's `v1` OpenAPI document, the contract the web app
+is built against. It is generated, never hand-edited. Regenerate it from the repository root:
+
+```bash
+dotnet tool restore                     # once; provides the Swashbuckle CLI
+dotnet build PacmanManager.RepoHost
+scripts/generate-openapi.sh             # or: scripts/generate-openapi.sh Release
+```
+
+`OpenApiDocumentTests` generates the document the same way and fails when the committed one has a
+**breaking** difference from it, as `oasdiff` judges it at its `ERR` level; additions pass without
+regenerating. A change that breaks the contract regenerates the document in the same PR.
+Generation runs the whole of `Program.cs` against a server that never listens, but without hosted
+services, so startup work that needs `DATA_DIR` or the database belongs in an `IHostedService`
+(like `PacmanDirectoriesInitializer`), never after `builder.Build()`. See
+`docs/web-ui-architecture.md`.
+
 ### Database and migrations
 
 Migrations live in `PacmanManager.Migrations`, which is both the migrations assembly and its own
@@ -159,7 +178,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 
 | Job | What it does |
 | :--- | :--- |
-| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` and `dotnet test` across the solution. |
+| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
 | `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
 
