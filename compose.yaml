@@ -1,4 +1,9 @@
-﻿services:
+﻿# The largest package file RepoHost accepts, and the largest request body the web host proxies to it.
+# The publish route's body is the raw package file, so one value puts the limit in the same place on
+# both hops: an upload the web host forwards is never refused by RepoHost for its size.
+x-max-upload-bytes: &max-upload-bytes "1073741824"
+
+services:
   pacmanmanager.repohost:
     image: pacmanmanager.repohost
     build:
@@ -12,6 +17,7 @@
       ASPNETCORE_ENVIRONMENT: Development
       Auth__Authority: "http://auth:8080/realms/localdev"
       ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
+      PackagePublishing__MaxUploadBytes: *max-upload-bytes
     depends_on:
       auth:
         condition: service_started
@@ -41,6 +47,8 @@
       AuthConfig__OidcConfig__Scopes__5: "pacman-manager:*:*"
       ApiProxy__PacmanManager__BaseUrl: "http://pacmanmanager.repohost:8080/api/"
       ApiProxy__PacmanManager__AuthType: "PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost"
+      # Raised from Kestrel's 30 MB default, which a package upload routinely exceeds.
+      ApiProxy__PacmanManager__MaxRequestBodySize: *max-upload-bytes
       # Passed through so a package download is saved under the package's own filename.
       ApiProxy__PacmanManager__ResponseHeaders__0: Content-Disposition
       # SpaHost's Development settings keep its data-protection keys in Redis, for replicas sharing
