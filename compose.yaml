@@ -41,6 +41,8 @@
       AuthConfig__OidcConfig__Scopes__5: "pacman-manager:*:*"
       ApiProxy__PacmanManager__BaseUrl: "http://pacmanmanager.repohost:8080/api/"
       ApiProxy__PacmanManager__AuthType: "PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost"
+      # Passed through so a package download is saved under the package's own filename.
+      ApiProxy__PacmanManager__ResponseHeaders__0: Content-Disposition
       # SpaHost's Development settings keep its data-protection keys in Redis, for replicas sharing
       # a session cookie. This stack runs one replica and has no Redis.
       RedisConfig__UseForDataProtection: "false"
