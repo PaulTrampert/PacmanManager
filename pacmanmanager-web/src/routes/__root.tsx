@@ -1,4 +1,4 @@
-import { useQueryErrorResetBoundary } from "@tanstack/react-query";
+import { useQuery, useQueryErrorResetBoundary } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   Outlet,
@@ -9,7 +9,9 @@ import { AppShell } from "../components/AppShell";
 import { ErrorPage } from "../components/ErrorPage";
 import { NotFoundPage } from "../components/NotFoundPage";
 import type { RouterContext } from "../router";
-import { sessionQuery, useSession } from "../session";
+import { sessionQuery, useSession, type Session } from "../session";
+
+const anonymousSession: Session = { status: "anonymous" };
 
 // The one error component and the one not-found component, which a route's failure bubbles up to
 // unless the route has a component of its own for it. The not-found component renders in the root
@@ -38,6 +40,12 @@ function RootComponent() {
 function RootErrorComponent({ error }: ErrorComponentProps) {
   const router = useRouter();
   const queryErrorResetBoundary = useQueryErrorResetBoundary();
+  // The session is cached unless resolving it is what failed, and then the visitor is shown as
+  // anonymous rather than failing again here.
+  const { data: session = anonymousSession } = useQuery({
+    ...sessionQuery(),
+    enabled: false,
+  });
   const retry = () => {
     // Let a suspense query that failed fetch again, then rerun the loaders, which also resets this
     // error boundary.
@@ -45,7 +53,7 @@ function RootErrorComponent({ error }: ErrorComponentProps) {
     void router.invalidate();
   };
   return (
-    <AppShell>
+    <AppShell session={session}>
       <ErrorPage error={error} onRetry={retry} />
     </AppShell>
   );
