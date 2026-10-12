@@ -28,9 +28,10 @@ upstream SpaHost or ApiProxy fix on this side. They are not re-specified here; t
   component and end-to-end tests, each with one documented command.
 * The browser never holds an access token. Signing in, refreshing tokens and attaching them to API
   calls are the web host's job.
-* The TypeScript API client cannot drift silently from RepoHost: a change to the API that alters
-  its OpenAPI document fails CI until the committed document is regenerated, and a change that
-  breaks the web app's use of it fails the web app's typecheck.
+* The TypeScript API client cannot drift silently from RepoHost: a *breaking* change to the API
+  fails CI until the committed OpenAPI document is regenerated, and the regenerated document then
+  fails the web app's typecheck wherever the app's use of the API broke. Additive changes — a new
+  route, a new optional field — do not touch the web build.
 * A visitor who has not signed in can browse whatever the API shows anonymous callers; a signed-in
   user acts as themselves, and is sent to sign in again when their session dies.
 * The feature milestones add screens by following the patterns here — a route, a query, a mutation,
@@ -60,8 +61,8 @@ its `package.json` `name` is `pacmanmanager-web` too. It is an npm project, **no
 
 ```text
 pacmanmanager-web/
-├── .nvmrc                 # Node major version, read by CI and by nvm
-├── package.json           # engines.node and packageManager pinned
+├── .nvmrc                 # `lts/*`, read by CI and by nvm
+├── package.json           # engines.node floor
 ├── package-lock.json      # committed; installs use `npm ci`
 ├── Dockerfile             # build context is this directory
 ├── .dockerignore          # node_modules, dist, storybook-static, test output
@@ -100,7 +101,7 @@ pacmanmanager-web/
 
 | Concern | Choice |
 | :--- | :--- |
-| Runtime | Node **24** LTS, pinned in `.nvmrc` and `engines.node`; npm, pinned in `packageManager` |
+| Runtime | Node **LTS** (`lts/*` in `.nvmrc`, `engines.node` a floor at the current LTS major); npm as shipped with it |
 | Language | TypeScript, `strict`, `moduleResolution: bundler`, `noEmit` |
 | Build and dev server | Vite, with `@vitejs/plugin-react` and `@tanstack/router-plugin` |
 | UI | React 19, MUI (`@mui/material`, `@mui/icons-material`), Emotion |
@@ -116,7 +117,7 @@ pacmanmanager-web/
 * Every dependency is pinned by `package-lock.json`. Dependabot gains an `npm` ecosystem entry for
   `/pacmanmanager-web`, grouped like the others, and the existing `docker` entry covers the new
   Dockerfile.
-* `.github/actions/setup-toolchain` and `.claude/hooks/session-start.sh` both install Node 24, so
+* `.github/actions/setup-toolchain` and `.claude/hooks/session-start.sh` both install the Node LTS, so
   the Claude workflows and cloud sessions can build and test the web app.
 
 **Why:**
@@ -150,7 +151,6 @@ environment variables on the service:
 
 | Variable | Value |
 | :--- | :--- |
-| `ASPNETCORE_ENVIRONMENT` | `Development` |
 | `AuthConfig__OidcConfig__Authority` | `http://auth:8080/realms/localdev` |
 | `AuthConfig__OidcConfig__ClientId` | `pacman-manager-web` |
 | `AuthConfig__OidcConfig__ClientSecret` | the client's secret from `keycloak/localdev.json` |
@@ -177,7 +177,8 @@ environment variables on the service:
 `npm run dev` serves the app from Vite on **port 3000** with hot reload, and proxies
 `/api`, `/login`, `/logout`, `/userinfo`, `/antiforgery`, `/signin-oidc` and
 `/signout-callback-oidc` to the compose stack's web host on `http://localhost:8081`, with
-`changeOrigin: false`. The developer runs `docker compose up -d --build` first. The app's code is the
+`changeOrigin: false`. A `predev` script (after `generate`) brings the stack up with
+`docker compose -f ../compose.yaml up -d --build`. The app's code is the
 same in both modes; it never names a host.
 
 ---
@@ -204,10 +205,18 @@ same in both modes; it never names a host.
 * `Program.cs` lets `HostAbortedException` propagate without logging it as fatal. The CLI stops the
   host with that exception straight after `builder.Build()`, so nothing after `Build()` — the pacman
   config, the `DATA_DIR` directories — runs during generation, and no database is needed.
-* An `OpenApiDocumentTests` fixture in `PacmanManager.RepoHost.Test` generates the document the same
-  way into a temporary file and fails if it differs from the committed one. Its failure message
-  gives the regeneration command. A pull request that changes the API therefore commits the new
-  document in the same change.
+* The committed document is the **contract the web app is built against**, not a mirror of every
+  commit. An `OpenApiDocumentTests` fixture in `PacmanManager.RepoHost.Test` generates the document
+  the same way into a temporary file, compares it with the committed one, and fails only on a
+  **breaking** difference: a removed route or method, a removed or retyped property, a property or
+  parameter that became required, a removed enum value, a removed response status. Additions —
+  routes, optional properties, enum values, response statuses — pass without regenerating. The
+  failure message lists the breaking differences and gives the regeneration command. The comparison
+  is a small `OpenApiCompatibility` class with its own unit tests, one per rule.
+* A pull request that breaks the contract regenerates the document in the same change, so the web
+  app's typecheck fails until the app is adapted; that is the signal, and it is deliberate. A pull
+  request that only adds to the API need not touch the web app, which adopts the additions by
+  regenerating the document when it wants them.
 
 **Why:**
 
@@ -358,8 +367,9 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 ### End-to-end tests
 
-* The stack is **started outside Playwright**: `docker compose up -d --build` from the repository
-  root, by the developer locally and by the CI job. Playwright's global setup only waits until
+* The stack is **started outside Playwright**, by a `pree2e` npm script that runs
+  `docker compose -f ../compose.yaml up -d --build`, so `npm run e2e` is the one command locally and
+  in CI. `up -d` is idempotent, so a stack already running is left alone. Playwright's global setup only waits until
   `http://localhost:8081/` and Keycloak's discovery document both answer, and fails with a message
   naming the compose command if they do not within its timeout.
 * `baseURL` is `http://localhost:8081`. Tests run against the built image, never the dev server.
@@ -391,12 +401,12 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 | Job | Steps |
 | :--- | :--- |
 | `web` | `actions/setup-node` from `.nvmrc` with the npm cache; `npm ci`; `npx playwright install --with-deps chromium`; `npm run format:check`; `npm run lint`; `npm run typecheck`; `npm test`; `npm run build`; `npm run build-storybook` |
-| `e2e` | Node as above; `npm ci`; `npx playwright install --with-deps chromium`; `docker compose up -d --build`; `npm run e2e`; on failure, `docker compose logs` and the Playwright report uploaded as an artifact; `docker compose down -v` always |
+| `e2e` | Node as above; `npm ci`; `npx playwright install --with-deps chromium`; `npm run e2e` (its `pree2e` starts the stack); on failure, `docker compose logs` and the Playwright report uploaded as an artifact; `docker compose down -v` always |
 | `docker` (matrix entry `web`) | Builds `pacmanmanager-web/Dockerfile` with `pacmanmanager-web` as the context, `push: false` |
 
 * Both new jobs run in `pacmanmanager-web` as their working directory, except the compose commands,
   which run from the repository root.
-* The OpenAPI drift check needs no job of its own: it is a test in `PacmanManager.RepoHost.Test`,
+* The OpenAPI compatibility check needs no job of its own: it is a test in `PacmanManager.RepoHost.Test`,
   which the `test` job already runs. That job runs `dotnet tool restore` before testing.
 * `AGENTS.md` documents the web app's commands next to `dotnet build` and `dotnet test`, adds
   `pacmanmanager-web` to the project layout table, and describes the new jobs.
@@ -421,15 +431,16 @@ without a dependency can start immediately.
 ### 1. Generate and commit RepoHost's OpenAPI document — PATCH
 
 Adds `Swashbuckle.AspNetCore.Cli` to the tool manifest, the `HostAbortedException` pass-through in
-`Program.cs`, the committed `pacmanmanager-web/openapi/v1.json`, the `OpenApiDocumentTests` drift
-check, and `dotnet tool restore` in the `test` job. `AGENTS.md` gains the regeneration command.
+`Program.cs`, the committed `pacmanmanager-web/openapi/v1.json`, the `OpenApiDocumentTests` compatibility
+check with `OpenApiCompatibility`, and `dotnet tool restore` in the `test` job. `AGENTS.md` gains the regeneration command.
 
 *Constraints:* generation runs with `ASPNETCORE_ENVIRONMENT=Development`, in the command and in the
 test — see [The OpenAPI document](#the-openapi-document).
 
-*Acceptance:* the drift test passes on the committed file; changing a route's XML doc comment and
-rebuilding makes it fail with a message naming the regeneration command; running the command makes it
-pass again. Generation succeeds with no Postgres reachable and no `DATA_DIR`, and logs nothing at
+*Acceptance:* the compatibility test passes on the committed file; adding a route or an optional
+property still passes; removing a property or making one required fails with a message naming the
+breaking difference and the regeneration command; running the command makes it pass again.
+`OpenApiCompatibility` has a unit test per rule. Generation succeeds with no Postgres reachable and no `DATA_DIR`, and logs nothing at
 `Fatal`.
 
 *Depends on:* nothing.
@@ -632,13 +643,26 @@ Rejected:
 ### Why the spec is committed and checked
 
 The TypeScript client is generated from RepoHost's OpenAPI document, so something has to produce that
-document at build time. Committing it, with a test that it matches the code, gives the cheapest web
-build and still makes drift impossible to merge: a change to the API fails RepoHost's tests until the
-document is regenerated, and the regenerated document then fails the web app's typecheck wherever the
-app's use of the API broke. The diff to `openapi/v1.json` in a pull request is also a readable record
-of exactly how the API's contract changed.
+document at build time. Committing it, with a test that it is still compatible with the code, gives
+the cheapest web build and makes *breaking* drift impossible to merge: a breaking change fails
+RepoHost's tests until the document is regenerated, and the regenerated document then fails the web
+app's typecheck wherever the app's use of the API broke. Additive changes cannot break the app, so
+they do not force a regeneration and API pull requests do not bleed into the web build unless they
+must. The diff to `openapi/v1.json` is also a readable record of how the contract changed. Only the
+document is committed; the client is generated from it during the web build and gitignored, since
+generated code is not committed here.
 
 Rejected:
+
+* **Failing on any difference.** This design's first version. Every API pull request, however small,
+  would have to regenerate the document and could break the web build, coupling the two more tightly
+  than their contract requires.
+* **Generating the document, then the client, then building API and web independently.** Nothing is
+  committed, but the web build then needs the .NET toolchain (pacman tooling, libalpm, a JRE) and a
+  RepoHost build — `npm run dev` and the Dockerfile included — and every API change reaches the web
+  build unchecked.
+* **Committing both the document and the client.** The client is wholly derived from the document,
+  so committing it adds review noise and nothing a reviewer could not already see in the document.
 
 * **Generating the document inside the web image.** The web Dockerfile would need a .NET SDK stage
   that builds RepoHost — with pacman tooling, libalpm and a JRE for ANTLR — only to emit a JSON file,
@@ -754,7 +778,8 @@ TypeScript.
 Playwright's `webServer` option manages one long-running process. A compose stack is several
 containers plus a migrations container that runs and exits, and bringing it up in `globalSetup` would
 couple Playwright to compose's lifecycle and hide build failures inside a test run. Keeping
-`docker compose up -d --build` as an explicit step means CI shows a broken image build as a broken
+`docker compose up -d --build` as an explicit step, run by the `pree2e` npm script before Playwright
+starts, means CI shows a broken image build as a broken
 build step, a developer can leave the stack running between test runs, and global setup only has to
 wait for readiness.
 
