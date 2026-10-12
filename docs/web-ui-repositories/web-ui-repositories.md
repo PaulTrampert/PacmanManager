@@ -303,6 +303,15 @@ Every filter follows one rule: **a filter with one possible value or none is sho
   with `GET /v1/Users/{id}`. If that is a `404`, `ownerId` is removed from the search params.
 * A disabled filter never sends a value. Its state is a consequence of the data, so the list still
   answers exactly as an unfiltered one would.
+* A disabled filter's param is **removed from the URL**, never kept and ignored:
+  * `architecture` when there are fewer than two architectures;
+  * `ownerId` when there are fewer than two users;
+  * `isPublic` for an anonymous visitor.
+
+  The list route removes them in its `beforeLoad` (see [Loading](#loading)) by throwing a `redirect`
+  to the same route without them, with `replace: true`, so the URL never shows a filter that the
+  page shows as **All**, and **Back** never returns to it. `repositoryListQuery` itself sends exactly
+  what it is given and knows nothing about disabled filters.
 
 Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)).
 
@@ -325,9 +334,11 @@ Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://pe
 
 ### Loading
 
-* The list route's loader awaits only what decides the filters' state: `architecturesQuery()` and the
-  user count (`userListQuery` with `pageSize=1`). It **prefetches** `repositoryListQuery(search)`
-  without awaiting it, and the list's search params are **not** in its `loaderDeps`, so changing a
+* The list route's `beforeLoad`, which runs on every navigation to it, first awaits what decides the
+  filters' state — `architecturesQuery()` and the user count (`userListQuery` with `pageSize=1`), in
+  parallel, and cached after the first visit — then drops the params of
+  [disabled filters](#filters). Only after that does its loader **prefetch**
+  `repositoryListQuery(search)` with what is left, without awaiting it, and the list's search params are **not** in its `loaderDeps`, so changing a
   filter, the sort or the page never re-runs the loader or shows the route's pending component.
   The page, the filter bar included, stays mounted, and a name being typed is never lost.
 * `RepositoryTable`'s data comes from `useQuery(repositoryListQuery(search))` with
@@ -1000,7 +1011,9 @@ or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to i
 *Acceptance:* route tests for each listing wireframe, including all three empty states, and one that
 loads `?pageSize=7` and gets 50 rows per page with `pageSize` removed from the URL, and one in which
 a slow list response, after a filter change, leaves the filter bar mounted with its typed value intact
-and the previous rows dimmed under a spinner; a Playwright test
+and the previous rows dimmed under a spinner. Route tests also load `?architecture=x86_64` with one
+architecture, `?ownerId=…` with one user, and `?isPublic=false` anonymously, and assert each param is
+removed by a history-replacing redirect and absent from the list request; a Playwright test
 signs in, and sees a repository it created through the API.
 
 *Depends on:* 6, 7, 15, 16, 22, 24, 25.
