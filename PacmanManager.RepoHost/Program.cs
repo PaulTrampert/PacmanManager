@@ -136,6 +136,11 @@ try
     // consumer that never reads a package file therefore never pays at all.
     builder.Services.AddScoped(p => new Lazy<ILibAlpm>(p.GetRequiredService<ILibAlpm>));
 
+    // Startup work that needs DATA_DIR runs in hosted services, never after builder.Build(): the
+    // Swashbuckle CLI runs this whole file to generate the OpenAPI document but strips hosted
+    // services, so generation needs no data directory.
+    builder.Services.AddHostedService<PacmanDirectoriesInitializer>();
+
     #endregion
 
     #region Request Pipeline
@@ -146,10 +151,6 @@ try
     app.UseForwardedHeaders();
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();
-    
-    var pacmanConfig = app.Services.GetRequiredService<PacmanConfig>();
-    Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "sync"));
-    Directory.CreateDirectory(Path.Combine(pacmanConfig.DBPath, "local"));
 
     // Configure the HTTP request pipeline.
     var swaggerConfig = app.Services.GetRequiredService<IOptions<SwaggerConfig>>().Value;
