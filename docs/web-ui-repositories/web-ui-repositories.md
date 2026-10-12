@@ -55,6 +55,26 @@ Recorded here so the issues stay bounded; each has a follow-up in
 
 ---
 
+## Wireframes
+
+The wireframes are drawn in Penpot, on the **Repositories** page of the *Wireframes* file, and
+exported to [`wireframes/`](wireframes/). Their font is Roboto; the exports render it in a serif
+fallback, so judge them by layout, sizes, weights and colours, not typeface.
+
+| Area | Wireframes |
+| :--- | :--- |
+| Repository list | [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) |
+| Empty list | [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png) |
+| Repository page | [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png) |
+| `pacman.conf` section | [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png) |
+| Create | [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png) |
+| Edit | [edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png), [edit-confirm-changes](wireframes/edit-confirm-changes.png) |
+| Delete | [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png) |
+
+The specification below is authoritative where a wireframe and the text disagree.
+
+---
+
 ## API changes
 
 RepoHost gains four small things. Each is additive, so none of them breaks the committed OpenAPI
@@ -160,6 +180,8 @@ the client's generated types know the response exists.
 
 ## Navigation
 
+
+
 The walking skeleton's shell — an `AppBar` above a `Container` — is **unchanged**. There is no
 navigation menu: no drawer, and no links in the app bar.
 
@@ -176,6 +198,8 @@ navigation menu: no drawer, and no links in the app bar.
   | `/repositories/$repositoryId/edit` | Repositories / *the repository's name* / Edit |
 
 * A crumb naming a repository shows its current name, from `repositoryQuery(id)`.
+
+Wireframes: [repository-owner-public](wireframes/repository-owner-public.png), [new-empty](wireframes/new-empty.png), [edit-unchanged](wireframes/edit-unchanged.png).
 
 **Why:**
 
@@ -210,6 +234,8 @@ navigation menu: no drawer, and no links in the app bar.
 ---
 
 ## The repository list
+
+![The repository list, signed in](wireframes/list-signed-in.png)
 
 `/repositories` shows one page of `GET /v1/Repositories`. Its search params are the API's, as the
 architecture document requires:
@@ -263,6 +289,8 @@ Every filter follows one rule: **a filter with one possible value or none is sho
 * A disabled filter never sends a value. Its state is a consequence of the data, so the list still
   answers exactly as an unfiltered one would.
 
+Wireframes: [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png).
+
 **Why:**
 
 * [single-option filters are disabled, not hidden](#why-single-option-filters-are-disabled-not-hidden)
@@ -295,9 +323,13 @@ used for every empty list:
   absent. Disabled filters never count as applied.
 * The component knows nothing about repositories; the list route chooses the text and the action.
 
+Wireframes: [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+
 ---
 
 ## The repository page
+
+![The repository page, as its owner](wireframes/repository-owner-public.png)
 
 `/repositories/$repositoryId` loads `repositoryQuery(id)`. A `404` is the route's not-found
 component, whatever the reason the API had.
@@ -315,6 +347,8 @@ beneath. Top to bottom:
 3. one row of label-over-value details: **Owner** (display name), **Architectures** (the
    `displayValue`s), **Created** and **Updated**;
 4. the [`pacman.conf` section](#the-pacmanconf-section), collapsed.
+
+Wireframes: [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
 
 **Why:**
 
@@ -334,6 +368,7 @@ Server = <serverUrl>
 ```
 
 * `<name>` is the repository's name as stored, and `<serverUrl>` the field's value verbatim.
+* Wireframes: [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
 * **Copy** copies the block's text to the clipboard, then reads **Copied** for a few seconds.
 * For a **private** repository, a note below the block says that `pacman` must authenticate to read
   it, and that the `Server` line needs credentials. The note does not generate or link to any.
@@ -346,8 +381,10 @@ Server = <serverUrl>
 
 ## Creating a repository
 
+![The new repository form](wireframes/new-empty.png)
+
 `/repositories/new` shows the [breadcrumbs](#navigation), the heading **New repository**, and
-`RepositoryForm`.
+`RepositoryForm`. Wireframes: [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png).
 
 ### `RepositoryForm`
 
@@ -362,8 +399,10 @@ repository; whether that repository has an `id` is the only thing that decides w
 | On success | navigates to the new repository's page | navigates to the repository's page |
 | **Cancel** | returns to `/repositories` | returns to the repository's page |
 
-The routes own the page around it — breadcrumbs, heading, loading the repository to edit — and the
-form owns everything inside: its fields, validation, the mutation and the `409`.
+The form is presentational: it takes `onSubmit`, `onCancel`, a pending flag and the request's
+error, shows a `409` on the name field and a validation `400`'s entries on their fields, and never
+calls the API itself. The routes own the page around it — breadcrumbs, heading, loading the
+repository to edit — and connect it to the mutations.
 
 Its fields:
 
@@ -447,12 +486,15 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
 
 `/repositories/$repositoryId/edit` loads `repositoryQuery(id)` and shows the
 [breadcrumbs](#navigation), the heading **Edit repository**, and [`RepositoryForm`](#repositoryform)
-given that repository, which puts it in its edit behaviour.
+given that repository, which puts it in its edit behaviour. Wireframes:
+[edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png).
 
 * The `PUT` carries the edited `name` and `isPublic` and the repository's **existing**
   `supportedArchitectures`, unchanged.
 
 ### Confirming consequential changes
+
+![The confirmation dialog for a rename and a change to private](wireframes/edit-confirm-changes.png)
 
 Every change the edit form can make — a rename or a visibility change — affects clients already using
 the repository, so **Save** always opens a confirmation dialog first. It is titled **Save these
@@ -478,6 +520,10 @@ consequence that applies, in this order:
 
 ## Deleting a repository
 
+![The delete dialog with the name typed](wireframes/delete-name-typed.png)
+
+Wireframes: [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+
 **Delete** on the repository page opens a dialog titled **Delete *name*?** that:
 
 * says "This permanently deletes *name* and every package in it. Clients using it will fail. This
@@ -498,8 +544,515 @@ The API is not told about the confirmation, and deletes as it does today.
 
 ## Implementation plan
 
-Not yet written. The issues are cut once the wireframes on the Penpot **Repositories** page are
-agreed, since the components they show decide how the UI work divides.
+One issue per heading. Dependencies are noted; anything without a dependency can start immediately.
+
+The work is in six layers, and an issue depends only on issues in earlier layers:
+
+1. **API** — RepoHost's additions, and the generated validation rules.
+2. **Groundwork components** — generic components in `src/components` that know nothing about
+   repositories, and that later milestones reuse.
+3. **Repository components** — the components the wireframes show, built from the groundwork.
+4. **Queries and mutations** — one issue each, under `src/queries`.
+5. **Pages** — each route assembled from components and queries, rendering what the API returns.
+6. **Behaviour** — each page's interactions wired to the URL, the mutations and navigation.
+
+Every component is **presentational**: it takes values and callbacks as props, and never calls the
+API, reads the URL or navigates. Queries, mutations, search params and navigation are connected in
+layers 5 and 6. Each component issue's acceptance is a story per state the wireframes show, with a
+`play` function for each interaction, as [Testing](../web-ui-architecture/web-ui-architecture.md#testing)
+requires. Each issue that builds or changes a component or page names the [wireframes](#wireframes)
+it implements.
+
+**API**
+
+### 1. `PublicUrl` and `Repository.serverUrl` — MINOR
+
+The `PublicUrl` setting with its options validation, `serverUrl` on `Repository`, `"PublicUrl": ""`
+in `appsettings.json`, `PublicUrl` in `compose.yaml`, and the regenerated `openapi/v1.json`. See
+[`Repository.serverUrl` and the `PublicUrl` setting](#repositoryserverurl-and-the-publicurl-setting).
+
+*Constraints:* `serverUrl` is built per response from the setting or the request, and is never a
+column. The request root is read after `UseForwardedHeaders`.
+
+*Acceptance:* unit tests cover each row of the `PublicUrl` table, the trailing-`/` normalisation in
+both directions, a `PathBase`, and a forwarded `https` scheme from a trusted proxy. An E2E test
+asserts `serverUrl` on the listing, `GET` by id, `POST` and `PUT` responses, against a host started
+with `PublicUrl` set, and a second asserts the request-root form with it unset.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [`PublicUrl` is configured, with the request as a fallback](#why-publicurl-is-configured-with-the-request-as-a-fallback)
+* [`serverUrl` is a field on `Repository`](#why-serverurl-is-a-field-on-repository)
+
+### 2. `Repository.permissions` — MINOR
+
+`permissions` on `Repository`, from `RepositoryAccessPolicy.CheckUpdate` and `CheckDelete`, and the
+regenerated `openapi/v1.json`. See [`Repository.permissions`](#repositorypermissions).
+
+*Constraints:* the values come from the same policy calls the writes enforce with; there is no
+second implementation of the rule. Computing them adds no query per repository.
+
+*Acceptance:* `RepositoryAccessPolicyTests` gain no new rules; service tests assert `permissions`
+for the owner, another user (public repository), an anonymous caller, and a token lacking each of
+`pacman-manager:repositories:update` and `pacman-manager:repositories:delete`. An E2E test asserts
+both fields, `false` included, in the raw JSON of the listing and `GET` by id, for the owner and for
+another user.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [permissions come from the API](#why-permissions-come-from-the-api)
+* [`update` and `delete` are separate](#why-update-and-delete-are-separate)
+
+### 3. `GET /api/v1/Architectures` — MINOR
+
+`ArchitecturesController`, the friendly names beside
+`PacmanRepositoryValidationConstants.SupportedArchitectures`, and the regenerated `openapi/v1.json`.
+See [`GET /api/v1/Architectures`](#get-apiv1architectures).
+
+*Acceptance:* a unit test fails if a supported architecture has no friendly name. An E2E test asserts
+the anonymous response's raw JSON is exactly
+`[{"value":"x86_64","displayValue":"64-bit Intel/AMD (x86_64)"}]`.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [architectures are a plain array](#why-architectures-are-a-plain-array)
+
+### 4. Declare `409` on repository create and update — PATCH
+
+`[ProducesResponseType(StatusCodes.Status409Conflict)]` on `RepositoriesController.Create` and
+`Update`, and the regenerated `openapi/v1.json`. See
+[`409` is declared on create and update](#409-is-declared-on-create-and-update).
+
+*Acceptance:* the regenerated document lists `409` for both operations, and the web app's generated
+types include it.
+
+*Depends on:* nothing.
+
+### 5. Validation rules from the OpenAPI document — MINOR
+
+`scripts/generate-validation.ts` in `npm run generate`, the gitignored `src/api/validation.gen.ts`,
+and the field-validator helper in `src/api`. See
+[Validation rules from the OpenAPI document](#validation-rules-from-the-openapi-document).
+
+*Constraints:* a pattern the translator cannot translate fails generation; it is never dropped or
+loosened.
+
+*Acceptance:* unit tests cover each row of the translation table and each refused construct, each by
+the error it names. A test asserts the generated `WriteRepositoryRequest.name` pattern accepts and
+rejects the same names as RepoHost's `RegularExpressionsTests`. Referring to a schema or property
+the document lacks fails `npm run typecheck`.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [validation rules come from the OpenAPI document](#why-validation-rules-come-from-the-openapi-document)
+
+**Groundwork components**
+
+### 6. `PageHeader` — PATCH
+
+A page's top: optional MUI `Breadcrumbs` (every crumb but the last a router link), the `h1`, an
+optional adornment beside it, and optional actions aligned right. See [Navigation](#navigation).
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [repository-owner-public](wireframes/repository-owner-public.png), [new-empty](wireframes/new-empty.png), [edit-unchanged](wireframes/edit-unchanged.png).
+
+*Acceptance:* stories for a title alone, with actions, with breadcrumbs, and with an adornment; a
+`play` function asserts the last crumb is not a link and the others are.
+
+*Depends on:* nothing.
+
+### 7. `EmptyState` — PATCH
+
+A heading, a message and an optional action, in an outlined box. See [Empty states](#empty-states).
+
+*Wireframes:* [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+
+*Acceptance:* stories with and without an action; the action is reachable by role.
+
+*Depends on:* nothing.
+
+### 8. `FilterSelect` — PATCH
+
+An outlined select for one filter: an **All** option plus the given options. With one option or
+none it is disabled on **All**; it can also be told to be disabled on a given value. See
+[Filters](#filters).
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png).
+
+*Constraints:* the "one option or none" rule lives here, not in each caller. While disabled, it
+reports no value.
+
+*Acceptance:* stories for several options, a single option, no options, and disabled on a fixed
+value; `play` functions assert the disabled states cannot be opened and that choosing an option and
+**All** each call `onChange` with the value and with `undefined`.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [single-option filters are disabled, not hidden](#why-single-option-filters-are-disabled-not-hidden)
+
+### 9. `AsyncAutocomplete` — PATCH
+
+An outlined MUI `Autocomplete` whose options come from an async search, called 300 ms after typing
+stops; with optional **pinned options** shown first and followed by a divider, filtered by the typed
+text; and disabled on **All** when told it has one option or none.
+
+*Wireframes:* [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png).
+
+*Constraints:* a pinned option is never repeated from the search results.
+
+*Acceptance:* stories for closed, open with no text, open with text, loading, and disabled; `play`
+functions assert the debounce (one search per pause, not per keystroke), that a pinned option that
+does not match the text is hidden, and that a pinned option returned by the search appears once.
+
+*Depends on:* nothing.
+
+### 10. `PaginatedTable` — PATCH
+
+An outlined MUI table with column definitions, `TableSortLabel` on the sortable ones, and
+`TablePagination` with page sizes 25, 50 and 100. It takes the sort, the offset and the page size as
+props and reports changes through callbacks. See [Sorting and paging](#sorting-and-paging).
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-own-repositories](wireframes/list-own-repositories.png).
+
+*Constraints:* clicking the active header reverses the direction; clicking another reports that
+column with **no** direction, so the field's default applies.
+
+*Acceptance:* stories for several rows, an ascending and a descending sort, and a second page;
+`play` functions assert each sort rule above and that changing the page size reports offset `0`.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [the list sorts from its column headers](#why-the-list-sorts-from-its-column-headers)
+
+### 11. `Form` and `FormField` — PATCH
+
+`Form`: a `<form noValidate>` with an optional `ProblemDetailsAlert` above its fields and an actions
+row of a submit button (with a pending label) and **Cancel**. `FormField`: an outlined text field
+validated by the [rules generated from the OpenAPI document](#validation-rules-from-the-openapi-document),
+whose error replaces its helper text, shown once the field is left or the form submitted. See
+[`RepositoryForm`](#repositoryform).
+
+*Wireframes:* [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png).
+
+*Constraints:* a `FormField` names a schema and a property, never a length or a pattern.
+
+*Acceptance:* stories for a pristine field, a helper text, each kind of rule failing, a server error
+set on the field, and a pending form; `play` functions assert no error shows while first typing, the
+error shows on blur, submitting an invalid form shows every error and does not call `onSubmit`, and
+the submit button is disabled while pending.
+
+*Depends on:* 5.
+
+### 12. `Dialog` — PATCH
+
+A standard MUI `Dialog`: a title, content, an optional `ProblemDetailsAlert` at the top of the
+content, and actions; it disables its actions while pending.
+
+*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png), [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-failed](wireframes/delete-failed.png).
+
+*Acceptance:* stories for plain, with an error, and pending; a `play` function asserts **Escape**
+and the backdrop do nothing while pending.
+
+*Depends on:* nothing.
+
+### 13. `CopyableCodeBlock` — PATCH
+
+A read-only monospace block with a **Copy** button that copies the block's text and reads **Copied**
+for a few seconds. See [The `pacman.conf` section](#the-pacmanconf-section).
+
+*Wireframes:* [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
+
+*Acceptance:* stories for idle and copied; a `play` function asserts the clipboard receives the
+exact text, newlines included, and that the label reverts.
+
+*Depends on:* nothing.
+
+**Repository components**
+
+### 14. `VisibilityChip` — PATCH
+
+The Public or Private chip used in the table and the repository page's title.
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [repository-owner-private](wireframes/repository-owner-private.png).
+
+*Acceptance:* a story for each value, with an accessible name naming the visibility.
+
+*Depends on:* nothing.
+
+### 15. `RepositoryFilters` — PATCH
+
+The filter bar — name search, visibility, owner and architecture. The owner filter pins the signed-in user as "(you)". See [Filters](#filters).
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-own-repositories](wireframes/list-own-repositories.png), [list-single-user](wireframes/list-single-user.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png).
+
+*Constraints:* it takes the users search, the architectures and the session as props; it does not
+fetch them. The name search reports 300 ms after typing stops.
+
+*Acceptance:* a story per wireframe above; `play` functions assert each control reports its filter
+parameter, and that anonymous visibility and a single-user owner filter are disabled as specified.
+
+*Depends on:* 8, 9.
+
+### 16. `RepositoryTable` — PATCH
+
+`PaginatedTable` configured with the list's columns, the name linking to the repository's page. See
+[The repository list](#the-repository-list).
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-own-repositories](wireframes/list-own-repositories.png).
+
+*Acceptance:* stories for several rows, each sort, and a second page.
+
+*Depends on:* 10, 14.
+
+### 17. `RepositoryHeader` — PATCH
+
+The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
+**Edit** and **Delete** by `permissions`, and the row of details. See [The repository page](#the-repository-page).
+
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
+
+*Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
+function asserts **Delete** calls its callback and **Edit** links to the edit route.
+
+*Depends on:* 6, 14.
+
+### 18. `PacmanConfSection` — PATCH
+
+The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of the
+`pacman.conf` section, and the private note.
+
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png), [repository-snippet-copied](wireframes/repository-snippet-copied.png).
+
+*Acceptance:* stories collapsed, expanded public and expanded private; `play` functions assert it
+starts collapsed and the copied text is exactly the section, built from `name` and `serverUrl`.
+
+*Depends on:* 13.
+
+### 19. `RepositoryForm` — PATCH
+
+The one form for creating and editing, built from `Form` and `FormField`, behaving by whether its
+repository has an `id`. See [`RepositoryForm`](#repositoryform).
+
+*Wireframes:* [new-empty](wireframes/new-empty.png), [new-filled-in](wireframes/new-filled-in.png), [new-invalid-name](wireframes/new-invalid-name.png), [new-name-taken](wireframes/new-name-taken.png), [new-required](wireframes/new-required.png), [new-submitting](wireframes/new-submitting.png), [edit-unchanged](wireframes/edit-unchanged.png), [edit-changed](wireframes/edit-changed.png), [edit-name-taken](wireframes/edit-name-taken.png).
+
+*Constraints:* it takes `onSubmit`, `onCancel`, a pending flag and the mutation's error; it maps a
+`409` to the name field and a validation `400` through `useFormErrors`. It does not call the API.
+
+*Acceptance:* a story per wireframe; `play` functions assert the create and edit labels and initial
+values, that **Save** is disabled until something changes, that `onSubmit` receives the edited
+values with the existing `supportedArchitectures` when editing, and that a `409` error appears on
+the name field and not in an alert.
+
+*Depends on:* 11.
+
+**Why:**
+
+* [create and edit are one form](#why-create-and-edit-are-one-form)
+
+### 20. `ConfirmRepositoryChangesDialog` — PATCH
+
+The **Save these changes?** dialog, given the stored and the edited repository, listing the
+consequences that apply. See
+[Confirming consequential changes](#confirming-consequential-changes).
+
+*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png).
+
+*Acceptance:* stories for a rename, each visibility change, and a rename with a visibility change;
+`play` functions assert the consequences shown and their order.
+
+*Depends on:* 12.
+
+### 21. `DeleteRepositoryDialog` — PATCH
+
+The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repository).
+
+*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+
+*Acceptance:* stories per wireframe; `play` functions assert **Delete** is enabled only for the exact,
+case-sensitive name, and that a failure keeps the typed name.
+
+*Depends on:* 12.
+
+**Queries and mutations**
+
+Each is a query-options factory or mutation hook under `src/queries`, following
+[Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data), with a unit test
+against MSW asserting the request it sends and, for a mutation, the cache it invalidates or updates.
+
+### 22. `repositoryListQuery` — PATCH
+
+`repositoryListQuery(search)`, sending every filter, sort and paging parameter it is given and no
+others.
+
+*Depends on:* nothing.
+
+### 23. `repositoryQuery` — PATCH
+
+`repositoryQuery(id)`. A `404` is an `ApiError` the route turns into not-found.
+
+*Depends on:* nothing.
+
+### 24. `architecturesQuery` — PATCH
+
+`architecturesQuery()`, with a long `staleTime`, since the list is static.
+
+*Depends on:* 3.
+
+### 25. `userListQuery` — PATCH
+
+`userListQuery(search)` over `GET /v1/Users`, used both for the owner search and, with
+`pageSize=1`, for the user count.
+
+*Depends on:* nothing.
+
+### 26. `userQuery` — PATCH
+
+`userQuery(id)` over `GET /v1/Users/{id}`, used to label an `ownerId` from the URL.
+
+*Depends on:* nothing.
+
+### 27. `useCreateRepository` — PATCH
+
+Invalidates the repository list queries on success.
+
+*Depends on:* 4.
+
+### 28. `useUpdateRepository` — PATCH
+
+Invalidates the list queries and sets the repository's detail query to the response on success.
+
+*Depends on:* 4.
+
+### 29. `useDeleteRepository` — PATCH
+
+Invalidates the list queries and removes the repository's detail query on success.
+
+*Depends on:* nothing.
+
+**Pages**
+
+Each issue adds a route that renders what its loader fetched, with its callbacks not yet connected
+to anything; a route test renders it against MSW for each state its wireframes show.
+
+### 30. The repository list page — MINOR
+
+`/repositories` with its `validateSearch` over the [search params](#the-repository-list), its loader,
+`PageHeader` with **New repository** for a signed-in user, `RepositoryFilters`, and `RepositoryTable`
+or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to it.
+
+*Wireframes:* [list-signed-in](wireframes/list-signed-in.png), [list-anonymous](wireframes/list-anonymous.png), [list-single-user](wireframes/list-single-user.png), [list-empty-signed-in](wireframes/list-empty-signed-in.png), [list-empty-filtered](wireframes/list-empty-filtered.png), [list-empty-anonymous](wireframes/list-empty-anonymous.png).
+
+*Acceptance:* route tests for each listing wireframe, including all three empty states; a Playwright test
+signs in, and sees a repository it created through the API.
+
+*Depends on:* 6, 7, 15, 16, 22, 24, 25.
+
+**Why:**
+
+* [`/` redirects to the list](#why--redirects-to-the-list)
+
+### 31. The repository page — MINOR
+
+`/repositories/$repositoryId`: `RepositoryHeader` and `PacmanConfSection`, not-found on a `404`.
+
+*Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png), [repository-owner-private](wireframes/repository-owner-private.png), [repository-not-owner](wireframes/repository-not-owner.png), [repository-anonymous](wireframes/repository-anonymous.png).
+
+*Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
+test opens a repository from the list and sees its `pacman.conf` section after expanding it.
+
+*Depends on:* 17, 18, 23.
+
+**Why:**
+
+* [repositories are addressed by id](#why-repositories-are-addressed-by-id)
+* [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
+
+### 32. The new repository page — MINOR
+
+`/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository.
+
+*Wireframes:* [new-empty](wireframes/new-empty.png).
+
+*Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
+
+*Depends on:* 6, 19, 24.
+
+### 33. The edit repository page — MINOR
+
+`/repositories/$repositoryId/edit` behind `requireUser`: `PageHeader` and `RepositoryForm` with the
+repository, or the `403` message when `permissions.update` is `false`.
+
+*Wireframes:* [edit-unchanged](wireframes/edit-unchanged.png).
+
+*Acceptance:* route tests for the filled form, the `403` message and not-found.
+
+*Depends on:* 6, 19, 23, 24.
+
+**Behaviour**
+
+Each issue connects a page's callbacks, and carries a Playwright test of the behaviour against the
+compose stack, signed in as the realm's `test` and `other` users as needed.
+
+### 34. List filters, sort and paging — MINOR
+
+`RepositoryFilters` and `RepositoryTable` read and write the URL's search params, resetting `offset`
+on any filter, sort or page-size change; the owner filter searches with `userListQuery`, pins the
+session's user, labels a URL `ownerId` with `userQuery` and drops it on a `404`; **Clear filters**
+removes every filter parameter.
+
+*Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png), [list-empty-filtered](wireframes/list-empty-filtered.png).
+
+*Acceptance:* Playwright tests filter by name, by visibility and by owner ("(you)" and another user),
+sort by each column in both directions, and reload to find the same state from the URL.
+
+*Depends on:* 26, 30.
+
+### 35. Create a repository — MINOR
+
+`RepositoryForm` on the new page calls `useCreateRepository`, navigates to the new repository on
+success, and returns to the list on **Cancel**.
+
+*Wireframes:* [new-filled-in](wireframes/new-filled-in.png), [new-name-taken](wireframes/new-name-taken.png), [new-submitting](wireframes/new-submitting.png).
+
+*Acceptance:* Playwright tests create a public and a private repository and land on each one's page,
+and submit a taken name to see the error on the name field.
+
+*Depends on:* 27, 31, 32.
+
+### 36. Edit a repository — MINOR
+
+**Save** opens `ConfirmRepositoryChangesDialog`; confirming calls `useUpdateRepository` and navigates
+to the repository's page; a `409` closes the dialog and shows on the name field.
+
+*Wireframes:* [edit-changed](wireframes/edit-changed.png), [edit-confirm-changes](wireframes/edit-confirm-changes.png), [edit-name-taken](wireframes/edit-name-taken.png).
+
+*Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
+list, make one private and confirm `other` can no longer see it, and rename to a taken name.
+
+*Depends on:* 20, 28, 31, 33.
+
+### 37. Delete a repository — MINOR
+
+**Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
+`useDeleteRepository` and navigates to the list; a failure is shown in the dialog.
+
+*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png), [delete-name-typed](wireframes/delete-name-typed.png), [delete-failed](wireframes/delete-failed.png).
+
+*Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
+list; its page then shows not-found.
+
+*Depends on:* 21, 29, 31.
 
 ---
 
