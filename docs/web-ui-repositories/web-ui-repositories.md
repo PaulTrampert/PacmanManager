@@ -99,23 +99,31 @@ at, such as `https://packages.example.com/`.
 
 | `PublicUrl` | Startup | `serverUrl` |
 | :--- | :--- | :--- |
-| absent or empty | starts | **omitted** from every `Repository` |
+| absent or empty | starts | `{request root}pacman/$repo/$arch` |
 | an absolute `http` or `https` URL | starts | `{PublicUrl}pacman/$repo/$arch` |
 | anything else | **fails**, through options validation, naming the value | — |
 
-* `PublicUrl` is normalised to end in exactly one `/` before `pacman/` is appended, so
+* The **request root** is the current request's `Scheme`, `Host` and `PathBase`, read **after**
+  `UseForwardedHeaders` — so a trusted proxy's `X-Forwarded-Proto` sets the scheme, but the host is
+  always the one the request was addressed to.
+* A configured `PublicUrl` always wins over the request root.
+* Whichever root is used, it is normalised to end in exactly one `/` before `pacman/` is appended, so
   `https://example.com/pm` and `https://example.com/pm/` both give `https://example.com/pm/pacman/$repo/$arch`.
+* `serverUrl` is therefore **always present**.
 * `$repo` and `$arch` are **literal** in the value, exactly as `pacman.conf` writes them; they are
   not replaced with the repository's name or an architecture.
-* `serverUrl` is built from the setting **each time a repository is returned**. It is never stored,
-  so changing `PublicUrl` changes every repository's `serverUrl` on the next request.
+* `serverUrl` is built **each time a repository is returned**. It is never stored, so changing
+  `PublicUrl` changes every repository's `serverUrl` on the next request.
 * `appsettings.json` carries `"PublicUrl": ""`, so the key is discoverable. `compose.yaml` sets
   `PublicUrl: "http://localhost:8082/"` on `pacmanmanager.repohost`.
-* `serverUrl` is the same for every caller, signed in or not.
+* With `PublicUrl` set, `serverUrl` is the same for every caller, signed in or not. Without it, it
+  depends on how the request reached RepoHost: a request proxied by SpaHost carries SpaHost's
+  upstream address (`http://pacmanmanager.repohost:8080/` in compose), so a deployment the web UI is
+  used from must set `PublicUrl` for the snippet to be usable.
 
 **Why:**
 
-* [`PublicUrl` is configured, not inferred](#why-publicurl-is-configured-not-inferred)
+* [`PublicUrl` is configured, with the request as a fallback](#why-publicurl-is-configured-with-the-request-as-a-fallback)
 * [`serverUrl` is a field on `Repository`](#why-serverurl-is-a-field-on-repository)
 
 ### `GET /api/v1/Architectures`
@@ -267,7 +275,7 @@ It shows:
 
 ### The `pacman.conf` section
 
-When `serverUrl` is present, a read-only code block holds exactly:
+A read-only code block holds exactly:
 
 ```ini
 [<name>]
@@ -279,9 +287,6 @@ Server = <serverUrl>
 * A **Copy** button copies the block's text to the clipboard and confirms that it did.
 * For a **private** repository, a note below the block says that `pacman` must authenticate to read
   it, and that the `Server` line needs credentials. The note does not generate or link to any.
-* When `serverUrl` is **absent**, the block is replaced by a message saying the server's public
-  address has not been configured, and that an administrator sets it with `PublicUrl`. There is no
-  Copy button.
 
 **Why:**
 
@@ -424,17 +429,24 @@ would have to be either "both" (hiding Edit from a token that may update) or "ei
 to a token that may not). An object also leaves room for later actions, such as publishing packages,
 without another top-level field.
 
-### Why `PublicUrl` is configured, not inferred
+### Why `PublicUrl` is configured, with the request as a fallback
 
-RepoHost cannot learn its public address from the request that asks for it. The web UI's requests
-arrive through SpaHost's proxy, addressed to `http://pacmanmanager.repohost:8080`; RepoHost trusts
-only `X-Forwarded-For` and `X-Forwarded-Proto` ([Basic Auth](../basic-auth/basic-auth.md#trusted-forwarded-header-sources)),
+RepoHost cannot reliably learn its public address from the request that asks for it. The web UI's
+requests arrive through SpaHost's proxy, addressed to `http://pacmanmanager.repohost:8080`; RepoHost
+trusts only `X-Forwarded-For` and `X-Forwarded-Proto` ([Basic Auth](../basic-auth/basic-auth.md#trusted-forwarded-header-sources)),
 not `X-Forwarded-Host`; and a deployment may put the `/pacman` routes behind a different host or path
-from the API entirely. Configuring it on SpaHost instead was rejected because the address belongs to
-RepoHost, which every client — not only the web UI — may want to learn it from.
+from the API entirely. So a configured `PublicUrl` is the authoritative answer, and always wins.
+Configuring it on SpaHost instead was rejected because the address belongs to RepoHost, which every
+client — not only the web UI — may want to learn it from.
 
-An unset `PublicUrl` omits the field rather than failing startup, so an existing deployment keeps
-working after the upgrade, and the UI says plainly what is missing.
+Without it, the request's own root is used rather than omitting the field or failing startup. A
+caller that reaches RepoHost directly — the CLI, Swagger, a deployment with no proxy in front — gets a
+correct URL with no configuration at all, an existing deployment keeps working after the upgrade, and
+the UI has a single shape to render instead of a "not configured" state. The cost is that a web UI
+behind SpaHost shows SpaHost's upstream address until `PublicUrl` is set, which is why the setting
+exists and why compose sets it. Trusting `X-Forwarded-Host` to close that gap was rejected here:
+widening which forwarded headers are believed is a change to [Basic Auth](../basic-auth/basic-auth.md)'s
+design, not this one's.
 
 ### Why `serverUrl` is a field on `Repository`
 
