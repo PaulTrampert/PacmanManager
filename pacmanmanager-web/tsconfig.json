@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", ".storybook", "scripts", "e2e", "*.ts"]
+  "include": ["src", ".storybook/**/*", "scripts", "e2e", "*.ts"]
 }
