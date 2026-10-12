@@ -35,6 +35,9 @@ export class SessionError extends Error {
  * provisions it on a new user's first sign-in.
  *
  * @throws {SessionError} when `/userinfo` answers with anything but `200` or `401`.
+ * A `401` from the API means the user's session can no longer be refreshed; the API client then sends
+ * the browser to sign in, and this never settles.
+ *
  * @throws {ApiError} when the API does not answer `/v1/Users/me` with the user's record.
  */
 export async function fetchSession(): Promise<Session> {

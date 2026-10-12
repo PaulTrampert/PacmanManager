@@ -32,11 +32,12 @@ describe("fetchSession", () => {
     });
   });
 
+  // A 401 never reaches fetchSession: the API client sends the browser to sign in instead.
   it("throws an ApiError when the API refuses the signed-in user", async () => {
     // The first handler to match a request answers it.
     server.use(
       apiHandler("get", "/v1/Users/me", () =>
-        HttpResponse.json({ title: "Unauthorized" }, { status: 401 }),
+        HttpResponse.json({ title: "Forbidden" }, { status: 403 }),
       ),
       ...signedInHandlers(currentUser()),
     );
@@ -44,7 +45,7 @@ describe("fetchSession", () => {
     const error = await fetchSession().catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).status).toBe(403);
   });
 
   it("throws a SessionError when /userinfo fails otherwise", async () => {

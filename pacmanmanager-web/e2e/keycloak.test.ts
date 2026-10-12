@@ -4,8 +4,10 @@ import { server } from "../src/mocks/node";
 import {
   adminToken,
   KeycloakAdminError,
+  setAccessTokenLifespan,
   signOutSessions,
   userId,
+  webHostClientId,
 } from "./keycloak.ts";
 
 const tokenUrl =
@@ -75,20 +77,134 @@ describe("userId", () => {
 });
 
 describe("signOutSessions", () => {
-  it("posts to the user's logout endpoint", async () => {
-    let loggedOut: string | undefined;
+  it("signs the user's sessions out, then revokes the web host's offline tokens", async () => {
+    const calls: string[] = [];
     server.use(
       issuesToken(),
       http.get(usersUrl, () => HttpResponse.json([{ id: "user-id" }])),
       http.post(`${usersUrl}/:id/logout`, ({ params, request }) => {
         expect(request.headers.get("Authorization")).toBe("Bearer admin-token");
-        loggedOut = params.id as string;
+        calls.push(`logout ${params.id as string}`);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.delete(`${usersUrl}/:id/consents/:client`, ({ params, request }) => {
+        expect(request.headers.get("Authorization")).toBe("Bearer admin-token");
+        calls.push(`revoke ${params.id as string} ${params.client as string}`);
         return new HttpResponse(null, { status: 204 });
       }),
     );
 
     await signOutSessions("test");
 
-    expect(loggedOut).toBe("user-id");
+    expect(calls).toEqual([
+      "logout user-id",
+      `revoke user-id ${webHostClientId}`,
+    ]);
+  });
+
+  it("succeeds when the user has no offline token to revoke", async () => {
+    server.use(
+      issuesToken(),
+      http.get(usersUrl, () => HttpResponse.json([{ id: "user-id" }])),
+      http.post(
+        `${usersUrl}/:id/logout`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+      http.delete(
+        `${usersUrl}/:id/consents/:client`,
+        () => new HttpResponse("not found", { status: 404 }),
+      ),
+    );
+
+    await expect(signOutSessions("test")).resolves.toBeUndefined();
+  });
+
+  it("throws when Keycloak refuses to revoke the offline tokens", async () => {
+    server.use(
+      issuesToken(),
+      http.get(usersUrl, () => HttpResponse.json([{ id: "user-id" }])),
+      http.post(
+        `${usersUrl}/:id/logout`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+      http.delete(
+        `${usersUrl}/:id/consents/:client`,
+        () => new HttpResponse("nope", { status: 403 }),
+      ),
+    );
+
+    await expect(signOutSessions("test")).rejects.toThrow(KeycloakAdminError);
+  });
+});
+
+describe("setAccessTokenLifespan", () => {
+  const clientsUrl = "http://localhost:8080/admin/realms/localdev/clients";
+
+  function hasClient(attributes: Record<string, string>) {
+    return http.get(clientsUrl, ({ request }) => {
+      expect(new URL(request.url).searchParams.get("clientId")).toBe(
+        webHostClientId,
+      );
+      return HttpResponse.json([
+        { id: "client-uuid", clientId: webHostClientId, attributes },
+      ]);
+    });
+  }
+
+  function recordsUpdate(sent: unknown[]) {
+    return http.put(`${clientsUrl}/client-uuid`, async ({ request }) => {
+      expect(request.headers.get("Authorization")).toBe("Bearer admin-token");
+      sent.push(await request.json());
+      return new HttpResponse(null, { status: 204 });
+    });
+  }
+
+  it("sends the client back with the lifespan set, keeping its other attributes", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      issuesToken(),
+      hasClient({ other: "kept" }),
+      recordsUpdate(sent),
+    );
+
+    await setAccessTokenLifespan(webHostClientId, 10);
+
+    expect(sent).toEqual([
+      {
+        id: "client-uuid",
+        clientId: webHostClientId,
+        attributes: { other: "kept", "access.token.lifespan": "10" },
+      },
+    ]);
+  });
+
+  it("removes the override", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      issuesToken(),
+      hasClient({ "access.token.lifespan": "10" }),
+      recordsUpdate(sent),
+    );
+
+    await setAccessTokenLifespan(webHostClientId, undefined);
+
+    expect(sent).toEqual([
+      {
+        id: "client-uuid",
+        clientId: webHostClientId,
+        attributes: { "access.token.lifespan": null },
+      },
+    ]);
+  });
+
+  it("throws when no client has the id", async () => {
+    server.use(
+      issuesToken(),
+      http.get(clientsUrl, () => HttpResponse.json([])),
+    );
+
+    await expect(setAccessTokenLifespan(webHostClientId, 10)).rejects.toThrow(
+      KeycloakAdminError,
+    );
   });
 });
