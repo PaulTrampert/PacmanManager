@@ -47,7 +47,6 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * **Dark mode, responsive layout and an accessibility audit.** These are the **Web UI: Polish**
   milestone's subject. The patterns here do not preclude them.
 * **Internationalisation.** Strings are English literals.
-* **Running more than one web host replica**, which needs SpaHost's Redis-backed data protection.
 * **Publishing the web image.** Like the other two images it is built in CI and never pushed.
 * **Visual regression testing.**
 
@@ -151,6 +150,7 @@ environment variables on the service:
 
 | Variable | Value |
 | :--- | :--- |
+| `ASPNETCORE_ENVIRONMENT` | `Development` |
 | `AuthConfig__OidcConfig__Authority` | `http://auth:8080/realms/localdev` |
 | `AuthConfig__OidcConfig__ClientId` | `pacman-manager-web` |
 | `AuthConfig__OidcConfig__ClientSecret` | the client's secret from `keycloak/localdev.json` |
@@ -158,6 +158,9 @@ environment variables on the service:
 | `ApiProxy__PacmanManager__BaseUrl` | `http://pacmanmanager.repohost:8080/api/` |
 | `ApiProxy__PacmanManager__AuthType` | `PTrampert.SpaHost.Authentication.OidcBearerAuthHandler, PTrampert.SpaHost` |
 
+* The service is configured for local development only. `ASPNETCORE_ENVIRONMENT=Development` is
+  what lets SpaHost talk to the plain-HTTP Keycloak; a production deployment is configured
+  separately and is not this repository's concern.
 * The proxied API is named **`PacmanManager`**, so RepoHost's `/api/v1/…` is reached at
   **`/api/pacmanmanager/v1/…`**. Every API call the app makes uses that prefix and no other.
 * The `pacman-manager-web` client in `keycloak/localdev.json` lists `http://localhost:8081/*` and
@@ -178,8 +181,9 @@ environment variables on the service:
 `/api`, `/login`, `/logout`, `/userinfo`, `/antiforgery`, `/signin-oidc` and
 `/signout-callback-oidc` to the compose stack's web host on `http://localhost:8081`, with
 `changeOrigin: false`. A `predev` script (after `generate`) brings the stack up with
-`docker compose -f ../compose.yaml up -d --build`. The app's code is the
-same in both modes; it never names a host.
+`docker compose -f ../compose.yaml up -d`, **without** `--build`: Vite serves the app's files, so
+the web image only has to exist, not be current, and an image is built only when it is missing.
+The app's code is the same in both modes; it never names a host.
 
 ---
 
@@ -211,8 +215,12 @@ same in both modes; it never names a host.
   **breaking** difference: a removed route or method, a removed or retyped property, a property or
   parameter that became required, a removed enum value, a removed response status. Additions —
   routes, optional properties, enum values, response statuses — pass without regenerating. The
-  failure message lists the breaking differences and gives the regeneration command. The comparison
-  is a small `OpenApiCompatibility` class with its own unit tests, one per rule.
+  failure message lists the breaking differences and gives the regeneration command.
+* The comparison is made by [`oasdiff`](https://github.com/oasdiff/oasdiff) — `oasdiff breaking
+  <committed> <generated> --fail-on ERR` — run by the fixture in the `tufin/oasdiff` image through
+  Testcontainers, at a pinned tag. The test needs Docker, as the E2E fixtures in the same project
+  already do. What counts as breaking is `oasdiff`'s `ERR` level; the project writes no rules of its
+  own.
 * A pull request that breaks the contract regenerates the document in the same change, so the web
   app's typecheck fails until the app is adapted; that is the signal, and it is deliberate. A pull
   request that only adds to the API need not touch the web app, which adopts the additions by
@@ -369,7 +377,8 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 * The stack is **started outside Playwright**, by a `pree2e` npm script that runs
   `docker compose -f ../compose.yaml up -d --build`, so `npm run e2e` is the one command locally and
-  in CI. `up -d` is idempotent, so a stack already running is left alone. Playwright's global setup only waits until
+  in CI. `--build` is required here, so the tests always run against the current images; containers
+  whose image did not change are left running. Playwright's global setup only waits until
   `http://localhost:8081/` and Keycloak's discovery document both answer, and fails with a message
   naming the compose command if they do not within its timeout.
 * `baseURL` is `http://localhost:8081`. Tests run against the built image, never the dev server.
@@ -431,16 +440,18 @@ without a dependency can start immediately.
 ### 1. Generate and commit RepoHost's OpenAPI document — PATCH
 
 Adds `Swashbuckle.AspNetCore.Cli` to the tool manifest, the `HostAbortedException` pass-through in
-`Program.cs`, the committed `pacmanmanager-web/openapi/v1.json`, the `OpenApiDocumentTests` compatibility
-check with `OpenApiCompatibility`, and `dotnet tool restore` in the `test` job. `AGENTS.md` gains the regeneration command.
+`Program.cs`, the committed `pacmanmanager-web/openapi/v1.json`, the `OpenApiDocumentTests`
+compatibility check running `oasdiff`, and `dotnet tool restore` in the `test` job. `AGENTS.md` gains
+the regeneration command.
 
 *Constraints:* generation runs with `ASPNETCORE_ENVIRONMENT=Development`, in the command and in the
 test — see [The OpenAPI document](#the-openapi-document).
 
 *Acceptance:* the compatibility test passes on the committed file; adding a route or an optional
 property still passes; removing a property or making one required fails with a message naming the
-breaking difference and the regeneration command; running the command makes it pass again.
-`OpenApiCompatibility` has a unit test per rule. Generation succeeds with no Postgres reachable and no `DATA_DIR`, and logs nothing at
+breaking difference and the regeneration command; running the command makes it pass again. These
+are exercised against fixture documents, so the test of the check does not depend on RepoHost's
+current routes. Generation succeeds with no Postgres reachable and no `DATA_DIR`, and logs nothing at
 `Fatal`.
 
 *Depends on:* nothing.
@@ -588,8 +599,6 @@ Worth filing as issues, but explicitly out of scope for the work above.
 
 * **Dark mode, responsive layout and an accessibility pass** — the **Web UI: Polish** milestone. The
   theme already uses CSS variables, so a `dark` scheme is additive.
-* **Multiple web host replicas** — set SpaHost's `RedisConfig__UseForDataProtection` and add Redis
-  to `compose.yaml`. Additive.
 * **Internationalisation** — would mean extracting every literal; nothing here is in the way, but
   nothing helps either.
 * **Server-side rendering** — would replace SpaHost's static hosting, and is unlikely to be worth it
@@ -663,7 +672,9 @@ Rejected:
   build unchecked.
 * **Committing both the document and the client.** The client is wholly derived from the document,
   so committing it adds review noise and nothing a reviewer could not already see in the document.
-
+* **A hand-written compatibility checker.** Deciding what breaks a client is subtle — `$ref`
+  resolution, composed schemas, nullability, and the fact that a new required property breaks a
+  request but not a response — and `oasdiff` already encodes it in hundreds of maintained checks.
 * **Generating the document inside the web image.** The web Dockerfile would need a .NET SDK stage
   that builds RepoHost — with pacman tooling, libalpm and a JRE for ANTLR — only to emit a JSON file,
   and `npm run dev` would need .NET installed too.
