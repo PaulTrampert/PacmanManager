@@ -32,7 +32,8 @@ LTS (`.nvmrc` is `lts/*`):
 
 ```bash
 npm ci                     # install exactly what package-lock.json pins; all a fresh clone needs
-npm run dev                # Vite dev server on port 3000, proxying the web host's paths to :8081
+npm run compose-up         # docker compose up -d --build for the whole stack, from the repository root
+npm run dev                # compose-up, then the Vite dev server on port 3000, proxying the web host's paths to :8081
 npm run format:check       # Prettier (`npm run format` rewrites)
 npm run lint               # ESLint
 npm run typecheck          # tsc
@@ -71,7 +72,8 @@ Services in `compose.yaml`:
 
 | Service | Notes |
 | :--- | :--- |
-| `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. |
+| `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. Runs in `Development`, after the migrations complete. |
+| `pacmanmanager.web` | The web app in SpaHost. Host port **8081** → container 80. Signs users in as Keycloak's `pacman-manager-web` client and proxies `/api/pacmanmanager/…` to RepoHost's `/api/…` with their access token. Built with `pacmanmanager-web` as its context. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
 | `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
 | `postgres` | Postgres 18, port **5432**, user/password `pacmanmanager`/`password`. |
@@ -207,7 +209,7 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 | `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
 | `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `web` | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
-| `docker` | Builds the RepoHost and Migrations images from their Dockerfiles with `push: false`, as a sanity check that both still build. |
+| `docker` | Builds the RepoHost, Migrations and web images from their Dockerfiles with `push: false`, as a sanity check that they still build. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
 
 The `test` job publishes its `.trx` files with
 [`EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action):
