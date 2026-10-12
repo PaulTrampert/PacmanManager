@@ -211,6 +211,13 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   to MSW handlers from `src/mocks`, and a request no handler matches fails the test.
 * A PR is expected to have a passing `dotnet build` and `dotnet test`.
 
+### Wireframes
+
+Wireframes and mockups of the web UI are drawn in Penpot. **Their font is Roboto unless the design
+document says otherwise**, even where an exported image shows something else. Penpot's exporter
+currently renders every web font in a serif fallback, so an exported wireframe's typeface is never
+evidence of the intended one; its layout, sizes, weights and colours still are.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request to `main` and on every push to `main`. It is
