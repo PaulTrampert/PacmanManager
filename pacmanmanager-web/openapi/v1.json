@@ -2353,7 +2353,7 @@
             "format": "int32"
           },
           "sort": {
-            "$ref": "#/components/schemas/AppliedSort"
+            "$ref": "#/components/schemas/AccessTokenSortFieldAppliedSort"
           }
         },
         "additionalProperties": false,
@@ -2369,7 +2369,7 @@
         "type": "string",
         "description": "The properties an access token listing may be ordered by."
       },
-      "AppliedSort": {
+      "AccessTokenSortFieldAppliedSort": {
         "required": [
           "direction",
           "sortBy"
@@ -2377,8 +2377,7 @@
         "type": "object",
         "properties": {
           "sortBy": {
-            "type": "string",
-            "description": "The sort field the listing was ordered by, as the name of a member of that listing's\nsort-field enum."
+            "$ref": "#/components/schemas/AccessTokenSortField"
           },
           "direction": {
             "$ref": "#/components/schemas/SortDirection"
@@ -2676,7 +2675,7 @@
             "format": "int32"
           },
           "sort": {
-            "$ref": "#/components/schemas/AppliedSort"
+            "$ref": "#/components/schemas/PackageSortFieldAppliedSort"
           }
         },
         "additionalProperties": false,
@@ -2691,6 +2690,23 @@
         ],
         "type": "string",
         "description": "The properties a package listing may be ordered by."
+      },
+      "PackageSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/PackageSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "ProblemDetails": {
         "type": "object",
@@ -2760,7 +2776,7 @@
             "format": "int32"
           },
           "sort": {
-            "$ref": "#/components/schemas/AppliedSort"
+            "$ref": "#/components/schemas/UserSortFieldAppliedSort"
           }
         },
         "additionalProperties": false,
@@ -2843,7 +2859,7 @@
             "format": "int32"
           },
           "sort": {
-            "$ref": "#/components/schemas/AppliedSort"
+            "$ref": "#/components/schemas/RepositorySortFieldAppliedSort"
           }
         },
         "additionalProperties": false,
@@ -2877,6 +2893,23 @@
         "type": "string",
         "description": "The properties a repository listing may be ordered by."
       },
+      "RepositorySortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/RepositorySortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
+      },
       "SortDirection": {
         "enum": [
           "Ascending",
@@ -2891,6 +2924,23 @@
         ],
         "type": "string",
         "description": "The properties a user listing may be ordered by."
+      },
+      "UserSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/UserSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "WriteRepositoryRequest": {
         "required": [

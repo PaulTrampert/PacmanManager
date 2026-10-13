@@ -41,10 +41,10 @@ public class AccessTokensController(IAccessTokenService accessTokenService, ILog
     /// up to that much.
     /// </remarks>
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<AccessToken>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<AccessToken, AccessTokenSortField>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<PaginatedResponse<AccessToken>>> Get(
+    public async Task<ActionResult<PaginatedResponse<AccessToken, AccessTokenSortField>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] AccessTokenFilter filter,
         [FromQuery] SortOptions<AccessTokenSortField> sort,

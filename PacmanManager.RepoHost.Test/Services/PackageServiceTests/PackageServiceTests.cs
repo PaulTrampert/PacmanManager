@@ -972,7 +972,7 @@ public class PackageServiceTests
         // Assert
         Assert.That(
             result.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "InstalledSize", Direction = SortDirection.Descending }));
+            Is.EqualTo(new AppliedSort<PackageSortField> { SortBy = PackageSortField.InstalledSize, Direction = SortDirection.Descending }));
     }
 
     [Test]

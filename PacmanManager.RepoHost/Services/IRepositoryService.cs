@@ -142,7 +142,7 @@ public interface IRepositoryService
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A paginated response containing repositories.</returns>
-    Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
+    Task<PaginatedResponse<Repository, RepositorySortField>> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
         SortOptions<RepositorySortField>? sort = null,

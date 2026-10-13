@@ -321,7 +321,7 @@ public class AccessTokenServiceTests
 
         Assert.That(
             page.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortDirection.Ascending }));
+            Is.EqualTo(new AppliedSort<AccessTokenSortField> { SortBy = AccessTokenSortField.Name, Direction = SortDirection.Ascending }));
     }
 
     [Test]

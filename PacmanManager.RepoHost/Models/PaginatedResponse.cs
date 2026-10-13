@@ -4,7 +4,8 @@ namespace PacmanManager.RepoHost.Models;
 /// One page of a listing.
 /// </summary>
 /// <typeparam name="T">The type of the listed items.</typeparam>
-public record PaginatedResponse<T>
+/// <typeparam name="TSortField">The sort-field enum of the listing.</typeparam>
+public record PaginatedResponse<T, TSortField> where TSortField : struct, Enum
 {
     /// <summary>
     /// The items on this page.
@@ -25,5 +26,5 @@ public record PaginatedResponse<T>
     /// The ordering the listing was actually given, with the field's default direction resolved
     /// when the caller supplied none.
     /// </summary>
-    public required AppliedSort Sort { get; init; }
+    public required AppliedSort<TSortField> Sort { get; init; }
 }

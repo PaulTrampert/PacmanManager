@@ -14,6 +14,7 @@ using PacmanManager.RepoHost;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
+using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PTrampert.SimplePatch;
@@ -94,7 +95,18 @@ try
             opts.SubstituteApiVersionInUrl = true;
         });
     builder.Services.ConfigureOptions<ConfigureSwaggerGenOptions>();
-    builder.Services.AddSwaggerGen(c => c.DescribeAllParametersInCamelCase());
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.DescribeAllParametersInCamelCase();
+
+        // A page is named for its item type alone (RepositoryPaginatedResponse), not for its sort
+        // field as well, and a listing's applied sort for its sort-field enum (RepositorySortFieldAppliedSort).
+        c.CustomSchemaIds(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(PaginatedResponse<,>)
+            ? $"{type.GenericTypeArguments[0].Name}PaginatedResponse"
+            : type.IsGenericType && type.GetGenericTypeDefinition() == typeof(AppliedSort<>)
+                ? $"{type.GenericTypeArguments[0].Name}AppliedSort"
+                : type.Name);
+    });
 
     builder.Services.AddControllers()
         .AddJsonOptions(opt =>

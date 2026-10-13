@@ -1283,7 +1283,7 @@ public class RepositoryServiceTests
         // Assert
         Assert.That(
             result.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "Updated", Direction = SortDirection.Ascending }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Updated, Direction = SortDirection.Ascending }));
     }
 
     [Test]
@@ -1297,7 +1297,7 @@ public class RepositoryServiceTests
         // Assert
         Assert.That(
             result.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "Created", Direction = SortDirection.Descending }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Created, Direction = SortDirection.Descending }));
     }
 
     [Test]
@@ -1309,7 +1309,7 @@ public class RepositoryServiceTests
         // Assert
         Assert.That(
             result.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortDirection.Ascending }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending }));
     }
 
     [Test]
@@ -1594,5 +1594,6 @@ public class RepositoryServiceTests
         return repository;
     }
 
-    private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
+    private static int ResultCount<T, TSortField>(PaginatedResponse<T, TSortField> response)
+        where TSortField : struct, Enum => response.Results.Count();
 }

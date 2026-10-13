@@ -7,8 +7,8 @@ namespace PacmanManager.RepoHost.Models;
 /// </summary>
 /// <remarks>
 /// Serialized by name by its own converter rather than only by the API's global one, so that a
-/// client deserializing a <see cref="PaginatedResponse{T}"/> with default options — the E2E tests
-/// do — reads the echoed <see cref="AppliedSort.Direction"/> the way the API wrote it.
+/// client deserializing a <see cref="PaginatedResponse{T, TSortField}"/> with default options — the E2E tests
+/// do — reads the echoed <see cref="AppliedSort{TSortField}.Direction"/> the way the API wrote it.
 /// </remarks>
 [JsonConverter(typeof(JsonStringEnumConverter<SortDirection>))]
 public enum SortDirection

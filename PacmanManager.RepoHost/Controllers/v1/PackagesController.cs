@@ -57,9 +57,9 @@ public class PackagesController(
     /// A page of packages. Anonymous callers see the packages of public repositories only.
     /// </returns>
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<Package>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<Package, PackageSortField>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<ActionResult<PaginatedResponse<Package>>> Get(
+    public async Task<ActionResult<PaginatedResponse<Package, PackageSortField>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] PackageFilter filter,
         [FromQuery] SortOptions<PackageSortField> sort,
@@ -112,11 +112,11 @@ public class PackagesController(
     /// and a silently ignored criterion is the sort of thing a build script never notices.
     /// </remarks>
     [HttpGet(ControllerConstants.RepositoryScopedPackagesRoute)]
-    [ProducesResponseType(typeof(PaginatedResponse<Package>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<Package, PackageSortField>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [AllowAnonymous]
-    public async Task<ActionResult<PaginatedResponse<Package>>> GetForRepository(
+    public async Task<ActionResult<PaginatedResponse<Package, PackageSortField>>> GetForRepository(
         Guid repositoryId,
         [FromQuery] PaginationParams paging,
         [FromQuery] PackageFilter filter,

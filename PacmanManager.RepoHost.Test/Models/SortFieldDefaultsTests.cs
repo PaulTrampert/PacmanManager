@@ -73,22 +73,21 @@ public class SortFieldDefaultsTests
 
         Assert.That(
             sort.Resolve(),
-            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortDirection.Descending }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Descending }));
     }
 
-    [TestCase(RepositorySortField.Name, "Name", SortDirection.Ascending)]
-    [TestCase(RepositorySortField.Created, "Created", SortDirection.Descending)]
-    [TestCase(RepositorySortField.Updated, "Updated", SortDirection.Descending)]
+    [TestCase(RepositorySortField.Name, SortDirection.Ascending)]
+    [TestCase(RepositorySortField.Created, SortDirection.Descending)]
+    [TestCase(RepositorySortField.Updated, SortDirection.Descending)]
     public void Resolve_FillsInTheFieldDefault_WhenNoDirectionWasSupplied(
         RepositorySortField field,
-        string expectedSortBy,
         SortDirection expectedDirection)
     {
         var sort = new SortOptions<RepositorySortField> { SortBy = field };
 
         Assert.That(
             sort.Resolve(),
-            Is.EqualTo(new AppliedSort { SortBy = expectedSortBy, Direction = expectedDirection }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = field, Direction = expectedDirection }));
     }
 
     [Test]
@@ -96,7 +95,7 @@ public class SortFieldDefaultsTests
     {
         Assert.That(
             new SortOptions<RepositorySortField>().Resolve(),
-            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortDirection.Ascending }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending }));
     }
 
     [Test]
@@ -108,6 +107,6 @@ public class SortFieldDefaultsTests
 
         Assert.That(
             sort.Resolve(),
-            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortFieldDefaults<RepositorySortField>.Fallback }));
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortFieldDefaults<RepositorySortField>.Fallback }));
     }
 }

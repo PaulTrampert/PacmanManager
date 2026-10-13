@@ -66,7 +66,7 @@ public class AccessTokensControllerTests
 
         var list = await _client.GetAsync($"{TokensRoute}?nameContains={name}");
         var listBody = await list.Content.ReadAsStringAsync();
-        var listed = JsonSerializer.Deserialize<PaginatedResponse<AccessToken>>(listBody, JsonSerializerOptions.Web)!;
+        var listed = JsonSerializer.Deserialize<PaginatedResponse<AccessToken, AccessTokenSortField>>(listBody, JsonSerializerOptions.Web)!;
 
         Assert.Multiple(() =>
         {
@@ -273,7 +273,7 @@ public class AccessTokensControllerTests
         var theirs = await CreateTokenAsync(_otherUsersClient, name);
 
         var filtered = await ListAsync(_client, name);
-        var everything = await _client.GetFromJsonAsync<PaginatedResponse<AccessToken>>($"{TokensRoute}?pageSize=500");
+        var everything = await _client.GetFromJsonAsync<PaginatedResponse<AccessToken, AccessTokenSortField>>($"{TokensRoute}?pageSize=500");
 
         Assert.Multiple(() =>
         {
@@ -406,11 +406,11 @@ public class AccessTokensControllerTests
         return (await response.Content.ReadFromJsonAsync<CreatedAccessToken>())!;
     }
 
-    private static async Task<PaginatedResponse<AccessToken>> ListAsync(HttpClient client, string nameContains, string query = "")
+    private static async Task<PaginatedResponse<AccessToken, AccessTokenSortField>> ListAsync(HttpClient client, string nameContains, string query = "")
     {
         var response = await client.GetAsync($"{TokensRoute}?nameContains={Uri.EscapeDataString(nameContains)}{query}");
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<PaginatedResponse<AccessToken>>())!;
+        return (await response.Content.ReadFromJsonAsync<PaginatedResponse<AccessToken, AccessTokenSortField>>())!;
     }
 
     /// <summary>

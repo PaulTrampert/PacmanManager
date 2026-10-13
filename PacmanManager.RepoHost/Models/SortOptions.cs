@@ -65,9 +65,9 @@ public record SortOptions<TSortFields> where TSortFields : struct, Enum
     /// <see cref="Services.SortExtensions.ApplySort{TEntity, TSortField}"/> orders by the first member.
     /// Reporting that member rather than the undeclared value keeps the echo true to what was done.
     /// </remarks>
-    public AppliedSort Resolve() => new()
+    public AppliedSort<TSortFields> Resolve() => new()
     {
-        SortBy = (Enum.IsDefined(SortBy) ? SortBy : default).ToString(),
+        SortBy = Enum.IsDefined(SortBy) ? SortBy : default,
         Direction = ResolveDirection()
     };
 }

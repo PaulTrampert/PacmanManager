@@ -161,7 +161,7 @@ public class UserManagementServiceTests
 
         Assert.That(
             page.Sort,
-            Is.EqualTo(new AppliedSort { SortBy = "DisplayName", Direction = SortDirection.Ascending }));
+            Is.EqualTo(new AppliedSort<UserSortField> { SortBy = UserSortField.DisplayName, Direction = SortDirection.Ascending }));
     }
 
     [Test]

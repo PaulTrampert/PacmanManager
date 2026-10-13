@@ -27,9 +27,9 @@ public class RepositoriesController(IRepositoryService repositoryService, ILogge
     /// <param name="ct">Cancellation Token</param>
     /// <returns>A page of repositories. Anonymous callers see public repositories only.</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<Repository>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<Repository, RepositorySortField>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<ActionResult<PaginatedResponse<Repository>>> Get(
+    public async Task<ActionResult<PaginatedResponse<Repository, RepositorySortField>>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] RepositoryFilter filter,
         [FromQuery] SortOptions<RepositorySortField> sort,

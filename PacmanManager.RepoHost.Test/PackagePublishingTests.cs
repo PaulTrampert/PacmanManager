@@ -368,7 +368,7 @@ public class PackagePublishingTests
         var response = await _client.DeleteAsync($"/api/v1/packages/{package.Id}");
 
         // Assert
-        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package, PackageSortField>>(
             $"/api/v1/repositories/{repository.Id}/packages");
         var read = await _client.GetAsync($"/api/v1/packages/{package.Id}");
 
@@ -420,7 +420,7 @@ public class PackagePublishingTests
             $"/api/v1/repositories/{repository.Id}/packages/{PackageFixtures.MinimalPackageName}");
 
         // Assert
-        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Package, PackageSortField>>(
             $"/api/v1/repositories/{repository.Id}/packages");
 
         Assert.Multiple(() =>
