@@ -1,34 +1,15 @@
 import Box from "@mui/material/Box";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
-import MuiLink from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { createLink, type LinkOptions } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-
-/** MUI's link, navigating through the router. */
-const Link = createLink(MuiLink);
-
-/** A crumb that links to the page it names. */
-export interface PageHeaderLink {
-  /** The crumb's text. */
-  label: string;
-  /** Where the crumb links to, checked against the app's routes. */
-  link: LinkOptions;
-}
-
-/**
- * The trail from the top of the app to the current page: a link for each page above it, then the
- * current page's own label, which is not a link.
- */
-export type PageHeaderBreadcrumbs = readonly [...PageHeaderLink[], string];
+import { PageBreadcrumbs, type PageBreadcrumbTrail } from "../PageBreadcrumbs";
 
 /** The props {@link PageHeader} takes. */
 export interface PageHeaderProps {
   /** The page's heading, rendered as its `h1`. */
   title: ReactNode;
   /** The breadcrumbs above the heading; none when omitted. */
-  breadcrumbs?: PageHeaderBreadcrumbs;
+  breadcrumbs?: PageBreadcrumbTrail;
   /** Shown beside the heading, such as a chip qualifying it. */
   adornment?: ReactNode;
   /** Shown at the right of the heading's row, such as the page's buttons. */
@@ -45,22 +26,9 @@ export function PageHeader({
   adornment,
   actions,
 }: PageHeaderProps) {
-  const links = breadcrumbs?.slice(0, -1) as PageHeaderLink[] | undefined;
-  const current = breadcrumbs?.at(-1) as string | undefined;
   return (
     <Box component="header" sx={{ mb: 2 }}>
-      {breadcrumbs && (
-        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 1 }}>
-          {links?.map(({ label, link }) => (
-            <Link key={label} {...link} underline="hover" color="inherit">
-              {label}
-            </Link>
-          ))}
-          <Typography sx={{ color: "text.primary" }} aria-current="page">
-            {current}
-          </Typography>
-        </Breadcrumbs>
-      )}
+      {breadcrumbs && <PageBreadcrumbs trail={breadcrumbs} sx={{ mb: 1 }} />}
       <Stack
         direction="row"
         useFlexGap

@@ -1,6 +1,1 @@
-export {
-  PageHeader,
-  type PageHeaderBreadcrumbs,
-  type PageHeaderLink,
-  type PageHeaderProps,
-} from "./PageHeader";
+export { PageHeader, type PageHeaderProps } from "./PageHeader";
