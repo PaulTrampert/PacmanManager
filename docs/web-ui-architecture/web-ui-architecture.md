@@ -326,9 +326,19 @@ The app renders for everyone. What a page shows depends on the **session**, whic
   to `useSuspenseQuery`. A component never builds a query key or calls the client inline.
 * A mutation invalidates the list queries of its resource and updates or removes the affected
   detail query, on success only.
+* A mutation that **removes** a resource removes its detail query only after awaiting a
+  consumer-supplied, hook-level step — typically navigating away — so the page reading that query
+  has unmounted first. See
+  [Web UI: Repositories](../web-ui-repositories/web-ui-repositories.md#31-usedeleterepository--patch).
 * List pages keep their pagination, filter and sort state in the URL's search params, validated by
   the route's `validateSearch`, with names matching the API's (`offset`, `pageSize`, `sortBy`,
   `direction`, and the filter's own parameter names).
+* A **paged, filtered list** is the exception to the loader rule above: its route's `beforeLoad`
+  prefetches the list from the validated `search` without awaiting it, there is no loader or
+  `loaderDeps` for the list's params, and the component
+  reads it with `useQuery` and `placeholderData: keepPreviousData`, showing its previous state dimmed
+  under a spinner while the next loads. See
+  [Web UI: Repositories](../web-ui-repositories/web-ui-repositories.md#why-a-paged-list-is-read-with-usequery).
 * `QueryClient` defaults:
 
   | Setting | Value |
