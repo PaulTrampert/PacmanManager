@@ -2,7 +2,8 @@ import CheckIcon from "@mui/icons-material/Check";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { useTemporaryFeedback } from "../../useTemporaryFeedback";
 
 /** The props {@link CopyableCodeBlock} takes. */
 export interface CopyableCodeBlockProps {
@@ -47,18 +48,12 @@ export function CopyableCodeBlock({
   description,
   feedbackDuration = defaultFeedbackDuration,
 }: CopyableCodeBlockProps) {
-  const [outcome, setOutcome] = useState<Outcome>("idle");
+  const { value: outcome, show } = useTemporaryFeedback<Outcome>(
+    "idle",
+    feedbackDuration,
+  );
   const [blocked, setBlocked] = useState(false);
   const block = useRef<HTMLPreElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const show = (next: Outcome) => {
-    clearTimeout(timer.current);
-    setOutcome(next);
-    timer.current = setTimeout(() => setOutcome("idle"), feedbackDuration);
-  };
 
   const copy = async () => {
     setBlocked(false);
