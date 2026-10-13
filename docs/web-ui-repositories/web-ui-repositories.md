@@ -521,23 +521,38 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
 * For **every** request-body schema, it emits each property's `required`, `minLength`, `maxLength`
   and `pattern`, keyed by schema and property name, typed so that a schema or property that does not
   exist is a type error.
-* Each `pattern` is translated from .NET to JavaScript syntax:
+* Every rule is generated as either **exact** or **server-only**:
+  * `required`, `minLength` and `maxLength` are always exact.
+  * A `pattern` is exact when the translator recognises **every** token in it as meaning the same in
+    .NET and JavaScript. It tokenises the pattern — escapes, character classes and the escapes
+    inside them — rather than editing it as a string, and recognises only:
 
-  | .NET | JavaScript |
-  | :--- | :--- |
-  | `\A` | `^` |
-  | `\z` | `$` |
-  | anything else | unchanged |
+    | .NET | JavaScript |
+    | :--- | :--- |
+    | `\A` | `^` |
+    | `\z` | `$` |
+    | `^` (no `Multiline` option) | `^` |
+    | a literal character, or an escaped metacharacter such as `\.` or `\+` | the same |
+    | a character class of literal characters, escaped metacharacters and ranges, negated or not | the same |
+    | `(…)`, `(?:…)`, `\|` | the same |
+    | `*`, `+`, `?`, `{n}`, `{n,}`, `{n,m}`, and each followed by `?` | the same |
 
-* The translated pattern is compiled with `new RegExp(pattern, "u")` **during generation**. A
-  pattern containing a .NET-only construct — `\Z`, `\G`, an inline option group such as `(?i)`, an
-  atomic group `(?>…)`, a conditional `(?(…)…)`, a possessive quantifier, or a `\p{Is…}` block name —
-  or one that does not compile, **fails generation**, naming the schema, the property and the
-  pattern. It is never silently dropped or loosened.
+    The translated pattern must also compile with `new RegExp(pattern, "u")`.
+  * Any other pattern — one using `\d`, `\w`, `\s`, `\b`, `.`, a bare `$`, `\Z`, `\G`, inline
+    options, atomic groups, conditionals, possessive quantifiers, `\p{…}`, or anything the translator
+    does not know — is **server-only**: the generated rules record that the property has a pattern,
+    but carry no client check for it.
+* **Generation never fails over a pattern.** A server-only pattern logs a warning naming the schema,
+  the property and the first construct the translator did not recognise.
+* An exact rule's failure blocks submitting, as [`Form` and `FormField`](#repositoryform) describe.
+  A server-only pattern blocks nothing: the form submits, and the API's `400` puts its message on the
+  field through `useFormErrors`. The browser is therefore **never stricter than the API**, whatever
+  pattern is added later; at worst it is looser, and the API catches what it lets through.
 * A small helper in `src/api` turns a property's rules into a field validator producing messages of
   the kind shown in [Name validation](#name-validation), so a form names its schema, property and
   field label, and writes only the pattern's message.
-* The translator has unit tests covering each row of the table and each rejected construct, and a
+* The translator has unit tests covering each row of the table and each kind of server-only pattern,
+  and a
   test asserts that the generated `WriteRepositoryRequest.name` pattern accepts and rejects the same
   names as RepoHost's `RegularExpressionsTests`.
 
@@ -711,11 +726,13 @@ types include it.
 and the field-validator helper in `src/api`. See
 [Validation rules from the OpenAPI document](#validation-rules-from-the-openapi-document).
 
-*Constraints:* a pattern the translator cannot translate fails generation; it is never dropped or
-loosened.
+*Constraints:* a pattern the translator does not fully recognise becomes server-only, with a
+warning; it is never passed through untranslated, and it never fails generation.
 
-*Acceptance:* unit tests cover each row of the translation table and each refused construct, each by
-the error it names. A test asserts the generated `WriteRepositoryRequest.name` pattern accepts and
+*Acceptance:* unit tests cover each row of the translation table, and assert that a pattern using each
+of `\d`, `\w`, `\s`, `\b`, `.`, a bare `$`, `\Z` and `(?i)` — including inside a character class,
+as in `[\w-]` — is generated server-only, with a warning naming the construct. A form story with a
+server-only pattern submits a value that would fail it and shows the API's `400` on the field. A test asserts the generated `WriteRepositoryRequest.name` pattern accepts and
 rejects the same names as RepoHost's `RegularExpressionsTests`. Referring to a schema or property
 the document lacks fails `npm run typecheck`.
 
@@ -1354,11 +1371,22 @@ attributes already reach the OpenAPI document, which the web app is already gene
 reading them there adds one generation step and no new contract.
 
 The pattern needs translating because Swashbuckle copies the `[RegularExpression]` verbatim, in .NET
-syntax: `\A` and `\z` are not anchors in JavaScript, where `\A` is an error under the `u` flag. Only
-the anchors are translated because they are the only .NET-only syntax the API uses; every other
-construct either means the same in both or is refused at generation. Refusing is the point: a
-pattern quietly mistranslated would accept names the API rejects, or reject names it accepts, and
-nobody would notice until a user did.
+syntax: `\A` and `\z` are not anchors in JavaScript, where `\A` is an error under the `u` flag.
+Passing everything else through unchanged was the first plan, on the claim that every other
+construct meant the same in both engines. Review showed it does not: `\d`, `\w`, `\s` and `\b` are
+Unicode-aware in .NET and ASCII-only in JavaScript, .NET's `$` also matches before a final `\n`, and
+`.` differs on `\r`, `\u2028` and `\u2029`.
+
+Two fixes were weighed. **Refusing** those constructs at generation would fail the build over a
+pattern the API handles perfectly well. **Translating** them all is possible under the `u`/`v`
+flags — `\d` to `\p{Nd}`, `\w` to `[\p{L}\p{Mn}\p{Nd}\p{Pc}]`, `\b` to lookarounds, `$` to
+`(?=\n?$)` — but it is a careful parser to get exactly right, for constructs no current pattern uses.
+What matters is direction: a browser check **stricter** than the API blocks input the API would
+accept, with no way round it in the UI, while one that is **looser** costs only a round trip, since
+the API's `400` lands on the same field. So the client checks a pattern only when it is sure, and
+otherwise leaves it to the server. The translator stays small, generation never breaks, and the
+browser can never be stricter than the API. Recognising more constructs later is an additive
+improvement, not a fix.
 
 The pattern's message stays in the web app because the OpenAPI document has nowhere to carry one.
 Emitting it as a vendor extension from a Swashbuckle schema filter was considered and left until a
