@@ -550,6 +550,11 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
   A server-only pattern blocks nothing: the form submits, and the API's `400` puts its message on the
   field through `useFormErrors`. The browser is therefore **never stricter than the API**, whatever
   pattern is added later; at worst it is looser, and the API catches what it lets through.
+* That message is always a human one: every `[RegularExpression]` on RepoHost's request models
+  carries an `ErrorMessage`, and a reflection test fails for one without. `RepositoryName`'s is the
+  same wording the web form uses: "Use letters, digits and `@ _ + - .`; `-` and `.` cannot start or
+  end the name, or appear twice in a row." DataAnnotations' default, which quotes the regular
+  expression, never reaches a user.
 * A small helper in `src/api` turns a property's rules into a field validator producing messages of
   the kind shown in [Name validation](#name-validation), so a form names its schema, property and
   field label, and writes only the pattern's message.
@@ -742,8 +747,9 @@ types include it.
 ### 5. Validation rules from the OpenAPI document — MINOR
 
 `scripts/generate-validation.ts` in `npm run generate`, the gitignored `src/api/validation.gen.ts`,
-the field-validator helper in `src/api`, and the shared repository-name fixture with
-`RegularExpressionsTests` moved onto it. See
+the field-validator helper in `src/api`, the shared repository-name fixture with
+`RegularExpressionsTests` moved onto it, and an `ErrorMessage` on every `[RegularExpression]` in
+RepoHost's request models. See
 [Validation rules from the OpenAPI document](#validation-rules-from-the-openapi-document).
 
 *Constraints:* a pattern the translator does not fully recognise becomes server-only, with a
@@ -754,7 +760,10 @@ of `\d`, `\w`, `\s`, `\b`, `.`, a bare `$`, `\Z` and `(?i)` — including inside
 as in `[\w-]` — is generated server-only, with a warning naming the construct. `RegularExpressionsTests`
 and the web app's parity test both read `test-fixtures/validation/repository-names.json`, and the
 parity test asserts the generated name pattern is exact and agrees with every case in it. Referring
-to a schema or property the document lacks fails `npm run typecheck`.
+to a schema or property the document lacks fails `npm run typecheck`. A reflection test over
+RepoHost's request models fails for any `[RegularExpression]` without an `ErrorMessage`, and an E2E
+test creates a repository with an invalid name and asserts the `400`'s message for `name` is the
+human one, not one quoting the pattern.
 
 *Depends on:* nothing.
 
@@ -901,7 +910,8 @@ whose error replaces its helper text, shown once the field is left or the form s
 set on the field, and a pending form; `play` functions assert no error shows while first typing, the
 error shows on blur, submitting an invalid form shows every error and does not call `onSubmit`, and
 the submit button is disabled while pending. A story with a server-only pattern submits a value that
-would fail it, and shows the API's `400` on the field.
+would fail it, answered by a fixture `400` carrying a human message, and asserts that message — not a
+regular expression — appears on the field.
 
 *Depends on:* 5.
 
@@ -1475,7 +1485,9 @@ accept, with no way round it in the UI, while one that is **looser** costs only 
 the API's `400` lands on the same field. So the client checks a pattern only when it is sure, and
 otherwise leaves it to the server. The translator stays small, generation never breaks, and the
 browser can never be stricter than the API. Recognising more constructs later is an additive
-improvement, not a fix.
+improvement, not a fix. A server-only pattern relies on the API's own message, so every
+`[RegularExpression]` must carry an `ErrorMessage`; the reflection test guarantees it, and the message
+then serves every client, not just the web form.
 
 The pattern's message stays in the web app because the OpenAPI document has nowhere to carry one.
 Emitting it as a vendor extension from a Swashbuckle schema filter was considered and left until a
