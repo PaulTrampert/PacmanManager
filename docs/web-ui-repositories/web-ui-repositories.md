@@ -650,7 +650,9 @@ The work is in six layers, and an issue depends only on issues in earlier layers
 6. **Behaviour** — each page's interactions wired to the URL, the mutations and navigation.
 
 Every component is **presentational**: it takes values and callbacks as props, and never calls the
-API, reads the URL or navigates. Queries, mutations, search params and navigation are connected in
+API, reads the URL or navigates. A repository component takes the generated `Repository` type
+rather than restating its fields as loose props, so a schema change breaks it at typecheck; it
+therefore depends on the API issue that adds any field it uses. Queries, mutations, search params and navigation are connected in
 layers 5 and 6. Each component issue's acceptance is a story per state the wireframes show, with a
 `play` function for each interaction, as [Testing](../web-ui-architecture/web-ui-architecture.md#testing)
 requires. Each issue that builds or changes a component or page names the [wireframes](#wireframes)
@@ -941,38 +943,41 @@ parameter, and that anonymous visibility and a single-user owner filter are disa
 ### 17. `RepositoryTable` — PATCH
 
 `PaginatedTable` configured with the list's columns, the name linking to the repository's page,
-passing the response's `sort` as the applied sort. See [The repository list](#the-repository-list).
+passing the response's `sort` as the applied sort, and an `architectures` prop — the
+`{ value, displayValue }` array — by which it shows each repository's `supportedArchitectures`,
+falling back to the raw value for one not in the array. See [The repository list](#the-repository-list).
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-loading](wireframes/list-loading.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e363bd4e7e)).
 
 *Acceptance:* stories for several rows, each sort, a second page, loading with previous rows (dimmed,
 spinner over them) and a first load (spinner, no rows).
 
-*Depends on:* 6, 11, 15.
+*Depends on:* 3, 6, 11, 15.
 
 ### 18. `RepositoryHeader` — PATCH
 
 The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
-**Edit** and **Delete** by `permissions`, and the row of details. See [The repository page](#the-repository-page).
+**Edit** and **Delete** by `permissions`, and the row of details. It takes the generated `Repository`
+and an `architectures` prop, showing architectures as `RepositoryTable` does. See [The repository page](#the-repository-page).
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
 function asserts **Delete** calls its callback and **Edit** links to the edit route.
 
-*Depends on:* 7, 15.
+*Depends on:* 2, 3, 7, 15.
 
 ### 19. `PacmanConfSection` — PATCH
 
 The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of the
-`pacman.conf` section, and the private note.
+`pacman.conf` section, and the private note. It takes the generated `Repository`.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-expanded-private](wireframes/repository-snippet-expanded-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a969ca1435)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)), [repository-copy-failed](wireframes/repository-copy-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e654139929)).
 
 *Acceptance:* stories collapsed, expanded public and expanded private; `play` functions assert it
 starts collapsed and the copied text is exactly the section, built from `name` and `serverUrl`.
 
-*Depends on:* 14.
+*Depends on:* 1, 14.
 
 ### 20. `RepositoryForm` — PATCH
 
@@ -1105,14 +1110,15 @@ signs in, and sees a repository it created through the API.
 
 ### 32. The repository page — MINOR
 
-`/repositories/$repositoryId`: `RepositoryHeader` and `PacmanConfSection`, not-found on a `404`.
+`/repositories/$repositoryId`: `RepositoryHeader`, given `architecturesQuery()`'s result, and
+`PacmanConfSection`; not-found on a `404`.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
 
-*Depends on:* 18, 19, 24.
+*Depends on:* 18, 19, 24, 25.
 
 **Why:**
 
