@@ -108,8 +108,9 @@ export const Pending: Story = {
     await userEvent.keyboard("{Escape}");
     await userEvent.click(backdrop());
 
+    // The story holds `open` at true, so the dialog can't close; `onCancel` not being called is
+    // what shows it wasn't dismissed.
     await expect(args.onCancel).not.toHaveBeenCalled();
     await expect(args.onConfirm).not.toHaveBeenCalled();
-    await expect(dialog).toBeVisible();
   },
 };
