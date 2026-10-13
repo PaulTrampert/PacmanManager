@@ -207,12 +207,13 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   `index.ts`, and the component renders what that hook returns. Behaviour that isn't specific to
   the component is a reusable hook of its own (`src/useTemporaryFeedback.ts`), which the
   component's hook uses.
-* **Reusable hooks memoize their callbacks.** A hook outside `src/components` wraps each callback
-  it returns in `useCallback` with an honest dependency list, so the identity changes only when its
-  inputs do, and callers keep their inputs stable. Don't use a `useRef` to fix an identity. Use one
-  only for state that has to outlive renders (a debounce's timer), with a comment saying why. A
-  component's own `use<Component>` hook uses `useCallback` only where a dependency list or a
-  memoized child needs it.
+* **React Compiler memoizes.** `pacmanmanager-web` runs React Compiler, so don't write `useMemo` or
+  `useCallback` by hand: a callback a hook returns already keeps its identity until what it reads
+  changes, and callers keep their inputs stable. A reusable hook's unit test asserts that identity.
+  Don't use a `useRef` to fix an identity. Use one only for state that has to outlive renders (a
+  debounce's timer), with a comment saying why. A function the compiler cannot compile fails the
+  build: restructure it, or opt it out with `"use no memo"` and a comment saying why, and then a
+  reusable hook memoizes its callbacks with `useCallback` and an honest dependency list.
 
 ### Testing expectations
 
