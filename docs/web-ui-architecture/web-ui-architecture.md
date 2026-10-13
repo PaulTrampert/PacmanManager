@@ -78,7 +78,7 @@ pacmanmanager-web/
     ├── api/               # the client, its middleware, ApiError; schema.gen.ts is generated
     ├── session/           # the session query, useSession, requireUser
     ├── queries/<resource>/ # query-options factories and mutations, one folder per resource
-    ├── components/<Name>/ # Name.tsx, Name.stories.tsx, Name.test.tsx, index.ts
+    ├── components/<Name>/ # Name.tsx, Name.stories.tsx, useName.ts(+.test.ts), index.ts
     ├── mocks/             # Mock Service Worker (MSW) handlers, shared by Vitest and Storybook
     └── testing/           # render helpers and fixture factories
 ```
@@ -91,10 +91,24 @@ pacmanmanager-web/
   `npm ci` before any of them.
 * Tests and stories sit next to the component they cover. Playwright tests are the exception and
   live under `e2e/`.
+* **Components render; hooks behave.** A component never calls `useEffect` itself and holds at
+  most a single `useState` of one small value. Its behaviour (state, effects, timers, and callbacks
+  that decide anything beyond passing a value straight through) lives in a `use<Name>` hook in the
+  component's folder. The component renders what that hook returns, and `index.ts` doesn't export the
+  hook. Behaviour that isn't specific to the component is a reusable hook of its own outside
+  `components/` (such as `src/useTemporaryFeedback.ts`), which the component's hook uses.
+* **Reusable hooks memoize their callbacks.** A hook outside `components/` wraps each callback it
+  returns in `useCallback` with an honest dependency list. Its identity changes only when its inputs
+  do, and callers keep their inputs stable. Inputs are never hidden in a `useRef` to fix an identity.
+  A ref holds only state that has to outlive renders, such as a debounce's timer, with a comment
+  saying why. A component's own `use<Name>` hook uses `useCallback` only where a dependency list or a
+  memoized child needs a stable function.
 
 **Why:**
 
 * [the app lives beside the solution, not in it](#why-the-app-lives-beside-the-solution-not-in-it)
+* [components render and hooks behave](#why-components-render-and-hooks-behave)
+* [only reusable hooks memoize their callbacks](#why-only-reusable-hooks-memoize-their-callbacks)
 
 ### Toolchain
 
@@ -393,7 +407,7 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 | Level | Covers | Tool | Runs against | Command |
 | :--- | :--- | :--- | :--- | :--- |
-| Unit | Functions, hooks, the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
+| Unit | Functions, hooks (each component's `use<Name>` among them), the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
 | Component | Every component in `src/components`: a story per meaningful state, with a `play` function for each interaction | Storybook + `@storybook/addon-vitest`, Chromium | MSW handlers | `npm test` |
 | End to end | User journeys across SpaHost, Keycloak and RepoHost | `@playwright/test` | The compose stack | `npm run e2e` |
 
@@ -880,3 +894,41 @@ stack:
 Keycloak already has 8080 and RepoHost 8082 on the host. 8081 is the free port between them and
 matches Budgy's web host, so the two projects' stacks look alike. Port 3000 is reserved for the Vite
 dev server, which is why it appears in the Keycloak client's redirect URIs.
+
+### Why components render and hooks behave
+
+A component that computes its next state, runs effects or reverses a sort inside its render
+function can only be tested by rendering it and driving the browser, which is slow and checks
+behaviour through markup. Moved into a hook, that behaviour is a plain unit test with `renderHook`,
+and the component's stories only have to show its states and that its controls are wired up. Keeping
+the hook unexported leaves the component's public surface unchanged. One `useState` of a small value,
+such as whether a panel is open, is allowed inline, because a hook for it would add a file and no
+test worth writing. A large state object in that one `useState` is a hook in disguise, so it isn't.
+Rejected: allowing `useEffect` in components and relying on stories alone, which is how the first
+components were written and what review asked to undo.
+
+### Why only reusable hooks memoize their callbacks
+
+React treats `useCallback` as a performance tool. A function's identity matters only when something
+compares it: an effect or another hook's dependency list, or a child wrapped in `memo`. A reusable
+hook can't know its callers, and one that returned a new function on every render would make a
+caller's effect that lists it re-run on every render. So a reusable hook memoizes what it returns. A
+component's own hook has exactly one caller, which renders what it returns, so wrapping its callbacks
+would add dependency lists to keep right and save nothing.
+
+Dependencies are honest: a callback that reads an input lists it, and gets a new identity when the
+input changes. That is how React means `useCallback` to be read, and it keeps the code plain. Keeping
+the inputs stable is the caller's part, and is usually free, since most inputs are primitives.
+
+Rejected:
+* **The "latest value" ref pattern**: inputs in a `useRef` updated in a layout effect, read by a
+  `useCallback` with no dependencies. It makes the identity unconditionally stable, but splits one
+  piece of logic across a ref, an effect and a callback, and reads less clearly than a dependency list.
+  It was briefly the rule, in #287's first draft, and was dropped in review. A ref stays acceptable for
+  state that genuinely outlives renders, such as a debounce's pending timer.
+* **`useCallback` everywhere**, which costs a dependency list per function for no benefit where
+  nothing compares the function.
+* **Never `useCallback`**, which leaves callers of reusable hooks with effects that re-run on every
+  render.
+* **Waiting for React Compiler**, which would memoize all of this automatically but isn't enabled.
+  Issue #285 evaluates it, and this rule is to be revisited then.

@@ -52,13 +52,17 @@ from `e2e/fixtures.ts`, as the realm's `test` and `other` users, and share one s
 so each creates what it needs under a unique name. Playwright tests are `e2e/**/*.spec.ts`; the
 `e2e/**/*.test.ts` beside them are Vitest unit tests of the harness's own helpers.
 
-`npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree, and
-`src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`.
+`npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree,
+`src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`, and
+`src/api/validation.gen.ts`, the request bodies' validation rules read from the same document.
 `dev`, `build`, `typecheck`, `lint`, `test` and `storybook` run it first, so nothing generated is ever
 committed or needed before them. The types are generated for the paths the API client is called
 with, under its `/api/pacmanmanager` base URL: the document's `/api/v1/Repositories` is the client's
 `/v1/Repositories`. Call the API only through `client` and `unwrap` from `src/api`, and mock it in
 tests and stories with `apiHandler` from `src/mocks/api.ts`, which is typed from the same schema.
+Validate a form field with `fieldValidator` from `src/api`, which takes its rules from that file; a
+form writes no length or pattern of its own. A pattern the generator cannot translate exactly is
+left to the API, with a warning from `npm run generate`.
 
 **Note on `dotnet test`:** `PacmanManager.RepoHost.Test` contains Testcontainers-based E2E tests
 that build the RepoHost and Migrations Docker images and start Postgres and Keycloak containers.
@@ -197,6 +201,18 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   `PacmanRepositoryValidationConstants.NameMaxLength`), not literals at the use site.
 * Check existing `.csproj` files before adding a NuGet package; prefer what is already in use.
 * New infrastructure dependencies must be added to `compose.yaml`.
+* **Components render; hooks behave.** In `pacmanmanager-web`, a component never calls `useEffect`
+  directly and holds at most one `useState` of a small value (not a large state object). Its
+  behaviour lives in a `use<Component>` hook in the component's folder, not exported from
+  `index.ts`, and the component renders what that hook returns. Behaviour that isn't specific to
+  the component is a reusable hook of its own (`src/useTemporaryFeedback.ts`), which the
+  component's hook uses.
+* **Reusable hooks memoize their callbacks.** A hook outside `src/components` wraps each callback
+  it returns in `useCallback` with an honest dependency list, so the identity changes only when its
+  inputs do, and callers keep their inputs stable. Don't use a `useRef` to fix an identity. Use one
+  only for state that has to outlive renders (a debounce's timer), with a comment saying why. A
+  component's own `use<Component>` hook uses `useCallback` only where a dependency list or a
+  memoized child needs it.
 
 ### Testing expectations
 
@@ -205,7 +221,8 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 * Test stack: **NUnit** (globally imported via `GlobalUsings.cs` / `<Using Include="NUnit.Framework" />`),
   **Moq**, **Testcontainers**, and `Microsoft.EntityFrameworkCore.InMemory` for service-level tests.
 * `InternalsVisibleTo` exposes RepoHost internals to `PacmanManager.RepoHost.Test`.
-* In `pacmanmanager-web`, logic gets a Vitest unit test beside it (`Name.test.ts(x)`), and every
+* In `pacmanmanager-web`, logic gets a Vitest unit test beside it (`Name.test.ts(x)`), a
+  component's behaviour hook included (`useName.test.ts`, with `renderHook`), and every
   component in `src/components` a story per meaningful state (`Name.stories.tsx`), with a `play`
   function for each interaction. Stories run as tests under `npm test`. Unit tests and stories talk
   to MSW handlers from `src/mocks`, and a request no handler matches fails the test.

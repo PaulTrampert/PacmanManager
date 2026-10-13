@@ -22,6 +22,13 @@ public class RegularExpressions
     public const string RepositoryName = @"\A[a-zA-Z0-9@_\+]([-\.]?[a-zA-Z0-9@_\+])*\z";
 
     /// <summary>
+    /// The message reported when a value fails <see cref="RepositoryName"/>. It is the same wording
+    /// the web app's form shows, so a user sees one message whichever of them catches the name.
+    /// </summary>
+    public const string RepositoryNameErrorMessage =
+        "Use letters, digits and @ _ + - .; - and . cannot start or end the name, or appear twice in a row.";
+
+    /// <summary>
     /// A package name, which pacman constrains exactly as it does a repository name.
     /// </summary>
     public const string PackageName = RepositoryName;

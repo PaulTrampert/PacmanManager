@@ -15,7 +15,7 @@ public record WriteRepositoryRequest
     [Required]
     [MaxLength(255)]
     [MinLength(1)]
-    [RegularExpression(RegularExpressions.RepositoryName)]
+    [RegularExpression(RegularExpressions.RepositoryName, ErrorMessage = RegularExpressions.RepositoryNameErrorMessage)]
     public required string Name { get; init; }
     
     /// <summary>

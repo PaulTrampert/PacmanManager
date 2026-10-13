@@ -20,6 +20,7 @@ const repository: Repository = {
   name: "custom",
   supportedArchitectures: ["x86_64"],
   isPublic: false,
+  permissions: { update: true, delete: true },
   serverUrl: "https://packages.example.com/pacman/$repo/$arch",
 };
 

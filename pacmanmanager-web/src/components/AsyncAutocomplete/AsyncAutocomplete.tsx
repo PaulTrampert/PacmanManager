@@ -1,14 +1,11 @@
-import Autocomplete, {
-  type AutocompleteInputChangeReason,
-} from "@mui/material/Autocomplete";
+import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
 import TextField from "@mui/material/TextField";
-import { Fragment, useEffect, useRef, useState } from "react";
-import { visibleOptions } from "./visibleOptions";
+import { Fragment } from "react";
+import { searchDelayMs, useAsyncAutocomplete } from "./useAsyncAutocomplete";
 
-/** How long typing must stop for before {@link AsyncAutocomplete} searches. */
-export const searchDelayMs = 300;
+export { searchDelayMs };
 
 /** The props {@link AsyncAutocomplete} takes. */
 export interface AsyncAutocompleteProps<T> {
@@ -69,54 +66,37 @@ export function AsyncAutocomplete<T>({
   getOptionLabel,
   getOptionSearchText = getOptionLabel,
 }: AsyncAutocompleteProps<T>) {
-  const disabled = totalOptions !== undefined && totalOptions <= 1;
-  const [typed, setTyped] = useState("");
-  const search = useDebouncedSearch(onSearch);
-
-  const visible = visibleOptions(
-    pinnedOptions,
+  const autocomplete = useAsyncAutocomplete({
+    value,
+    onChange,
+    onSearch,
     options,
-    typed,
+    pinnedOptions,
+    totalOptions,
     getOptionKey,
     getOptionSearchText,
-  );
-  const lastPinned = visible.pinned.at(-1);
-  const dividerAfter =
-    lastPinned !== undefined && visible.results.length > 0
-      ? getOptionKey(lastPinned)
-      : undefined;
-
-  const handleInputChange = (
-    text: string,
-    reason: AutocompleteInputChangeReason,
-  ) => {
-    // Only typing is a search; anything else MUI puts in the field (the chosen option's label,
-    // or nothing once it is cleared or left) starts the list afresh.
-    const searchText = reason === "input" ? text : "";
-    setTyped(searchText);
-    search(searchText);
-  };
+  });
 
   return (
     <Autocomplete<T>
       sx={{ width: 240 }}
-      options={[...visible.pinned, ...visible.results]}
+      options={autocomplete.options}
       // The search filters the results and visibleOptions the pinned options, so MUI must not.
       filterOptions={(shown) => shown}
-      value={disabled ? null : (value ?? null)}
-      onChange={(_, chosen) => onChange(chosen ?? undefined)}
-      onInputChange={(_, text, reason) => handleInputChange(text, reason)}
-      disabled={disabled}
+      value={autocomplete.value}
+      onChange={(_, chosen) => autocomplete.onChange(chosen)}
+      onInputChange={(_, text, reason) =>
+        autocomplete.onInputChange(text, reason)
+      }
+      disabled={autocomplete.disabled}
       loading={loading}
       getOptionKey={getOptionKey}
       getOptionLabel={getOptionLabel}
-      isOptionEqualToValue={(option, chosen) =>
-        getOptionKey(option) === getOptionKey(chosen)
-      }
+      isOptionEqualToValue={autocomplete.isOptionEqualToValue}
       renderOption={({ key, ...props }, option) => (
         <Fragment key={key}>
           <li {...props}>{getOptionLabel(option)}</li>
-          {getOptionKey(option) === dividerAfter && <Divider component="li" />}
+          {autocomplete.hasDividerAfter(option) && <Divider component="li" />}
         </Fragment>
       )}
       renderInput={(params) => (
@@ -158,31 +138,4 @@ export function AsyncAutocomplete<T>({
       )}
     />
   );
-}
-
-/**
- * Returns a function that calls `onSearch` with the latest text it was given once `searchDelayMs`
- * pass without another call, and not at all when that text is what was last searched for.
- */
-function useDebouncedSearch(onSearch: (text: string) => void) {
-  const onSearchRef = useRef(onSearch);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastSearched = useRef("");
-
-  useEffect(() => {
-    onSearchRef.current = onSearch;
-  }, [onSearch]);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  return (text: string) => {
-    clearTimeout(timer.current);
-    if (text === lastSearched.current) {
-      return;
-    }
-    timer.current = setTimeout(() => {
-      lastSearched.current = text;
-      onSearchRef.current(text);
-    }, searchDelayMs);
-  };
 }
