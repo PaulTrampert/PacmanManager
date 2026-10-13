@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 
@@ -133,6 +134,27 @@ public class RepositoriesControllerTests
             Assert.That(oldestFirst!.Results.Select(r => r.Name), Is.EqualTo(byAge));
             Assert.That(newestFirst!.Results.Select(r => r.Name), Is.EqualTo(byAge.Reverse()),
                 "Created defaults to newest first.");
+        });
+    }
+
+    [TestCase("Name", "Ascending")]
+    [TestCase("Created", "Descending")]
+    [TestCase("Updated", "Descending")]
+    public async Task Get_EchoesTheAppliedSort_WithTheFieldDefaultDirection(string sortBy, string direction)
+    {
+        // The raw JSON is what a client reads, so this asserts the wire shape rather than going
+        // through the C# model: a camelCase "sort" object whose enums are spelled as strings.
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repositories?pageSize=1&sortBy={sortBy}");
+        var body = JsonNode.Parse(await response.Content.ReadAsStringAsync());
+
+        // Assert
+        var expected = new JsonObject { ["sortBy"] = sortBy, ["direction"] = direction };
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(JsonNode.DeepEquals(body?["sort"], expected), Is.True,
+                $"Expected sort {expected.ToJsonString()}, got {body?["sort"]?.ToJsonString()}");
         });
     }
 
