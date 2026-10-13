@@ -98,12 +98,6 @@ try
     builder.Services.AddSwaggerGen(c =>
     {
         c.DescribeAllParametersInCamelCase();
-
-        // A listing's applied sort is named for its sort-field enum (RepositorySortFieldAppliedSort);
-        // the pages are explicit subclasses, so their own names are already the schema names.
-        c.CustomSchemaIds(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(AppliedSort<>)
-            ? $"{type.GenericTypeArguments[0].Name}AppliedSort"
-            : type.Name);
     });
 
     builder.Services.AddControllers()

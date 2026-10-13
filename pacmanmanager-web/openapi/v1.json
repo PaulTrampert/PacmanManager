@@ -2357,7 +2357,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One page of a listing."
+        "description": "One page of the access tokens listing."
       },
       "AccessTokenSortField": {
         "enum": [
@@ -2679,7 +2679,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One page of a listing."
+        "description": "One page of a packages listing."
       },
       "PackageSortField": {
         "enum": [
@@ -2780,7 +2780,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One page of a listing."
+        "description": "One page of the users listing."
       },
       "Repository": {
         "required": [
@@ -2863,7 +2863,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One page of a listing."
+        "description": "One page of the repositories listing."
       },
       "RepositoryPermissions": {
         "required": [
