@@ -1,9 +1,8 @@
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { useLocation } from "@tanstack/react-router";
-import { useState } from "react";
-import { loginUrl, signOut, type Session } from "../../session";
+import { signOut, type Session } from "../../session";
+import { useSessionControl } from "./useSessionControl";
 
 /** The props {@link SessionControl} takes. */
 export interface SessionControlProps {
@@ -22,18 +21,15 @@ export function SessionControl({
   session,
   onSignOut = signOut,
 }: SessionControlProps) {
-  const { pathname, searchStr } = useLocation();
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const control = useSessionControl(onSignOut);
 
   if (session.status === "anonymous") {
     return (
-      <Button color="inherit" href={loginUrl(`${pathname}${searchStr}`)}>
+      <Button color="inherit" href={control.signInHref}>
         Sign in
       </Button>
     );
   }
-
-  const close = () => setAnchor(null);
 
   return (
     <>
@@ -41,27 +37,20 @@ export function SessionControl({
         color="inherit"
         id="session-menu-button"
         aria-haspopup="menu"
-        aria-controls={anchor ? "session-menu" : undefined}
-        aria-expanded={anchor ? "true" : undefined}
-        onClick={(event) => setAnchor(event.currentTarget)}
+        aria-controls={control.isOpen ? "session-menu" : undefined}
+        aria-expanded={control.isOpen ? "true" : undefined}
+        onClick={control.open}
       >
         {session.user.displayName}
       </Button>
       <Menu
         id="session-menu"
-        anchorEl={anchor}
-        open={anchor !== null}
-        onClose={close}
+        anchorEl={control.anchor}
+        open={control.isOpen}
+        onClose={control.close}
         slotProps={{ list: { "aria-labelledby": "session-menu-button" } }}
       >
-        <MenuItem
-          onClick={() => {
-            close();
-            void onSignOut();
-          }}
-        >
-          Sign out
-        </MenuItem>
+        <MenuItem onClick={control.signOut}>Sign out</MenuItem>
       </Menu>
     </>
   );
