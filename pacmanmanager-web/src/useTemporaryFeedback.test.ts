@@ -53,4 +53,18 @@ describe("useTemporaryFeedback", () => {
 
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("keeps the identity of show while the resting value and duration do", () => {
+    const { result, rerender } = renderHook(
+      ({ duration }) => useTemporaryFeedback("idle", duration),
+      { initialProps: { duration: 1000 } },
+    );
+    const first = result.current.show;
+
+    rerender({ duration: 1000 });
+    expect(result.current.show).toBe(first);
+
+    rerender({ duration: 2000 });
+    expect(result.current.show).not.toBe(first);
+  });
 });
