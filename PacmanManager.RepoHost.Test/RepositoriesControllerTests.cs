@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 
@@ -730,6 +731,84 @@ public class RepositoriesControllerTests
     /// A client pointed at the same application but carrying no bearer token.
     /// </summary>
     private HttpClient AnonymousClient() => new() { BaseAddress = new Uri(_fixture.BaseUrl) };
+
+    #endregion
+
+    #region Permissions Tests
+
+    [Test]
+    public async Task Get_And_GetById_CarryTheOwnersPermissions()
+    {
+        // Arrange
+        var repository = await CreateAsync(_client, "permissions-owner", isPublic: true);
+
+        // Act
+        var listed = await ListedPermissionsAsync(_client, repository);
+        var fetched = await FetchedPermissionsAsync(_client, repository);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            AssertPermissions(listed, update: true, delete: true, "the listing");
+            AssertPermissions(fetched, update: true, delete: true, "GET by id");
+        });
+    }
+
+    [Test]
+    public async Task Get_And_GetById_CarryAnotherUsersPermissions_FalseIncluded()
+    {
+        // Both fields are always present, so another user's falses are written out rather than
+        // omitted.
+        // Arrange
+        var repository = await CreateAsync(_client, "permissions-other", isPublic: true);
+
+        // Act
+        var listed = await ListedPermissionsAsync(_otherUsersClient, repository);
+        var fetched = await FetchedPermissionsAsync(_otherUsersClient, repository);
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            AssertPermissions(listed, update: false, delete: false, "the listing");
+            AssertPermissions(fetched, update: false, delete: false, "GET by id");
+        });
+    }
+
+    /// <summary>
+    /// The raw <c>permissions</c> object of <paramref name="repository"/> in a listing filtered to
+    /// its name, as <paramref name="client"/> sees it.
+    /// </summary>
+    private static async Task<JsonElement> ListedPermissionsAsync(HttpClient client, Repository repository)
+    {
+        using var listing = JsonDocument.Parse(
+            await client.GetStringAsync($"/api/v1/repositories?nameContains={repository.Name}"));
+        var result = listing.RootElement.GetProperty("results").EnumerateArray()
+            .Single(r => r.GetProperty("id").GetGuid() == repository.Id);
+        return result.GetProperty("permissions").Clone();
+    }
+
+    /// <summary>
+    /// The raw <c>permissions</c> object of <paramref name="repository"/> from <c>GET</c> by id, as
+    /// <paramref name="client"/> sees it.
+    /// </summary>
+    private static async Task<JsonElement> FetchedPermissionsAsync(HttpClient client, Repository repository)
+    {
+        using var fetched = JsonDocument.Parse(
+            await client.GetStringAsync($"/api/v1/repositories/{repository.Id}"));
+        return fetched.RootElement.GetProperty("permissions").Clone();
+    }
+
+    /// <summary>
+    /// Asserts that <paramref name="permissions"/> carries both fields as JSON booleans with the
+    /// expected values, so a <c>false</c> that was omitted rather than written fails.
+    /// </summary>
+    private static void AssertPermissions(JsonElement permissions, bool update, bool delete, string where)
+    {
+        Assert.That(permissions.TryGetProperty("update", out var updateValue), Is.True, $"{where}: update present");
+        Assert.That(permissions.TryGetProperty("delete", out var deleteValue), Is.True, $"{where}: delete present");
+        Assert.That(updateValue.ValueKind, Is.EqualTo(update ? JsonValueKind.True : JsonValueKind.False), $"{where}: update");
+        Assert.That(deleteValue.ValueKind, Is.EqualTo(delete ? JsonValueKind.True : JsonValueKind.False), $"{where}: delete");
+    }
 
     #endregion
 
