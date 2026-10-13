@@ -150,13 +150,53 @@ internal class RepositoryService(
         // nothing about the repository that holds the name.
         new("A repository with this name already exists.", collision);
 
+    /// <summary>
+    /// <paramref name="repository"/> with <see cref="Repository.Permissions"/> set for
+    /// <paramref name="actor"/>.
+    /// </summary>
+    /// <remarks>
+    /// Asked of the materialised model, after the query has run, so the rule is never translated to
+    /// SQL and costs no query. It is the same <see cref="RepositoryAccessPolicy.CheckOwnership"/>
+    /// that <see cref="UpdateRepositoryAsync"/> and <see cref="DeleteRepositoryAsync"/> enforce
+    /// with, through <see cref="RepositoryAccessPolicy.CheckUpdate"/> and
+    /// <see cref="RepositoryAccessPolicy.CheckDelete"/>, so what a caller is told it may do and what
+    /// it is allowed to do cannot disagree.
+    /// </remarks>
+    private Repository WithPermissions(Repository repository, Actor actor) => repository with
+    {
+        Permissions = new RepositoryPermissions
+        {
+            Update = Permits(repository, actor, ScopeValues.ActionNames.Update),
+            Delete = Permits(repository, actor, ScopeValues.ActionNames.Delete),
+        }
+    };
+
+    /// <summary>
+    /// Whether <paramref name="actor"/> may make the change <paramref name="action"/> to
+    /// <paramref name="repository"/>.
+    /// </summary>
+    private bool Permits(Repository repository, Actor actor, string action) =>
+        accessPolicy.CheckOwnership(repository.Owner.Id, repository.IsPublic, actor, action)
+        == RepositoryAccess.Allowed;
+
+    /// <summary>
+    /// <paramref name="repository"/> with <see cref="Repository.Permissions"/> set for the current
+    /// actor, or null when there is no repository.
+    /// </summary>
+    private async Task<Repository?> WithPermissionsAsync(Repository? repository, CancellationToken cancellationToken) =>
+        repository is null
+            ? null
+            : WithPermissions(repository, await actorAccessor.GetActorAsync(cancellationToken));
+
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var visible = await VisibleAsync(cancellationToken);
-        return Complete(await visible
+        var repository = await visible
             .Where(r => r.Id == id)
             .Select(Repository.Projection)
-            .SingleOrDefaultAsync(cancellationToken));
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return Complete(await WithPermissionsAsync(repository, cancellationToken));
     }
 
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
@@ -165,10 +205,12 @@ internal class RepositoryService(
 
         // The name alone is the database's unique index over repositories, so this matches at most
         // one row and needs no tie-break.
-        return Complete(await visible
+        var repository = await visible
             .Where(r => r.Name == name)
             .Select(Repository.Projection)
-            .SingleOrDefaultAsync(cancellationToken));
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return Complete(await WithPermissionsAsync(repository, cancellationToken));
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(
@@ -270,7 +312,7 @@ internal class RepositoryService(
             throw;
         }
 
-        return Complete(Repository.FromPacmanRepository(repository))!;
+        return Complete(WithPermissions(Repository.FromPacmanRepository(repository), actor))!;
     }
 
     public async Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default)
@@ -295,7 +337,7 @@ internal class RepositoryService(
             throw NameTaken(e);
         }
 
-        return Complete(Repository.FromPacmanRepository(repository))!;
+        return Complete(await WithPermissionsAsync(Repository.FromPacmanRepository(repository), cancellationToken))!;
     }
 
     public async Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)
@@ -345,10 +387,11 @@ internal class RepositoryService(
             .Select(Repository.Projection)
             .ToListAsync(cancellationToken);
 
+        var actor = await actorAccessor.GetActorAsync(cancellationToken);
         var serverUrl = serverUrls.GetServerUrl();
         return new PaginatedResponse<Repository>
         {
-            Results = results.Select(r => Complete(r, serverUrl)!).ToList(),
+            Results = results.Select(r => Complete(WithPermissions(r, actor), serverUrl)!).ToList(),
             Offset = paginationParams.Offset,
             Total = total
         };

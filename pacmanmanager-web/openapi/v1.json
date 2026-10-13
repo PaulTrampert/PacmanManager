@@ -2721,6 +2721,7 @@
       "Repository": {
         "required": [
           "id",
+          "permissions",
           "serverUrl"
         ],
         "type": "object",
@@ -2758,6 +2759,9 @@
             "description": "When the repository was last modified.",
             "format": "date-time"
           },
+          "permissions": {
+            "$ref": "#/components/schemas/RepositoryPermissions"
+          },
           "serverUrl": {
             "minLength": 1,
             "type": "string",
@@ -2786,6 +2790,25 @@
           }
         },
         "additionalProperties": false
+      },
+      "RepositoryPermissions": {
+        "required": [
+          "delete",
+          "update"
+        ],
+        "type": "object",
+        "properties": {
+          "update": {
+            "type": "boolean",
+            "description": "Whether the caller may update the repository: rename it, change its visibility or change\nits architectures."
+          },
+          "delete": {
+            "type": "boolean",
+            "description": "Whether the caller may delete the repository."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What the caller may do to a repository, computed for the caller of each request\nand never stored."
       },
       "RepositorySortField": {
         "enum": [

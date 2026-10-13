@@ -68,7 +68,7 @@ internal sealed class RepositoryAccessPolicy
     /// that did not.
     /// </remarks>
     public RepositoryAccess CheckUpdate(PacmanRepository repository, Actor actor) =>
-        CheckOwnership(repository, actor, ActionNames.Update);
+        CheckOwnership(repository.OwnerId, repository.IsPublic, actor, ActionNames.Update);
 
     /// <summary>
     /// Decides whether <paramref name="actor"/> may delete <paramref name="repository"/>.
@@ -89,14 +89,28 @@ internal sealed class RepositoryAccessPolicy
     /// </para>
     /// </remarks>
     public RepositoryAccess CheckDelete(PacmanRepository repository, Actor actor) =>
-        CheckOwnership(repository, actor, ActionNames.Delete);
+        CheckOwnership(repository.OwnerId, repository.IsPublic, actor, ActionNames.Delete);
 
     /// <summary>
     /// The ownership rule every change to an existing repository is held to: the system and the
     /// owner may, anyone else may not. The actor's scope must permit <paramref name="action"/>
     /// first.
     /// </summary>
-    private static RepositoryAccess CheckOwnership(PacmanRepository repository, Actor actor, string action)
+    /// <param name="ownerId">The id of the repository's owner.</param>
+    /// <param name="isPublic">Whether the repository is public.</param>
+    /// <param name="actor">The actor attempting the change.</param>
+    /// <param name="action">
+    /// The change being attempted, one of <see cref="ActionNames"/>, such as
+    /// <see cref="ActionNames.Update"/> or <see cref="ActionNames.Delete"/>.
+    /// </param>
+    /// <returns>The outcome of the check.</returns>
+    /// <remarks>
+    /// <see cref="CheckUpdate"/> and <see cref="CheckDelete"/> are this check for one action. It takes
+    /// the repository's owner and visibility rather than the entity so that it can also be asked of a
+    /// repository already projected out of a query, as <c>Repository.Permissions</c> is, without a
+    /// second copy of the rule.
+    /// </remarks>
+    public RepositoryAccess CheckOwnership(Guid ownerId, bool isPublic, Actor actor, string action)
     {
         if (actor.IsSystem)
         {
@@ -113,14 +127,14 @@ internal sealed class RepositoryAccessPolicy
             return RepositoryAccess.Forbidden;
         }
 
-        if (repository.OwnerId == user.Id)
+        if (ownerId == user.Id)
         {
             return RepositoryAccess.Allowed;
         }
 
         // A public repository is already known to exist, so admitting that and refusing the change
         // leaks nothing. A private one must keep pretending it is not there.
-        return repository.IsPublic ? RepositoryAccess.Forbidden : RepositoryAccess.NotFound;
+        return isPublic ? RepositoryAccess.Forbidden : RepositoryAccess.NotFound;
     }
 
     /// <summary>

@@ -45,6 +45,19 @@ public record Repository
     /// When the repository was last modified.
     /// </summary>
     public DateTimeOffset UpdatedAt { get; init; }
+
+    /// <summary>
+    /// What the caller of this request may do to the repository.
+    /// </summary>
+    /// <remarks>
+    /// Computed for the caller after the repository is read, never stored and never part of
+    /// <see cref="Projection"/>: the service sets it with a <c>with</c> expression. Until then it is
+    /// <see cref="RepositoryPermissions.None"/>, so a repository nobody computed it for permits
+    /// nothing. <see cref="RequiredAttribute"/> rather than <c>required</c>, so that the projection
+    /// need not name it, while the OpenAPI document still lists it as always present.
+    /// </remarks>
+    [Required]
+    public RepositoryPermissions Permissions { get; init; } = RepositoryPermissions.None;
     
     /// <summary>
     /// The URL a <c>pacman.conf</c> section's <c>Server</c> line names to reach this repository, such
