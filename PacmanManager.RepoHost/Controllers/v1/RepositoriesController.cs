@@ -74,6 +74,7 @@ public class RepositoriesController(IRepositoryService repositoryService, ILogge
     [ProducesResponseType(typeof(Repository), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Authorize]
     public async Task<ActionResult<Repository>> Create([FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
@@ -97,6 +98,7 @@ public class RepositoriesController(IRepositoryService repositoryService, ILogge
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Authorize]
     public async Task<ActionResult<Repository>> Update(Guid id, [FromBody] WriteRepositoryRequest request, CancellationToken ct = default)
     {
