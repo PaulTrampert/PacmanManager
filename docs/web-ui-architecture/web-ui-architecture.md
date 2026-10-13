@@ -78,7 +78,7 @@ pacmanmanager-web/
     ├── api/               # the client, its middleware, ApiError; schema.gen.ts is generated
     ├── session/           # the session query, useSession, requireUser
     ├── queries/<resource>/ # query-options factories and mutations, one folder per resource
-    ├── components/<Name>/ # Name.tsx, Name.stories.tsx, Name.test.tsx, index.ts
+    ├── components/<Name>/ # Name.tsx, Name.stories.tsx, useName.ts(+.test.ts), index.ts
     ├── mocks/             # Mock Service Worker (MSW) handlers, shared by Vitest and Storybook
     └── testing/           # render helpers and fixture factories
 ```
@@ -91,10 +91,17 @@ pacmanmanager-web/
   `npm ci` before any of them.
 * Tests and stories sit next to the component they cover. Playwright tests are the exception and
   live under `e2e/`.
+* **Components render; hooks behave.** A component never calls `useEffect` itself and holds at
+  most a single `useState` of one small value. Its behaviour (state, effects, timers, and callbacks
+  that decide anything beyond passing a value straight through) lives in a `use<Name>` hook in the
+  component's folder. The component renders what that hook returns, and `index.ts` doesn't export the
+  hook. Behaviour that isn't specific to the component is a reusable hook of its own outside
+  `components/` (such as `src/useTemporaryFeedback.ts`), which the component's hook uses.
 
 **Why:**
 
 * [the app lives beside the solution, not in it](#why-the-app-lives-beside-the-solution-not-in-it)
+* [components render and hooks behave](#why-components-render-and-hooks-behave)
 
 ### Toolchain
 
@@ -393,7 +400,7 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 | Level | Covers | Tool | Runs against | Command |
 | :--- | :--- | :--- | :--- | :--- |
-| Unit | Functions, hooks, the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
+| Unit | Functions, hooks (each component's `use<Name>` among them), the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
 | Component | Every component in `src/components`: a story per meaningful state, with a `play` function for each interaction | Storybook + `@storybook/addon-vitest`, Chromium | MSW handlers | `npm test` |
 | End to end | User journeys across SpaHost, Keycloak and RepoHost | `@playwright/test` | The compose stack | `npm run e2e` |
 
@@ -880,3 +887,15 @@ stack:
 Keycloak already has 8080 and RepoHost 8082 on the host. 8081 is the free port between them and
 matches Budgy's web host, so the two projects' stacks look alike. Port 3000 is reserved for the Vite
 dev server, which is why it appears in the Keycloak client's redirect URIs.
+
+### Why components render and hooks behave
+
+A component that computes its next state, runs effects or reverses a sort inside its render
+function can only be tested by rendering it and driving the browser, which is slow and checks
+behaviour through markup. Moved into a hook, that behaviour is a plain unit test with `renderHook`,
+and the component's stories only have to show its states and that its controls are wired up. Keeping
+the hook unexported leaves the component's public surface unchanged. One `useState` of a small value,
+such as whether a panel is open, is allowed inline, because a hook for it would add a file and no
+test worth writing. A large state object in that one `useState` is a hook in disguise, so it isn't.
+Rejected: allowing `useEffect` in components and relying on stories alone, which is how the first
+components were written and what review asked to undo.
