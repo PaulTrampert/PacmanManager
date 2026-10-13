@@ -36,7 +36,9 @@ describe("useForm", () => {
   it("does not submit while a field has an error, but marks the form submitted", () => {
     const { result, onSubmit } = renderForm();
 
-    act(() => result.current.context.setFieldError("name", "Name is required."));
+    act(() =>
+      result.current.context.setFieldError("name", "Name is required."),
+    );
     act(() => result.current.onSubmit(submitEvent()));
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -46,7 +48,9 @@ describe("useForm", () => {
   it("submits once the field's error is cleared", () => {
     const { result, onSubmit } = renderForm();
 
-    act(() => result.current.context.setFieldError("name", "Name is required."));
+    act(() =>
+      result.current.context.setFieldError("name", "Name is required."),
+    );
     act(() => result.current.context.setFieldError("name", undefined));
     act(() => result.current.onSubmit(submitEvent()));
 
@@ -105,10 +109,14 @@ describe("useForm", () => {
 
   it("keeps the context unchanged when a field reports the error it already has", () => {
     const { result } = renderForm();
-    act(() => result.current.context.setFieldError("name", "Name is required."));
+    act(() =>
+      result.current.context.setFieldError("name", "Name is required."),
+    );
     const { context } = result.current;
 
-    act(() => result.current.context.setFieldError("name", "Name is required."));
+    act(() =>
+      result.current.context.setFieldError("name", "Name is required."),
+    );
 
     expect(result.current.context).toBe(context);
   });
