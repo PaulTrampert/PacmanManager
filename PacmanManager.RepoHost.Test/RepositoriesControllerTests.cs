@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.RepoHost.Validation;
 
 namespace PacmanManager.RepoHost.Test;
 
@@ -399,6 +400,32 @@ public class RepositoriesControllerTests
         {
             Assert.That(byId.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
             Assert.That(listing!.Results.Select(r => r.Id), Does.Not.Contain(theirs.Id));
+        });
+    }
+
+    [Test]
+    public async Task Create_WithAnInvalidName_ReportsTheHumanMessageForName()
+    {
+        // A client that cannot check the pattern itself shows this message on its name field, so it
+        // must be readable, never DataAnnotations' default quoting the regular expression.
+        // Arrange
+        var request = new WriteRepositoryRequest { Name = "-not-a-name" };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/repositories", request);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest),
+            await response.Content.ReadAsStringAsync());
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        var nameErrors = problem!.Errors
+            .Where(entry => string.Equals(entry.Key, "name", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(entry => entry.Value)
+            .ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(nameErrors, Is.EqualTo(new[] { RegularExpressions.RepositoryNameErrorMessage }));
+            Assert.That(nameErrors, Has.None.Contains(RegularExpressions.RepositoryName));
         });
     }
 
