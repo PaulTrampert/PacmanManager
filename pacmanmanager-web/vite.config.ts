@@ -1,6 +1,7 @@
+import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import { webHostPaths } from "./src/webHostPaths.ts";
@@ -12,7 +13,15 @@ const webHost = "http://localhost:8081";
 export default defineConfig({
   // The router plugin must come before the React plugin. Its settings live in tsr.config.json,
   // which `npm run generate` (the router CLI) reads too, so both produce the same route tree.
-  plugins: [tanstackRouter(), react()],
+  // React Compiler runs through Babel, after both: this one config serves the build, the dev
+  // server, Vitest and Storybook, so every one of them runs the compiled code. A function the
+  // compiler cannot compile fails the transform rather than being skipped silently: restructure it,
+  // or opt it out with a "use no memo" directive and a comment saying why.
+  plugins: [
+    tanstackRouter(),
+    react(),
+    babel({ presets: [reactCompilerPreset({ panicThreshold: "all_errors" })] }),
+  ],
   server: {
     port: 3000,
     strictPort: true,
