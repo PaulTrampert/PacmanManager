@@ -78,7 +78,7 @@ public class PackagesControllerTests
     {
         // Act
         var response = await _client.GetAsync("/api/v1/packages?pageSize=500");
-        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package>>();
+        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package, PackageSortField>>();
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -93,7 +93,7 @@ public class PackagesControllerTests
     {
         // Act
         var response = await AnonymousClient().GetAsync("/api/v1/packages?pageSize=500");
-        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package>>();
+        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package, PackageSortField>>();
 
         // Assert
         var names = packages!.Results.Select(p => p.Name).ToList();
@@ -116,8 +116,8 @@ public class PackagesControllerTests
         const string query = "/api/v1/packages?nameContains=e2e-public-&pageSize=50&sortBy=InstalledSize";
 
         // Act
-        var biggestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(query);
-        var smallestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+        var biggestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Package, PackageSortField>>(query);
+        var smallestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Package, PackageSortField>>(
             $"{query}&direction=Ascending");
 
         // Assert
@@ -206,7 +206,7 @@ public class PackagesControllerTests
     {
         // Act
         var response = await _client.GetAsync($"/api/v1/repositories/{_publicRepository.Id}/packages?pageSize=500");
-        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package>>();
+        var packages = await response.Content.ReadFromJsonAsync<PaginatedResponse<Package, PackageSortField>>();
 
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -219,7 +219,7 @@ public class PackagesControllerTests
     {
         // The path segment supplies the repository; everything else still narrows the listing.
         // Act
-        var packages = await _client.GetFromJsonAsync<PaginatedResponse<Package>>(
+        var packages = await _client.GetFromJsonAsync<PaginatedResponse<Package, PackageSortField>>(
             $"/api/v1/repositories/{_publicRepository.Id}/packages?search=WIDGETING&pageSize=500");
 
         // Assert
@@ -243,7 +243,7 @@ public class PackagesControllerTests
         // Act
         var asOwner = await _client.GetAsync($"/api/v1/repositories/{_privateRepository.Id}/packages");
         var asStranger = await AnonymousClient().GetAsync($"/api/v1/repositories/{_privateRepository.Id}/packages");
-        var listed = await asOwner.Content.ReadFromJsonAsync<PaginatedResponse<Package>>();
+        var listed = await asOwner.Content.ReadFromJsonAsync<PaginatedResponse<Package, PackageSortField>>();
 
         // Assert
         Assert.Multiple(() =>

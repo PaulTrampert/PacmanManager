@@ -147,7 +147,7 @@ public class UsersControllerTests
 
         // Act
         var response = await PatchMeAsync(_client, $$"""{"displayName": "{{marker}}"}""");
-        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(
             $"/api/v1/users?displayNameContains={marker.ToUpperInvariant()}");
 
         // Assert: the normalized copy was written alongside the display name.
@@ -316,7 +316,7 @@ public class UsersControllerTests
 
         // Act
         var response = await PostMeAsync(_client, $$"""{"displayName": "{{marker}}"}""");
-        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(
             $"/api/v1/users?displayNameContains={marker.ToUpperInvariant()}");
 
         // Assert: the normalized copy was written alongside the display name.
@@ -476,7 +476,7 @@ public class UsersControllerTests
         // Act
         var response = await _anonymousClient.GetAsync("/api/v1/users?pageSize=500");
         var body = await response.Content.ReadAsStringAsync();
-        var page = await response.Content.ReadFromJsonAsync<PaginatedResponse<PublicUserInfo>>();
+        var page = await response.Content.ReadFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>();
 
         // Assert
         Assert.Multiple(() =>
@@ -491,7 +491,7 @@ public class UsersControllerTests
     public async Task Get_FilteredByDisplayName_IgnoresCase()
     {
         // Act
-        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+        var page = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(
             $"/api/v1/users?displayNameContains={SeedMarker.ToUpperInvariant()}");
 
         // Assert
@@ -509,10 +509,10 @@ public class UsersControllerTests
         const string query = $"/api/v1/users?displayNameContains={SeedMarker}";
 
         // Act
-        var unsorted = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(query);
-        var sortedBy = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+        var unsorted = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(query);
+        var sortedBy = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(
             $"{query}&sortBy=DisplayName");
-        var descending = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>(
+        var descending = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>(
             $"{query}&sortBy=DisplayName&direction=Descending");
 
         // Assert
@@ -531,8 +531,8 @@ public class UsersControllerTests
         const string query = $"/api/v1/users?displayNameContains={SeedMarker}&pageSize=2";
 
         // Act
-        var first = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>($"{query}&offset=0");
-        var second = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo>>($"{query}&offset=2");
+        var first = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>($"{query}&offset=0");
+        var second = await _anonymousClient.GetFromJsonAsync<PaginatedResponse<PublicUserInfo, UserSortField>>($"{query}&offset=2");
 
         // Assert
         Assert.Multiple(() =>

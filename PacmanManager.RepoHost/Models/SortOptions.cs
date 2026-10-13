@@ -52,4 +52,22 @@ public record SortOptions<TSortFields> where TSortFields : struct, Enum
     /// <see cref="SortBy"/> by <see cref="DefaultSortDirectionAttribute"/>.
     /// </returns>
     public SortDirection ResolveDirection() => Direction ?? SortFieldDefaults<TSortFields>.For(SortBy);
+
+    /// <summary>
+    /// The ordering this actually applies, for echoing on the listing's response.
+    /// </summary>
+    /// <returns>
+    /// <see cref="SortBy"/>, or the first member of <typeparamref name="TSortFields"/> when it is a
+    /// value the enum does not declare, together with <see cref="ResolveDirection"/>.
+    /// </returns>
+    /// <remarks>
+    /// A <c>sortBy</c> bound from a query string can be a value the enum does not declare, which
+    /// <see cref="Services.SortExtensions.ApplySort{TEntity, TSortField}"/> orders by the first member.
+    /// Reporting that member rather than the undeclared value keeps the echo true to what was done.
+    /// </remarks>
+    public AppliedSort<TSortFields> Resolve() => new()
+    {
+        SortBy = Enum.IsDefined(SortBy) ? SortBy : default,
+        Direction = ResolveDirection()
+    };
 }

@@ -962,6 +962,20 @@ public class PackageServiceTests
     }
 
     [Test]
+    public async Task GetPackagesAsync_EchoesTheAppliedSort()
+    {
+        // Act
+        var result = await _service.GetPackagesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<PackageSortField> { SortBy = PackageSortField.InstalledSize });
+
+        // Assert
+        Assert.That(
+            result.Sort,
+            Is.EqualTo(new AppliedSort<PackageSortField> { SortBy = PackageSortField.InstalledSize, Direction = SortDirection.Descending }));
+    }
+
+    [Test]
     public async Task GetPackagesAsync_SortsByInstalledSize_LargestFirstByDefault()
     {
         // Arrange

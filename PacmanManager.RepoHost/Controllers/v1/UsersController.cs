@@ -33,9 +33,9 @@ public class UsersController(IUserManagementService userManagementService, ILogg
     /// <param name="ct">Cancellation Token</param>
     /// <returns>A page of users, without their emails.</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<PublicUserInfo>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PublicUserInfoPaginatedResponse), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<ActionResult<PaginatedResponse<PublicUserInfo>>> Get(
+    public async Task<ActionResult<PublicUserInfoPaginatedResponse>> Get(
         [FromQuery] PaginationParams paging,
         [FromQuery] UserFilter filter,
         [FromQuery] SortOptions<UserSortField> sort,

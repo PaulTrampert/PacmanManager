@@ -83,7 +83,7 @@ public class BasicAuthenticationTests
     {
         using var client = BasicClient(_username, _password);
 
-        var page = await client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var page = await client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             "/api/v1/repositories?nameContains=basic-private");
 
         Assert.That(page!.Results.Select(r => r.Id), Does.Contain(_privateRepository.Id));

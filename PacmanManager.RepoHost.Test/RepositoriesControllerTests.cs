@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Validation;
@@ -59,7 +60,7 @@ public class RepositoriesControllerTests
     {
         // Act
         var response = await _client.GetAsync("/api/v1/repositories");
-        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>();
 
         // Assert
         Assert.That(response.IsSuccessStatusCode, Is.True);
@@ -86,9 +87,9 @@ public class RepositoriesControllerTests
         const string query = $"{unsortedQuery}&sortBy=Name";
 
         // Act
-        var unsorted = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(unsortedQuery);
-        var defaulted = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(query);
-        var descending = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var unsorted = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(unsortedQuery);
+        var defaulted = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(query);
+        var descending = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"{query}&direction=Descending");
 
         // Assert
@@ -124,8 +125,8 @@ public class RepositoriesControllerTests
         const string query = "/api/v1/repositories?nameContains=sortbydate-&pageSize=50&sortBy=Created";
 
         // Act
-        var newestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(query);
-        var oldestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var newestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(query);
+        var oldestFirst = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"{query}&direction=Ascending");
 
         // Assert
@@ -138,6 +139,27 @@ public class RepositoriesControllerTests
         });
     }
 
+    [TestCase("Name", "Ascending")]
+    [TestCase("Created", "Descending")]
+    [TestCase("Updated", "Descending")]
+    public async Task Get_EchoesTheAppliedSort_WithTheFieldDefaultDirection(string sortBy, string direction)
+    {
+        // The raw JSON is what a client reads, so this asserts the wire shape rather than going
+        // through the C# model: a camelCase "sort" object whose enums are spelled as strings.
+        // Act
+        var response = await _client.GetAsync($"/api/v1/repositories?pageSize=1&sortBy={sortBy}");
+        var body = JsonNode.Parse(await response.Content.ReadAsStringAsync());
+
+        // Assert
+        var expected = new JsonObject { ["sortBy"] = sortBy, ["direction"] = direction };
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(JsonNode.DeepEquals(body?["sort"], expected), Is.True,
+                $"Expected sort {expected.ToJsonString()}, got {body?["sort"]?.ToJsonString()}");
+        });
+    }
+
     [Test]
     public async Task Get_FilteredBySupportedArchitecture_ReturnsRepositoriesSupportingIt()
     {
@@ -146,7 +168,7 @@ public class RepositoriesControllerTests
         await CreateAsync(_client, name, isPublic: true);
 
         // Act
-        var response = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var response = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"/api/v1/repositories?nameContains={name}&architecture=x86_64");
 
         // Assert
@@ -295,7 +317,7 @@ public class RepositoriesControllerTests
         // Assert
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest),
             await response.Content.ReadAsStringAsync());
-        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"/api/v1/repositories?nameContains={name}");
         Assert.That(listing!.Total, Is.Zero, "Nothing is created for a rejected request.");
     }
@@ -406,7 +428,7 @@ public class RepositoriesControllerTests
 
         // Act
         var byId = await _client.GetAsync($"/api/v1/repositories/{theirs.Id}");
-        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var listing = await _client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"/api/v1/repositories?nameContains={theirs.Name}&pageSize=500");
 
         // Assert
@@ -611,7 +633,7 @@ public class RepositoriesControllerTests
 
         // Act
         var response = await AnonymousClient().GetAsync("/api/v1/repositories?pageSize=500");
-        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>();
 
         // Assert
         var names = repositories!.Results.Select(r => r.Name).ToList();
@@ -661,7 +683,7 @@ public class RepositoriesControllerTests
         // Act
         var response = await AnonymousClient()
             .GetAsync($"/api/v1/repositories?ownerId={repository!.Owner.Id}&pageSize=500");
-        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>();
 
         // Assert
         var names = repositories!.Results.Select(r => r.Name).ToList();
@@ -684,7 +706,7 @@ public class RepositoriesControllerTests
 
         // Act
         var response = await AnonymousClient().GetAsync("/api/v1/repositories?isPublic=false");
-        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository>>();
+        var repositories = await response.Content.ReadFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>();
 
         // Assert
         Assert.That(repositories!.Total, Is.EqualTo(0));

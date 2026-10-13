@@ -39,7 +39,7 @@ public interface IUserManagementService
     /// <param name="sort">The order to return results in. Defaults to alphabetical by display name.</param>
     /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
     /// <returns>A page of users, projected to <see cref="PublicUserInfo"/> so that no email is included.</returns>
-    Task<PaginatedResponse<PublicUserInfo>> ListUsersAsync(
+    Task<PublicUserInfoPaginatedResponse> ListUsersAsync(
         PaginationParams paginationParams,
         UserFilter? filter = null,
         SortOptions<UserSortField>? sort = null,

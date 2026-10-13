@@ -9,7 +9,7 @@ namespace PacmanManager.RepoHost.Controllers.v1;
 /// </summary>
 /// <remarks>
 /// The list is small, static and defined by the server, so it is a plain array rather than a
-/// <see cref="PaginatedResponse{T}"/>, and takes no paging, filter or sort parameters.
+/// <see cref="PaginatedResponse{T, TSortField}"/>, and takes no paging, filter or sort parameters.
 /// </remarks>
 [ApiController]
 [Route(ControllerConstants.ControllerBaseRoute)]

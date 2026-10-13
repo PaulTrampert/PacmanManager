@@ -1269,6 +1269,50 @@ public class RepositoryServiceTests
     }
 
     [Test]
+    public async Task GetRepositoriesAsync_EchoesAnExplicitSort()
+    {
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField>
+            {
+                SortBy = RepositorySortField.Updated,
+                Direction = SortDirection.Ascending
+            });
+
+        // Assert
+        Assert.That(
+            result.Sort,
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Updated, Direction = SortDirection.Ascending }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_EchoesTheFieldDefaultDirection_WhenNoDirectionIsGiven()
+    {
+        // Act
+        var result = await _service.GetRepositoriesAsync(
+            new PaginationParams { PageSize = 50 },
+            sort: new SortOptions<RepositorySortField> { SortBy = RepositorySortField.Created });
+
+        // Assert
+        Assert.That(
+            result.Sort,
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Created, Direction = SortDirection.Descending }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_EchoesTheDefaultSort_WhenNoSortIsGiven()
+    {
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams { PageSize = 50 });
+
+        // Assert
+        Assert.That(
+            result.Sort,
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending }));
+    }
+
+    [Test]
     public async Task UpdateRepositoryAsync_ReturnsNull_WhenPrivateAndOwnedBySomeoneElse()
     {
         // A repository the caller cannot see must behave as though it is not there.
@@ -1550,5 +1594,6 @@ public class RepositoryServiceTests
         return repository;
     }
 
-    private static int ResultCount<T>(PaginatedResponse<T> response) => response.Results.Count();
+    private static int ResultCount<T, TSortField>(PaginatedResponse<T, TSortField> response)
+        where TSortField : struct, Enum => response.Results.Count();
 }

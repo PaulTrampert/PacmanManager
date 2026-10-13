@@ -2330,24 +2330,34 @@
         "description": "An access token, as its owner sees it in a listing. Carries no secret: the secret is shown once,\non PacmanManager.RepoHost.Models.CreatedAccessToken, and only its hash is kept."
       },
       "AccessTokenPaginatedResponse": {
+        "required": [
+          "sort"
+        ],
         "type": "object",
         "properties": {
           "results": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AccessToken"
-            }
+            },
+            "description": "The items on this page."
           },
           "offset": {
             "type": "integer",
+            "description": "The position of the first item on this page within the whole listing.",
             "format": "int32"
           },
           "total": {
             "type": "integer",
+            "description": "The number of items in the whole listing, across every page.",
             "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/AccessTokenSortFieldAppliedSort"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "One page of the access tokens listing."
       },
       "AccessTokenSortField": {
         "enum": [
@@ -2358,6 +2368,23 @@
         ],
         "type": "string",
         "description": "The properties an access token listing may be ordered by."
+      },
+      "AccessTokenSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/AccessTokenSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "Architecture": {
         "required": [
@@ -2625,24 +2652,34 @@
         "description": "A package published into a hosted repository, as callers see it."
       },
       "PackagePaginatedResponse": {
+        "required": [
+          "sort"
+        ],
         "type": "object",
         "properties": {
           "results": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Package"
-            }
+            },
+            "description": "The items on this page."
           },
           "offset": {
             "type": "integer",
+            "description": "The position of the first item on this page within the whole listing.",
             "format": "int32"
           },
           "total": {
             "type": "integer",
+            "description": "The number of items in the whole listing, across every page.",
             "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/PackageSortFieldAppliedSort"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "One page of a packages listing."
       },
       "PackageSortField": {
         "enum": [
@@ -2653,6 +2690,23 @@
         ],
         "type": "string",
         "description": "The properties a package listing may be ordered by."
+      },
+      "PackageSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/PackageSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "ProblemDetails": {
         "type": "object",
@@ -2699,24 +2753,34 @@
         "additionalProperties": false
       },
       "PublicUserInfoPaginatedResponse": {
+        "required": [
+          "sort"
+        ],
         "type": "object",
         "properties": {
           "results": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PublicUserInfo"
-            }
+            },
+            "description": "The items on this page."
           },
           "offset": {
             "type": "integer",
+            "description": "The position of the first item on this page within the whole listing.",
             "format": "int32"
           },
           "total": {
             "type": "integer",
+            "description": "The number of items in the whole listing, across every page.",
             "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/UserSortFieldAppliedSort"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "One page of the users listing."
       },
       "Repository": {
         "required": [
@@ -2772,24 +2836,34 @@
         "description": "Represents a pacman repository that can be hosted and managed."
       },
       "RepositoryPaginatedResponse": {
+        "required": [
+          "sort"
+        ],
         "type": "object",
         "properties": {
           "results": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Repository"
-            }
+            },
+            "description": "The items on this page."
           },
           "offset": {
             "type": "integer",
+            "description": "The position of the first item on this page within the whole listing.",
             "format": "int32"
           },
           "total": {
             "type": "integer",
+            "description": "The number of items in the whole listing, across every page.",
             "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/RepositorySortFieldAppliedSort"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "One page of the repositories listing."
       },
       "RepositoryPermissions": {
         "required": [
@@ -2819,6 +2893,23 @@
         "type": "string",
         "description": "The properties a repository listing may be ordered by."
       },
+      "RepositorySortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/RepositorySortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
+      },
       "SortDirection": {
         "enum": [
           "Ascending",
@@ -2833,6 +2924,23 @@
         ],
         "type": "string",
         "description": "The properties a user listing may be ordered by."
+      },
+      "UserSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/UserSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "WriteRepositoryRequest": {
         "required": [

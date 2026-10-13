@@ -220,7 +220,7 @@ public class ScopedActorTests
 
     private static async Task<IReadOnlyList<Guid>> ListAsync(HttpClient client, string nameContains)
     {
-        var page = await client.GetFromJsonAsync<PaginatedResponse<Repository>>(
+        var page = await client.GetFromJsonAsync<PaginatedResponse<Repository, RepositorySortField>>(
             $"/api/v1/repositories?nameContains={nameContains}&pageSize=100");
         return page!.Results.Select(r => r.Id).ToList();
     }

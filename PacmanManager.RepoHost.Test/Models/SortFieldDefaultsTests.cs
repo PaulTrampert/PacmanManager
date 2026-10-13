@@ -61,4 +61,52 @@ public class SortFieldDefaultsTests
             Assert.That(sort.ResolveDirection(), Is.EqualTo(SortDirection.Ascending));
         });
     }
+
+    [Test]
+    public void Resolve_EchoesAnExplicitFieldAndDirection()
+    {
+        var sort = new SortOptions<RepositorySortField>
+        {
+            SortBy = RepositorySortField.Name,
+            Direction = SortDirection.Descending
+        };
+
+        Assert.That(
+            sort.Resolve(),
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Descending }));
+    }
+
+    [TestCase(RepositorySortField.Name, SortDirection.Ascending)]
+    [TestCase(RepositorySortField.Created, SortDirection.Descending)]
+    [TestCase(RepositorySortField.Updated, SortDirection.Descending)]
+    public void Resolve_FillsInTheFieldDefault_WhenNoDirectionWasSupplied(
+        RepositorySortField field,
+        SortDirection expectedDirection)
+    {
+        var sort = new SortOptions<RepositorySortField> { SortBy = field };
+
+        Assert.That(
+            sort.Resolve(),
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = field, Direction = expectedDirection }));
+    }
+
+    [Test]
+    public void Resolve_ReportsTheDefaultFieldAndItsDirection_WhenNothingWasSupplied()
+    {
+        Assert.That(
+            new SortOptions<RepositorySortField>().Resolve(),
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortDirection.Ascending }));
+    }
+
+    [Test]
+    public void Resolve_ReportsTheDefaultField_ForAValueTheEnumDoesNotDeclare()
+    {
+        // ApplySort orders an undeclared field by the first member, in the fallback direction, so
+        // that is what was applied and what the echo must say.
+        var sort = new SortOptions<RepositorySortField> { SortBy = (RepositorySortField)999 };
+
+        Assert.That(
+            sort.Resolve(),
+            Is.EqualTo(new AppliedSort<RepositorySortField> { SortBy = RepositorySortField.Name, Direction = SortFieldDefaults<RepositorySortField>.Fallback }));
+    }
 }

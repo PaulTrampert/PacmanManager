@@ -67,7 +67,7 @@ internal class UserManagementService(
     }
 
     /// <inheritdoc />
-    public async Task<PaginatedResponse<PublicUserInfo>> ListUsersAsync(
+    public async Task<PublicUserInfoPaginatedResponse> ListUsersAsync(
         PaginationParams paginationParams,
         UserFilter? filter = null,
         SortOptions<UserSortField>? sort = null,
@@ -75,19 +75,21 @@ internal class UserManagementService(
     {
         var query = dbContext.Users.Where(filter ?? new UserFilter());
 
+        var sortOptions = sort ?? new SortOptions<UserSortField>();
         var total = await query.CountAsync(ct);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<UserSortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(PublicUserInfoProjection)
             .ToListAsync(ct);
 
-        return new PaginatedResponse<PublicUserInfo>
+        return new PublicUserInfoPaginatedResponse
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 

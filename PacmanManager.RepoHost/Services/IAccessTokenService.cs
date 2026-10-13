@@ -29,7 +29,7 @@ public interface IAccessTokenService
     /// <returns>A page of the actor's tokens.</returns>
     /// <exception cref="NoCurrentUserException">Thrown when there is no user whose tokens to list.</exception>
     /// <exception cref="InsufficientScopeException">Thrown when the actor's credential does not carry <c>tokens:read</c>.</exception>
-    Task<PaginatedResponse<AccessToken>> GetAccessTokensAsync(
+    Task<AccessTokenPaginatedResponse> GetAccessTokensAsync(
         PaginationParams paginationParams,
         AccessTokenFilter? filter = null,
         SortOptions<AccessTokenSortField>? sort = null,

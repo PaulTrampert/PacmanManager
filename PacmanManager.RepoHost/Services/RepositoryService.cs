@@ -368,7 +368,7 @@ internal class RepositoryService(
         return true;
     }
 
-    public async Task<PaginatedResponse<Repository>> GetRepositoriesAsync(
+    public async Task<RepositoryPaginatedResponse> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
         SortOptions<RepositorySortField>? sort = null,
@@ -379,9 +379,10 @@ internal class RepositoryService(
         var query = (await VisibleAsync(cancellationToken))
             .Where(filter ?? new RepositoryFilter());
 
+        var sortOptions = sort ?? new SortOptions<RepositorySortField>();
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<RepositorySortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Repository.Projection)
@@ -389,11 +390,12 @@ internal class RepositoryService(
 
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
         var serverUrl = serverUrls.GetServerUrl();
-        return new PaginatedResponse<Repository>
+        return new RepositoryPaginatedResponse
         {
             Results = results.Select(r => Complete(WithPermissions(r, actor), serverUrl)!).ToList(),
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 }

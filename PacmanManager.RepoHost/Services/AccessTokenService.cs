@@ -110,7 +110,7 @@ internal class AccessTokenService(
     }
 
     /// <inheritdoc />
-    public async Task<PaginatedResponse<AccessToken>> GetAccessTokensAsync(
+    public async Task<AccessTokenPaginatedResponse> GetAccessTokensAsync(
         PaginationParams paginationParams,
         AccessTokenFilter? filter = null,
         SortOptions<AccessTokenSortField>? sort = null,
@@ -121,19 +121,21 @@ internal class AccessTokenService(
         var query = (await OwnAsync(accessPolicy.CheckRead, ScopeValues.ActionNames.Read, ct))
             .Where(filter ?? new AccessTokenFilter());
 
+        var sortOptions = sort ?? new SortOptions<AccessTokenSortField>();
         var total = await query.CountAsync(ct);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<AccessTokenSortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(AccessToken.Projection)
             .ToListAsync(ct);
 
-        return new PaginatedResponse<AccessToken>
+        return new AccessTokenPaginatedResponse
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 

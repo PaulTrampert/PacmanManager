@@ -14,6 +14,7 @@ using PacmanManager.RepoHost;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Infrastructure;
+using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.RepoHost.Startup.LibAlpm;
 using PTrampert.SimplePatch;
@@ -94,7 +95,10 @@ try
             opts.SubstituteApiVersionInUrl = true;
         });
     builder.Services.ConfigureOptions<ConfigureSwaggerGenOptions>();
-    builder.Services.AddSwaggerGen(c => c.DescribeAllParametersInCamelCase());
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.DescribeAllParametersInCamelCase();
+    });
 
     builder.Services.AddControllers()
         .AddJsonOptions(opt =>
