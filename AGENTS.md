@@ -52,13 +52,17 @@ from `e2e/fixtures.ts`, as the realm's `test` and `other` users, and share one s
 so each creates what it needs under a unique name. Playwright tests are `e2e/**/*.spec.ts`; the
 `e2e/**/*.test.ts` beside them are Vitest unit tests of the harness's own helpers.
 
-`npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree, and
-`src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`.
+`npm run generate` writes the gitignored `*.gen.ts` files: the TanStack Router route tree,
+`src/api/schema.gen.ts`, the API types `openapi-typescript` generates from `openapi/v1.json`, and
+`src/api/validation.gen.ts`, the request bodies' validation rules read from the same document.
 `dev`, `build`, `typecheck`, `lint`, `test` and `storybook` run it first, so nothing generated is ever
 committed or needed before them. The types are generated for the paths the API client is called
 with, under its `/api/pacmanmanager` base URL: the document's `/api/v1/Repositories` is the client's
 `/v1/Repositories`. Call the API only through `client` and `unwrap` from `src/api`, and mock it in
 tests and stories with `apiHandler` from `src/mocks/api.ts`, which is typed from the same schema.
+Validate a form field with `fieldValidator` from `src/api`, which takes its rules from that file; a
+form writes no length or pattern of its own. A pattern the generator cannot translate exactly is
+left to the API, with a warning from `npm run generate`.
 
 **Note on `dotnet test`:** `PacmanManager.RepoHost.Test` contains Testcontainers-based E2E tests
 that build the RepoHost and Migrations Docker images and start Postgres and Keycloak containers.

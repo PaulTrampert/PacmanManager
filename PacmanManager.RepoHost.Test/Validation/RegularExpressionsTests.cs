@@ -1,38 +1,40 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Validation;
+using PacmanManager.TestUtils;
 
 namespace PacmanManager.RepoHost.Test.Validation;
 
 public class RegularExpressionsTests
 {
-    [TestCase("a", true)]
-    [TestCase("A", true)]
-    [TestCase("1", true)]
-    [TestCase("@", true)]
-    [TestCase("_", true)]
-    [TestCase("+", true)]
-    [TestCase("-", false)]
-    [TestCase(".", false)]
-    [TestCase("aa", true)]
-    [TestCase("aA", true)]
-    [TestCase("a1", true)]
-    [TestCase("a@", true)]
-    [TestCase("a_", true)]
-    [TestCase("a+", true)]
-    [TestCase("a-", false)]
-    [TestCase("a.", false)]
-    [TestCase("aa1", true)]
-    [TestCase("aA1", true)]
-    [TestCase("a11", true)]
-    [TestCase("a@1", true)]
-    [TestCase("a_1", true)]
-    [TestCase("a+1", true)]
-    [TestCase("a-1", true)]
-    [TestCase("a.1", true)]
-    [TestCase("a\n", false)]
-    [TestCase("a\nb", false)]
-    [TestCase("a\n/etc/passwd", false)]
+    /// <summary>
+    /// The repository-name cases from the fixture the web app's parity test reads too, so a name
+    /// added there is checked against both the API's pattern and the web form's.
+    /// </summary>
+    private static IEnumerable<TestCaseData> RepositoryNameCases()
+    {
+        using var stream = File.OpenRead(ValidationFixtures.RepositoryNamesPath);
+        var cases = JsonSerializer.Deserialize<RepositoryNameFixture>(stream)
+            ?? throw new InvalidOperationException($"{ValidationFixtures.RepositoryNamesPath} is empty.");
+
+        foreach (var name in cases.Accepted)
+        {
+            yield return new TestCaseData(name, true);
+        }
+
+        foreach (var name in cases.Rejected)
+        {
+            yield return new TestCaseData(name, false);
+        }
+    }
+
+    private sealed record RepositoryNameFixture(
+        [property: JsonPropertyName("accepted")] IEnumerable<string> Accepted,
+        [property: JsonPropertyName("rejected")] IEnumerable<string> Rejected);
+
+    [TestCaseSource(nameof(RepositoryNameCases))]
     public void RepositoryName_MatchesRegularExpression(string repositoryName, bool isMatchExpected)
     {
         Assert.That(Regex.IsMatch(repositoryName, RegularExpressions.RepositoryName), Is.EqualTo(isMatchExpected));

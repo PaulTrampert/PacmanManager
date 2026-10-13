@@ -8,7 +8,7 @@
   },
   "scripts": {
     "postinstall": "msw init",
-    "generate": "tsr generate && node scripts/generate-api-schema.ts",
+    "generate": "tsr generate && node scripts/generate-api-schema.ts && node scripts/generate-validation.ts",
     "compose-up": "docker compose -f ../compose.yaml up -d --build",
     "predev": "npm run generate && npm run compose-up",
     "dev": "vite",
