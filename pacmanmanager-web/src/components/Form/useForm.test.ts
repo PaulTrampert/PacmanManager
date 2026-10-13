@@ -107,6 +107,18 @@ describe("useForm", () => {
     expect(result.current.context.setFieldError).toBe(setFieldError);
   });
 
+  it("keeps the context's identity until the form is submitted", () => {
+    const { result, rerender } = renderForm();
+    const { context } = result.current;
+
+    rerender({});
+    expect(result.current.context).toBe(context);
+
+    act(() => result.current.onSubmit(submitEvent()));
+    expect(result.current.context).not.toBe(context);
+    expect(result.current.context.setFieldError).toBe(context.setFieldError);
+  });
+
   it("keeps the context unchanged when a field reports the error it already has", () => {
     const { result } = renderForm();
     act(() =>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { FormContextValue } from "./FormContext";
 
 /** What {@link useForm} needs from the form's props. */
@@ -35,28 +35,23 @@ export function useForm({
     Readonly<Record<string, string>>
   >({});
 
-  // Stable, since every field lists it as an effect's dependency.
-  const setFieldError = useCallback(
-    (name: string, error: string | undefined) =>
-      setFieldErrors((current) => {
-        if (current[name] === error) {
-          return current;
-        }
-        const next = { ...current };
-        if (error === undefined) {
-          delete next[name];
-        } else {
-          next[name] = error;
-        }
-        return next;
-      }),
-    [],
-  );
+  // React Compiler keeps this function's identity, and so the context's, until what it reads
+  // changes; every field lists `setFieldError` as an effect's dependency.
+  const setFieldError = (name: string, error: string | undefined) =>
+    setFieldErrors((current) => {
+      if (current[name] === error) {
+        return current;
+      }
+      const next = { ...current };
+      if (error === undefined) {
+        delete next[name];
+      } else {
+        next[name] = error;
+      }
+      return next;
+    });
 
-  const context = useMemo(
-    () => ({ submitted, setFieldError }),
-    [submitted, setFieldError],
-  );
+  const context = { submitted, setFieldError };
 
   const disabled = pending || submitDisabled;
 
