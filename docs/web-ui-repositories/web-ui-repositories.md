@@ -1,6 +1,6 @@
 # Web UI: Repositories
 
-Status: **design**. This document is the source the **Web UI: Repositories** issues are cut from. It
+Status: **accepted**. This document is the source the **Web UI: Repositories** issues are cut from. It
 builds its screens on [Web UI Architecture](../web-ui-architecture/web-ui-architecture.md) and does
 not re-decide anything that document fixes.
 
