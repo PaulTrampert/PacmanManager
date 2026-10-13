@@ -10,6 +10,13 @@ export {
   type ValidationProblemDetails,
 } from "./ApiError";
 export { AntiforgeryError } from "./antiforgery";
+export {
+  fieldValidator,
+  type FieldValidator,
+  type FieldValidatorOptions,
+  type ValidatedProperty,
+  type ValidatedSchema,
+} from "./fieldValidator";
 export type { paths } from "./schema.gen";
 
 type Schemas = components["schemas"];
