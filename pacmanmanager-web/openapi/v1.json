@@ -341,6 +341,45 @@
         }
       }
     },
+    "/api/v1/Architectures": {
+      "get": {
+        "tags": [
+          "Architectures"
+        ],
+        "summary": "List the architectures a repository may support.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Architecture"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Architecture"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Architecture"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/Healthcheck": {
       "get": {
         "tags": [
@@ -1488,6 +1527,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -1673,6 +1732,26 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "text/plain": {
                 "schema": {
@@ -2280,6 +2359,25 @@
         "type": "string",
         "description": "The properties an access token listing may be ordered by."
       },
+      "Architecture": {
+        "required": [
+          "displayValue",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The architecture's name as pacman and the API know it, such as `x86_64`."
+          },
+          "displayValue": {
+            "type": "string",
+            "description": "The architecture's friendly name followed by its value in parentheses, such as\n`64-bit Intel/AMD (x86_64)`."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A machine architecture a repository may support, with a label for showing it to people."
+      },
       "CreateAccessTokenRequest": {
         "required": [
           "name"
@@ -2623,7 +2721,8 @@
       "Repository": {
         "required": [
           "id",
-          "permissions"
+          "permissions",
+          "serverUrl"
         ],
         "type": "object",
         "properties": {
@@ -2662,6 +2761,11 @@
           },
           "permissions": {
             "$ref": "#/components/schemas/RepositoryPermissions"
+          },
+          "serverUrl": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The URL a `pacman.conf` section's `Server` line names to reach this repository, such\nas `https://packages.example.com/pacman/$repo/$arch`. `$repo` and `$arch` are\nliteral, for pacman to fill in."
           }
         },
         "additionalProperties": false,
@@ -2831,6 +2935,9 @@
   "tags": [
     {
       "name": "AccessTokens"
+    },
+    {
+      "name": "Architectures"
     },
     {
       "name": "Healthcheck"

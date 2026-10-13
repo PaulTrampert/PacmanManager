@@ -42,6 +42,7 @@ try
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.ConfigureOptions<ConfigureJwtOptions>();
     builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
+    builder.Services.AddPublicUrl(builder.Configuration);
 
 // Register config generator and serializer
     builder.Services.AddSingleton<IPacmanConfigSerializer, PacmanConfigSerializer>();

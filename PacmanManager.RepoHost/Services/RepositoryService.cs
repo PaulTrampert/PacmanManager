@@ -30,8 +30,23 @@ internal class RepositoryService(
     RepositoryAccessPolicy accessPolicy,
     ILogger<RepositoryService> logger,
     IFileSystem fileSystem,
-    IPackagePathResolver pathResolver) : IRepositoryService
+    IPackagePathResolver pathResolver,
+    IServerUrlProvider serverUrls) : IRepositoryService
 {
+    /// <summary>
+    /// Sets the per-response fields on a repository that has already been materialised.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Repository.ServerUrl"/> is built here, after the query, and never in
+    /// <see cref="Repository.Projection"/>: it is not a column.
+    /// </remarks>
+    private Repository? Complete(Repository? repository, string serverUrl) =>
+        repository is null ? null : repository with { ServerUrl = serverUrl };
+
+    /// <inheritdoc cref="Complete(Repository?, string)"/>
+    private Repository? Complete(Repository? repository) =>
+        repository is null ? null : Complete(repository, serverUrls.GetServerUrl());
+
     /// <summary>
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.
     /// </summary>
@@ -181,7 +196,7 @@ internal class RepositoryService(
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
 
-        return await WithPermissionsAsync(repository, cancellationToken);
+        return Complete(await WithPermissionsAsync(repository, cancellationToken));
     }
 
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
@@ -195,7 +210,7 @@ internal class RepositoryService(
             .Select(Repository.Projection)
             .SingleOrDefaultAsync(cancellationToken);
 
-        return await WithPermissionsAsync(repository, cancellationToken);
+        return Complete(await WithPermissionsAsync(repository, cancellationToken));
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(
@@ -297,7 +312,7 @@ internal class RepositoryService(
             throw;
         }
 
-        return WithPermissions(Repository.FromPacmanRepository(repository), actor);
+        return Complete(WithPermissions(Repository.FromPacmanRepository(repository), actor))!;
     }
 
     public async Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default)
@@ -322,7 +337,7 @@ internal class RepositoryService(
             throw NameTaken(e);
         }
 
-        return await WithPermissionsAsync(Repository.FromPacmanRepository(repository), cancellationToken);
+        return Complete(await WithPermissionsAsync(Repository.FromPacmanRepository(repository), cancellationToken))!;
     }
 
     public async Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)
@@ -373,9 +388,10 @@ internal class RepositoryService(
             .ToListAsync(cancellationToken);
 
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
+        var serverUrl = serverUrls.GetServerUrl();
         return new PaginatedResponse<Repository>
         {
-            Results = results.Select(r => WithPermissions(r, actor)).ToList(),
+            Results = results.Select(r => Complete(WithPermissions(r, actor), serverUrl)!).ToList(),
             Offset = paginationParams.Offset,
             Total = total
         };

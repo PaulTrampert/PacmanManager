@@ -60,6 +60,19 @@ public record Repository
     public RepositoryPermissions Permissions { get; init; } = RepositoryPermissions.None;
     
     /// <summary>
+    /// The URL a <c>pacman.conf</c> section's <c>Server</c> line names to reach this repository, such
+    /// as <c>https://packages.example.com/pacman/$repo/$arch</c>. <c>$repo</c> and <c>$arch</c> are
+    /// literal, for pacman to fill in.
+    /// </summary>
+    /// <remarks>
+    /// Built from the <c>PublicUrl</c> setting, or the request's root when it is not set, each time the
+    /// repository is returned; it is never stored. Neither <see cref="Projection"/> nor
+    /// <see cref="FromPacmanRepository"/> sets it.
+    /// </remarks>
+    [Required]
+    public string ServerUrl { get; init; } = string.Empty;
+
+    /// <summary>
     /// Projects the underlying db object onto this model inside a query.
     /// </summary>
     /// <remarks>
