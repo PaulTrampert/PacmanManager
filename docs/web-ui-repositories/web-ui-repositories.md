@@ -652,7 +652,9 @@ The work is in six layers, and an issue depends only on issues in earlier layers
 Every component is **presentational**: it takes values and callbacks as props, and never calls the
 API, reads the URL or navigates. A repository component takes the generated `Repository` type
 rather than restating its fields as loose props, so a schema change breaks it at typecheck; it
-therefore depends on the API issue that adds any field it uses. Queries, mutations, search params and navigation are connected in
+therefore depends on the API issue that adds any field it uses. Every story and test that **builds** an API value
+does so through the [typed fixture builders](#7-typed-api-fixture-builders--patch), so a new required
+field touches one file. Queries, mutations, search params and navigation are connected in
 layers 5 and 6. Each component issue's acceptance is a story per state the wireframes show, with a
 `play` function for each interaction, as [Testing](../web-ui-architecture/web-ui-architecture.md#testing)
 requires. Each issue that builds or changes a component or page names the [wireframes](#wireframes)
@@ -782,7 +784,23 @@ of `Name`, `Created` and `Updated` with no `direction`, giving their default dir
 
 **Groundwork components**
 
-### 7. `PageHeader` — PATCH
+### 7. Typed API fixture builders — PATCH
+
+`src/mocks/fixtures.ts`, exporting `aRepository(overrides?)`, `aPage(results, { sort?, offset?,
+total? })`, `anArchitecture(overrides?)` and `aUser(overrides?)`. Each is typed from the generated
+schema and fills every required field with a valid default, so adding a required field to the API
+touches this file and no fixture elsewhere.
+
+*Constraints:* stories, query tests, mutation tests and route tests build API values only through
+these builders, never as literal objects; an issue that builds them depends on this one rather than
+on the individual API issues.
+
+*Acceptance:* a unit test asserts each builder's default satisfies its generated schema type and
+includes every required field, and that overrides win over defaults.
+
+*Depends on:* 1, 2, 3, 6.
+
+### 8. `PageHeader` — PATCH
 
 A page's top: optional MUI `Breadcrumbs` (every crumb but the last a router link), the `h1`, an
 optional adornment beside it, and optional actions aligned right. See [Navigation](#navigation).
@@ -794,7 +812,7 @@ optional adornment beside it, and optional actions aligned right. See [Navigatio
 
 *Depends on:* nothing.
 
-### 8. `EmptyState` — PATCH
+### 9. `EmptyState` — PATCH
 
 A heading, a message and an optional action, in an outlined box. See [Empty states](#empty-states).
 
@@ -804,7 +822,7 @@ A heading, a message and an optional action, in an outlined box. See [Empty stat
 
 *Depends on:* nothing.
 
-### 9. `FilterSelect` — PATCH
+### 10. `FilterSelect` — PATCH
 
 An outlined select for one filter: an **All** option plus the given options. With one option or
 none it is disabled on **All**; it can also be told to be disabled on a given value. See
@@ -828,7 +846,7 @@ back logs no controlled/uncontrolled warning.
 
 * [single-option filters are disabled, not hidden](#why-single-option-filters-are-disabled-not-hidden)
 
-### 10. `AsyncAutocomplete` — PATCH
+### 11. `AsyncAutocomplete` — PATCH
 
 An outlined MUI `Autocomplete` whose options come from an async search, called 300 ms after typing
 stops; with optional **pinned options** shown first and followed by a divider, filtered by the typed
@@ -844,7 +862,7 @@ does not match the text is hidden, and that a pinned option returned by the sear
 
 *Depends on:* nothing.
 
-### 11. `PaginatedTable` — PATCH
+### 12. `PaginatedTable` — PATCH
 
 An outlined MUI table with column definitions, `TableSortLabel` on the sortable ones, and
 `TablePagination` whose page sizes are a `rowsPerPageOptions` prop, defaulting to 25, 50 and 100. It takes the sort, the offset and the page size as
@@ -865,7 +883,7 @@ column with **no** direction, so the field's default applies.
 
 * [the list sorts from its column headers](#why-the-list-sorts-from-its-column-headers)
 
-### 12. `Form` and `FormField` — PATCH
+### 13. `Form` and `FormField` — PATCH
 
 `Form`: a `<form noValidate>` with an optional `ProblemDetailsAlert` above its fields and an actions
 row of a submit button (with a pending label) and **Cancel**. `FormField`: an outlined text field
@@ -885,7 +903,7 @@ would fail it, and shows the API's `400` on the field.
 
 *Depends on:* 5.
 
-### 13. `Dialog` — PATCH
+### 14. `Dialog` — PATCH
 
 A standard MUI `Dialog`: a title, content and actions; it disables its actions while pending. It
 shows no errors itself: a dialog closes on failure, and the page or form behind it shows the error.
@@ -897,7 +915,7 @@ nothing while pending.
 
 *Depends on:* nothing.
 
-### 14. `CopyableCodeBlock` — PATCH
+### 15. `CopyableCodeBlock` — PATCH
 
 A read-only monospace block with a **Copy** button that copies the block's text and reads **Copied**
 for a few seconds; when the clipboard is unavailable it selects the text and says so instead. See
@@ -916,7 +934,7 @@ text.
 
 **Repository components**
 
-### 15. `VisibilityChip` — PATCH
+### 16. `VisibilityChip` — PATCH
 
 The Public or Private chip used in the table and the repository page's title.
 
@@ -926,7 +944,7 @@ The Public or Private chip used in the table and the repository page's title.
 
 *Depends on:* nothing.
 
-### 16. `RepositoryFilters` — PATCH
+### 17. `RepositoryFilters` — PATCH
 
 The filter bar — name search, visibility, owner and architecture. The owner filter pins the signed-in user as "(you)". See [Filters](#filters).
 
@@ -938,9 +956,9 @@ fetch them. The name search reports 300 ms after typing stops.
 *Acceptance:* a story per wireframe above; `play` functions assert each control reports its filter
 parameter, and that anonymous visibility and a single-user owner filter are disabled as specified.
 
-*Depends on:* 9, 10.
+*Depends on:* 7, 10, 11.
 
-### 17. `RepositoryTable` — PATCH
+### 18. `RepositoryTable` — PATCH
 
 `PaginatedTable` configured with the list's columns, the name linking to the repository's page,
 passing the response's `sort` as the applied sort, and an `architectures` prop — the
@@ -952,9 +970,9 @@ falling back to the raw value for one not in the array. See [The repository list
 *Acceptance:* stories for several rows, each sort, a second page, loading with previous rows (dimmed,
 spinner over them) and a first load (spinner, no rows).
 
-*Depends on:* 3, 6, 11, 15.
+*Depends on:* 3, 6, 7, 12, 16.
 
-### 18. `RepositoryHeader` — PATCH
+### 19. `RepositoryHeader` — PATCH
 
 The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
 **Edit** and **Delete** by `permissions`, and the row of details. It takes the generated `Repository`
@@ -965,9 +983,9 @@ and an `architectures` prop, showing architectures as `RepositoryTable` does. Se
 *Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
 function asserts **Delete** calls its callback and **Edit** links to the edit route.
 
-*Depends on:* 2, 3, 7, 15.
+*Depends on:* 2, 3, 7, 8, 16.
 
-### 19. `PacmanConfSection` — PATCH
+### 20. `PacmanConfSection` — PATCH
 
 The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of the
 `pacman.conf` section, and the private note. It takes the generated `Repository`.
@@ -977,9 +995,9 @@ The collapsed **Use this repository** accordion holding a `CopyableCodeBlock` of
 *Acceptance:* stories collapsed, expanded public and expanded private; `play` functions assert it
 starts collapsed and the copied text is exactly the section, built from `name` and `serverUrl`.
 
-*Depends on:* 1, 14.
+*Depends on:* 1, 7, 15.
 
-### 20. `RepositoryForm` — PATCH
+### 21. `RepositoryForm` — PATCH
 
 The one form for creating and editing, built from `Form` and `FormField`, behaving by whether its
 repository has an `id`. See [`RepositoryForm`](#repositoryform).
@@ -998,13 +1016,13 @@ values with the existing `supportedArchitectures` when editing, and that a `409`
 the name field and not in an alert. A story with two architectures shows both selected in the edit
 form, by `displayValue`.
 
-*Depends on:* 3, 12.
+*Depends on:* 3, 7, 13.
 
 **Why:**
 
 * [create and edit are one form](#why-create-and-edit-are-one-form)
 
-### 21. `ConfirmRepositoryChangesDialog` — PATCH
+### 22. `ConfirmRepositoryChangesDialog` — PATCH
 
 The **Save these changes?** dialog, given the stored and the edited repository, listing the
 consequences that apply. See
@@ -1015,9 +1033,9 @@ consequences that apply. See
 *Acceptance:* stories for a rename, each visibility change, a rename with a visibility change, and
 pending; `play` functions assert the consequences shown and their order.
 
-*Depends on:* 13.
+*Depends on:* 7, 14.
 
-### 22. `DeleteRepositoryDialog` — PATCH
+### 23. `DeleteRepositoryDialog` — PATCH
 
 The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repository).
 
@@ -1026,7 +1044,7 @@ The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repos
 *Acceptance:* stories for open, name typed and pending; `play` functions assert **Delete** is enabled
 only for the exact, case-sensitive name.
 
-*Depends on:* 13.
+*Depends on:* 7, 14.
 
 **Queries and mutations**
 
@@ -1034,51 +1052,51 @@ Each is a query-options factory or mutation hook under `src/queries`, following
 [Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data), with a unit test
 against MSW asserting the request it sends and, for a mutation, the cache it invalidates or updates.
 
-### 23. `repositoryListQuery` — PATCH
+### 24. `repositoryListQuery` — PATCH
 
 `repositoryListQuery(search)`, sending every filter, sort and paging parameter it is given and no
 others.
 
-*Depends on:* nothing.
+*Depends on:* 7.
 
-### 24. `repositoryQuery` — PATCH
+### 25. `repositoryQuery` — PATCH
 
 `repositoryQuery(id)`. A `404` is an `ApiError` the route turns into not-found.
 
-*Depends on:* nothing.
+*Depends on:* 7.
 
-### 25. `architecturesQuery` — PATCH
+### 26. `architecturesQuery` — PATCH
 
 `architecturesQuery()`, with a long `staleTime`, since the list is static.
 
-*Depends on:* 3.
+*Depends on:* 3, 7.
 
-### 26. `userListQuery` — PATCH
+### 27. `userListQuery` — PATCH
 
 `userListQuery(search)` over `GET /v1/Users`, used both for the owner search and, with
 `pageSize=1`, for the user count.
 
-*Depends on:* nothing.
+*Depends on:* 7.
 
-### 27. `userQuery` — PATCH
+### 28. `userQuery` — PATCH
 
 `userQuery(id)` over `GET /v1/Users/{id}`, used to label an `ownerId` from the URL.
 
-*Depends on:* nothing.
+*Depends on:* 7.
 
-### 28. `useCreateRepository` — PATCH
+### 29. `useCreateRepository` — PATCH
 
 Invalidates the repository list queries on success.
 
-*Depends on:* 4.
+*Depends on:* 4, 7.
 
-### 29. `useUpdateRepository` — PATCH
+### 30. `useUpdateRepository` — PATCH
 
 Invalidates the list queries and sets the repository's detail query to the response on success.
 
-*Depends on:* 4.
+*Depends on:* 4, 7.
 
-### 30. `useDeleteRepository` — PATCH
+### 31. `useDeleteRepository` — PATCH
 
 Takes an optional hook-level `onDeleted: () => Promise<unknown>`. Its own `onSuccess`, which TanStack
 Query awaits, in order:
@@ -1096,14 +1114,14 @@ before the page that reads it has unmounted would make that page refetch the del
 the lists are invalidated with or without it, and that the mutation stays pending until `onDeleted`
 settles.
 
-*Depends on:* nothing.
+*Depends on:* 7.
 
 **Pages**
 
 Each issue adds a route that renders what its loader fetched, with its callbacks not yet connected
 to anything; a route test renders it against MSW for each state its wireframes show.
 
-### 31. The repository list page — MINOR
+### 32. The repository list page — MINOR
 
 `/repositories` with its `validateSearch` over the [search params](#the-repository-list), its loader
 as [Loading](#loading) sets out,
@@ -1120,13 +1138,13 @@ architecture, `?ownerId=…` with one user, and `?isPublic=false` anonymously, a
 removed by a history-replacing redirect and absent from the list request; a Playwright test
 signs in, and sees a repository it created through the API.
 
-*Depends on:* 6, 7, 8, 16, 17, 23, 25, 26.
+*Depends on:* 6, 7, 8, 9, 17, 18, 24, 26, 27.
 
 **Why:**
 
 * [`/` redirects to the list](#why--redirects-to-the-list)
 
-### 32. The repository page — MINOR
+### 33. The repository page — MINOR
 
 `/repositories/$repositoryId`: `RepositoryHeader`, given `architecturesQuery()`'s result, and
 `PacmanConfSection`; not-found on a `404`.
@@ -1136,14 +1154,14 @@ signs in, and sees a repository it created through the API.
 *Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
 
-*Depends on:* 18, 19, 24, 25.
+*Depends on:* 7, 19, 20, 25, 26.
 
 **Why:**
 
 * [repositories are addressed by id](#why-repositories-are-addressed-by-id)
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 
-### 33. The new repository page — MINOR
+### 34. The new repository page — MINOR
 
 `/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository.
 
@@ -1151,9 +1169,9 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 
 *Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
 
-*Depends on:* 7, 20, 25.
+*Depends on:* 7, 8, 21, 26.
 
-### 34. The edit repository page — MINOR
+### 35. The edit repository page — MINOR
 
 `/repositories/$repositoryId/edit` behind `requireUser`: `PageHeader` and `RepositoryForm` with the
 repository, or the `403` message when `permissions.update` is `false`.
@@ -1162,14 +1180,14 @@ repository, or the `403` message when `permissions.update` is `false`.
 
 *Acceptance:* route tests for the filled form, the `403` message and not-found.
 
-*Depends on:* 7, 20, 24, 25.
+*Depends on:* 7, 8, 21, 25, 26.
 
 **Behaviour**
 
 Each issue connects a page's callbacks, and carries a Playwright test of the behaviour against the
 compose stack, signed in as the realm's `test` and `other` users as needed.
 
-### 35. List filters, sort and paging — MINOR
+### 36. List filters, sort and paging — MINOR
 
 `RepositoryFilters` and `RepositoryTable` read and write the URL's search params, resetting `offset`
 on any filter, sort or page-size change; the owner filter searches with `userListQuery`, pins the
@@ -1190,9 +1208,9 @@ load `?offset=500` with 5 repositories and end on `offset=0` with the rows shown
 and load `?offset=500&pageSize=50` with 120 repositories and end on `offset=100`, each by a
 history-replacing navigation.
 
-*Depends on:* 27, 31.
+*Depends on:* 7, 28, 32.
 
-### 36. Create a repository — MINOR
+### 37. Create a repository — MINOR
 
 `RepositoryForm` on the new page calls `useCreateRepository`, navigates to the new repository on
 success, and returns to the list on **Cancel**.
@@ -1202,9 +1220,9 @@ success, and returns to the list on **Cancel**.
 *Acceptance:* Playwright tests create a public and a private repository and land on each one's page,
 and submit a taken name to see the error on the name field.
 
-*Depends on:* 28, 32, 33.
+*Depends on:* 7, 29, 33, 34.
 
-### 37. Edit a repository — MINOR
+### 38. Edit a repository — MINOR
 
 **Save** opens `ConfirmRepositoryChangesDialog`; confirming calls `useUpdateRepository` and navigates
 to the repository's page; any failure closes the dialog and shows in the form, as
@@ -1219,9 +1237,9 @@ the dialog close with the error on the name field. A route test answers the `PUT
 asserts the dialog closes and the form's alert shows it with the edits intact. A Playwright test edits
 the name, presses **Cancel**, and lands on the repository's page with the name unchanged.
 
-*Depends on:* 21, 29, 32, 34.
+*Depends on:* 7, 22, 30, 33, 35.
 
-### 38. Delete a repository — MINOR
+### 39. Delete a repository — MINOR
 
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
 `useDeleteRepository`, passing `onDeleted` as the navigation to `/repositories`; a failure closes the dialog and shows the
@@ -1235,7 +1253,7 @@ dialog closes, the alert shows above the header, and reopening the dialog starts
 field. Another asserts a successful delete lands on the list without the root error
 component ever rendering, and without a further request for the deleted id.
 
-*Depends on:* 22, 30, 32.
+*Depends on:* 7, 23, 31, 33.
 
 ---
 
