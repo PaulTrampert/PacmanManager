@@ -1080,7 +1080,21 @@ Invalidates the list queries and sets the repository's detail query to the respo
 
 ### 30. `useDeleteRepository` — PATCH
 
-Invalidates the list queries and removes the repository's detail query on success.
+Takes an optional hook-level `onDeleted: () => Promise<unknown>`. Its own `onSuccess`, which TanStack
+Query awaits, in order:
+
+1. invalidates the repository list queries;
+2. awaits `onDeleted`, if given;
+3. removes the repository's detail query.
+
+*Constraints:* `onDeleted` is an option of the hook, never a callback passed to `mutate()`: those run
+after the hook's `onSuccess` and are skipped if the component unmounts. Removing the detail query
+before the page that reads it has unmounted would make that page refetch the deleted id and throw a
+`404` from the component, reaching the root error component.
+
+*Acceptance:* the unit test asserts the detail query is removed only after `onDeleted` resolves, that
+the lists are invalidated with or without it, and that the mutation stays pending until `onDeleted`
+settles.
 
 *Depends on:* nothing.
 
@@ -1204,7 +1218,7 @@ asserts the dialog closes and the form's alert shows it with the edits intact.
 ### 38. Delete a repository — MINOR
 
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
-`useDeleteRepository` and navigates to the list; a failure closes the dialog and shows the
+`useDeleteRepository`, passing `onDeleted` as the navigation to `/repositories`; a failure closes the dialog and shows the
 "*name* was not deleted" alert above the repository page's header.
 
 *Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
@@ -1212,7 +1226,8 @@ asserts the dialog closes and the form's alert shows it with the edits intact.
 *Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
 list; its page then shows not-found. A route test answers the `DELETE` with a `500` and asserts the
 dialog closes, the alert shows above the header, and reopening the dialog starts with an empty name
-field.
+field. Another asserts a successful delete lands on the list without the root error
+component ever rendering, and without a further request for the deleted id.
 
 *Depends on:* 22, 30, 32.
 
