@@ -2,8 +2,8 @@ import CheckIcon from "@mui/icons-material/Check";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { useRef, useState, type ReactNode } from "react";
-import { useTemporaryFeedback } from "../../useTemporaryFeedback";
+import type { ReactNode } from "react";
+import { useCopyableCodeBlock, type CopyOutcome } from "./useCopyableCodeBlock";
 
 /** The props {@link CopyableCodeBlock} takes. */
 export interface CopyableCodeBlockProps {
@@ -22,9 +22,7 @@ export const defaultFeedbackDuration = 3000;
 export const copyFailedText =
   "Your browser blocked copying. The text is selected; press Ctrl+C to copy it.";
 
-type Outcome = "idle" | "copied" | "failed";
-
-const labels: Record<Outcome, string> = {
+const labels: Record<CopyOutcome, string> = {
   idle: "Copy",
   copied: "Copied",
   failed: "Couldn't copy",
@@ -34,7 +32,7 @@ const colors = {
   idle: "primary",
   copied: "success",
   failed: "error",
-} as const satisfies Record<Outcome, string>;
+} as const satisfies Record<CopyOutcome, string>;
 
 /**
  * A read-only monospace block of text with a **Copy** button. **Copy** puts the text on the
@@ -48,30 +46,10 @@ export function CopyableCodeBlock({
   description,
   feedbackDuration = defaultFeedbackDuration,
 }: CopyableCodeBlockProps) {
-  const { value: outcome, show } = useTemporaryFeedback<Outcome>(
-    "idle",
+  const { outcome, blocked, block, copy } = useCopyableCodeBlock(
+    text,
     feedbackDuration,
   );
-  const [blocked, setBlocked] = useState(false);
-  const block = useRef<HTMLPreElement>(null);
-
-  const copy = async () => {
-    setBlocked(false);
-    try {
-      // `navigator.clipboard` is undefined outside a secure context, whatever its type says.
-      if (!(navigator.clipboard as Clipboard | undefined)) {
-        throw new Error("The clipboard API is unavailable.");
-      }
-      await navigator.clipboard.writeText(text);
-      show("copied");
-    } catch {
-      if (block.current) {
-        window.getSelection()?.selectAllChildren(block.current);
-      }
-      setBlocked(true);
-      show("failed");
-    }
-  };
 
   return (
     <Box>
