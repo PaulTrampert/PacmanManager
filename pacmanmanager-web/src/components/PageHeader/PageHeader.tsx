@@ -56,7 +56,7 @@ export function PageHeader({
               {label}
             </Link>
           ))}
-          <Typography color="text.primary" aria-current="page">
+          <Typography sx={{ color: "text.primary" }} aria-current="page">
             {current}
           </Typography>
         </Breadcrumbs>
