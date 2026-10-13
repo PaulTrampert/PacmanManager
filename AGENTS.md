@@ -197,6 +197,12 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   `PacmanRepositoryValidationConstants.NameMaxLength`), not literals at the use site.
 * Check existing `.csproj` files before adding a NuGet package; prefer what is already in use.
 * New infrastructure dependencies must be added to `compose.yaml`.
+* **Components render; hooks behave.** In `pacmanmanager-web`, a component never calls `useEffect`
+  directly and holds at most one `useState` of a small value (not a large state object). Its
+  behaviour lives in a `use<Component>` hook in the component's folder, not exported from
+  `index.ts`, and the component renders what that hook returns. Behaviour that isn't specific to
+  the component is a reusable hook of its own (`src/useTemporaryFeedback.ts`), which the
+  component's hook uses.
 
 ### Testing expectations
 
@@ -205,7 +211,8 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
 * Test stack: **NUnit** (globally imported via `GlobalUsings.cs` / `<Using Include="NUnit.Framework" />`),
   **Moq**, **Testcontainers**, and `Microsoft.EntityFrameworkCore.InMemory` for service-level tests.
 * `InternalsVisibleTo` exposes RepoHost internals to `PacmanManager.RepoHost.Test`.
-* In `pacmanmanager-web`, logic gets a Vitest unit test beside it (`Name.test.ts(x)`), and every
+* In `pacmanmanager-web`, logic gets a Vitest unit test beside it (`Name.test.ts(x)`), a
+  component's behaviour hook included (`useName.test.ts`, with `renderHook`), and every
   component in `src/components` a story per meaningful state (`Name.stories.tsx`), with a `play`
   function for each interaction. Stories run as tests under `npm test`. Unit tests and stories talk
   to MSW handlers from `src/mocks`, and a request no handler matches fails the test.

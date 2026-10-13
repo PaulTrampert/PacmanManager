@@ -17,6 +17,13 @@ Thank you for your interest in contributing! To maintain code quality and consis
     *   **C#**: Use XML documentation comments (`///`).
     *   **JavaScript/TypeScript**: Use JSDoc comments.
 
+### Web front end
+
+*   **Components render; hooks behave.** A component in `pacmanmanager-web` never calls `useEffect` itself, and holds at most a single `useState` of one small value, such as whether a panel is open. A large state object does not count as one small value. Everything else a component does (state, effects, timers, and callbacks that decide anything beyond passing a value straight through) goes in a custom hook, and the component renders what that hook returns.
+    *   **A component's own behaviour** goes in a hook named after it, in the component's folder: `CopyableCodeBlock/useCopyableCodeBlock.ts`. It is not exported from the folder's `index.ts`.
+    *   **Behaviour that isn't specific to one component** goes in a reusable hook of its own outside `src/components`, such as `src/useTemporaryFeedback.ts`. The component's hook uses it rather than reimplementing it.
+*   **Test the hook directly.** Each hook gets a Vitest unit test beside it (`useCopyableCodeBlock.test.ts`, using `renderHook`) that covers its behaviour without rendering the component. The component's stories then show its states and that its interactions reach the hook.
+
 ## Architecture & Infrastructure
 
 *   **Docker-First Development**: Any new infrastructure requirement (e.g., Redis, RabbitMQ) must be defined and configured in `compose.yaml`.
