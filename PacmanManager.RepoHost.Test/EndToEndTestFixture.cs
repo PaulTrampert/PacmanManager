@@ -13,7 +13,11 @@ namespace PacmanManager.RepoHost.Test;
 /// End-to-end test fixture that runs the PacmanManager.RepoHost application in a Docker container.
 /// Uses Testcontainers to build and start the actual Docker image, providing true E2E testing.
 /// </summary>
-public class EndToEndTestFixture : IAsyncDisposable
+/// <param name="environment">
+/// Further environment variables to start the API container with, on top of the ones every fixture
+/// sets, for a test of configuration the shared defaults leave unset.
+/// </param>
+public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environment = null) : IAsyncDisposable
 {
     private INetwork? _testNetwork;
     private DatabaseContainer? _dbContainer;
@@ -116,6 +120,7 @@ public class EndToEndTestFixture : IAsyncDisposable
                 // Well above the fixture package and low enough that a test can exceed it, which is
                 // the point of the limit being configuration rather than a constant.
                 .WithEnvironment("PackagePublishing__MaxUploadBytes", MaxUploadBytes.ToString())
+                .WithEnvironment(environment ?? new Dictionary<string, string>())
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready

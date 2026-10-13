@@ -20,6 +20,7 @@ const repository: Repository = {
   name: "custom",
   supportedArchitectures: ["x86_64"],
   isPublic: false,
+  serverUrl: "https://packages.example.com/pacman/$repo/$arch",
 };
 
 const currentUser: CurrentUser = {

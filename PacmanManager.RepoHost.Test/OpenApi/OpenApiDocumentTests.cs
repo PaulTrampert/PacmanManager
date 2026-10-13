@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace PacmanManager.RepoHost.Test.OpenApi;
 
 /// <summary>
@@ -42,6 +44,24 @@ public class OpenApiDocumentTests
             Assert.That(_generation.Output, Does.Not.Contain(" FTL]"));
             Assert.That(_generation.Output, Does.Not.Contain("Unhandled exception"));
         }
+    }
+
+    /// <summary>
+    /// A name collision on create or update is a <c>409</c>; the document declares it, so the web
+    /// app's generated types know the response exists.
+    /// </summary>
+    [TestCase("/api/v1/Repositories", "post")]
+    [TestCase("/api/v1/Repositories/{id}", "put")]
+    public async Task GeneratedDocument_DeclaresConflict(string path, string method)
+    {
+        Assume.That(_generation.ExitCode, Is.Zero, _generation.Output);
+
+        await using var stream = File.OpenRead(_generatedPath);
+        using var document = await JsonDocument.ParseAsync(stream);
+        var responses = document.RootElement
+            .GetProperty("paths").GetProperty(path).GetProperty(method).GetProperty("responses");
+
+        Assert.That(responses.TryGetProperty("409", out _), Is.True, $"{method.ToUpperInvariant()} {path} does not declare 409.");
     }
 
     [Test]
