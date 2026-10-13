@@ -1180,7 +1180,12 @@ removes every filter parameter; and a page past the end is clamped to the last p
 *Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)).
 
 *Acceptance:* Playwright tests filter by name, by visibility and by owner ("(you)" and another user),
-sort by each column in both directions, and reload to find the same state from the URL. Route tests
+sort by each column in both directions, and reload to find the same state from the URL. The owner-filter
+test first signs in as `other` in its own browser context with `signIn` from `e2e/fixtures.ts` and
+creates a repository through that session, so `other` exists and owns something, rather than relying
+on another test having signed `other` in. A paging test creates 26 repositories through the API
+under a unique name prefix, filters by that prefix at 25 rows per page, sees "1–25 of 26", moves to
+the next page and sees exactly one row and "26–26 of 26", then reloads to the same page. Route tests
 load `?offset=500` with 5 repositories and end on `offset=0` with the rows shown and no empty state,
 and load `?offset=500&pageSize=50` with 120 repositories and end on `offset=100`, each by a
 history-replacing navigation.
