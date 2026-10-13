@@ -29,6 +29,17 @@ public static class PacmanRepositoryValidationConstants
         Architectures.All.Except([Architectures.Any]);
 
     /// <summary>
+    /// A human-readable name for each of <see cref="SupportedArchitectures"/>, keyed by the
+    /// architecture's value, for clients to show beside or instead of the value itself. Every
+    /// supported architecture must have one.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> ArchitectureFriendlyNames =
+        new Dictionary<string, string>
+        {
+            [Architectures.X86_64] = "64-bit Intel/AMD",
+        };
+
+    /// <summary>
     /// The architectures a repository supports when a request does not say. Every allowed
     /// architecture, rather than a single one, so that an omitted request does not silently narrow
     /// to whichever architecture happened to be the default when it was added.
