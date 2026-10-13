@@ -591,14 +591,19 @@ consequence that applies, in this order:
 | Private → Public | Making it public: anyone, signed in or not, will be able to read every package in this repository. |
 | Public → Private | Making it private: clients that read this repository without credentials will lose access. |
 
-* The dialog's actions are **Cancel** (text) and **Save** (contained). **Save** sends the request
-  and the dialog closes when it settles; **Cancel** returns to the form with the edits intact.
-* A `409` closes the dialog and shows the error on the name field, as without it.
+* The dialog's actions are **Cancel** (text) and **Save** (contained). **Save** sends the request;
+  while it is pending the dialog stays open with its actions disabled. **Cancel** returns to the form
+  with the edits intact.
+* On success the page navigates to the repository's page. On **any** failure the dialog **closes**
+  and the error is shown in the form, with the edits intact: a `409` on the name field, a `400`'s
+  entries on their fields through `useFormErrors`, and anything else — a `403`, a `500`, a network
+  failure — in the form's `ProblemDetailsAlert`.
 * The API is not told whether the user confirmed. It performs the update as it does today.
 
 **Why:**
 
 * [confirmations live in the UI only](#why-confirmations-live-in-the-ui-only)
+* [a dialog closes on failure](#why-a-dialog-closes-on-failure)
 
 ---
 
@@ -615,14 +620,18 @@ Wireframes: [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](ht
 * has one text field labelled **Type *name* to confirm**, focused when the dialog opens;
 * has the actions **Cancel** (text) and **Delete** (contained, error colour). **Delete** is disabled
   until the typed text equals the name **exactly**, case included, and while the request is pending;
-* on success, navigates to `/repositories`; on failure, shows a `ProblemDetailsAlert` at the top of
-  the dialog's content and stays open with the typed name kept.
+* while the request is pending, stays open with its actions disabled;
+* on success, navigates to `/repositories`;
+* on **failure, closes**, and the repository page shows a dismissible `ProblemDetailsAlert` above its
+  header, titled "*name* was not deleted", with the response's `detail`. Retrying means opening the
+  dialog and typing the name again.
 
 The API is not told about the confirmation, and deletes as it does today.
 
 **Why:**
 
 * [confirmations live in the UI only](#why-confirmations-live-in-the-ui-only)
+* [a dialog closes on failure](#why-a-dialog-closes-on-failure)
 
 ---
 
@@ -873,13 +882,13 @@ would fail it, and shows the API's `400` on the field.
 
 ### 13. `Dialog` — PATCH
 
-A standard MUI `Dialog`: a title, content, an optional `ProblemDetailsAlert` at the top of the
-content, and actions; it disables its actions while pending.
+A standard MUI `Dialog`: a title, content and actions; it disables its actions while pending. It
+shows no errors itself: a dialog closes on failure, and the page or form behind it shows the error.
 
-*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)), [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
+*Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)), [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)).
 
-*Acceptance:* stories for plain, with an error, and pending; a `play` function asserts **Escape**
-and the backdrop do nothing while pending.
+*Acceptance:* stories for plain and pending; a `play` function asserts **Escape** and the backdrop do
+nothing while pending.
 
 *Depends on:* nothing.
 
@@ -989,8 +998,8 @@ consequences that apply. See
 
 *Wireframes:* [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)).
 
-*Acceptance:* stories for a rename, each visibility change, and a rename with a visibility change;
-`play` functions assert the consequences shown and their order.
+*Acceptance:* stories for a rename, each visibility change, a rename with a visibility change, and
+pending; `play` functions assert the consequences shown and their order.
 
 *Depends on:* 13.
 
@@ -998,10 +1007,10 @@ consequences that apply. See
 
 The type-to-confirm delete dialog. See [Deleting a repository](#deleting-a-repository).
 
-*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
+*Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)).
 
-*Acceptance:* stories per wireframe; `play` functions assert **Delete** is enabled only for the exact,
-case-sensitive name, and that a failure keeps the typed name.
+*Acceptance:* stories for open, name typed and pending; `play` functions assert **Delete** is enabled
+only for the exact, case-sensitive name.
 
 *Depends on:* 13.
 
@@ -1164,24 +1173,31 @@ and submit a taken name to see the error on the name field.
 ### 37. Edit a repository — MINOR
 
 **Save** opens `ConfirmRepositoryChangesDialog`; confirming calls `useUpdateRepository` and navigates
-to the repository's page; a `409` closes the dialog and shows on the name field.
+to the repository's page; any failure closes the dialog and shows in the form, as
+[Confirming consequential changes](#confirming-consequential-changes) sets out. The form's **Cancel**
+returns to the repository's page without saving.
 
 *Wireframes:* [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-confirm-changes](wireframes/edit-confirm-changes.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c88c3da8)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)).
 
 *Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
-list, make one private and confirm `other` can no longer see it, and rename to a taken name.
+list, make one private and confirm `other` can no longer see it, and rename to a taken name and see
+the dialog close with the error on the name field. A route test answers the `PUT` with a `500` and
+asserts the dialog closes and the form's alert shows it with the edits intact.
 
 *Depends on:* 21, 29, 32, 34.
 
 ### 38. Delete a repository — MINOR
 
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
-`useDeleteRepository` and navigates to the list; a failure is shown in the dialog.
+`useDeleteRepository` and navigates to the list; a failure closes the dialog and shows the
+"*name* was not deleted" alert above the repository page's header.
 
 *Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 *Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
-list; its page then shows not-found.
+list; its page then shows not-found. A route test answers the `DELETE` with a `500` and asserts the
+dialog closes, the alert shows above the header, and reopening the dialog starts with an empty name
+field.
 
 *Depends on:* 22, 30, 32.
 
@@ -1354,6 +1370,16 @@ initial values, their request and where they go afterwards. Two components would
 most likely to change — the fields and their rules — and drift the first time a field is added to
 one of them. The project owner asked for one component keyed on the presence of an `id`, rather than
 a `mode` prop, so the form cannot be told it is editing a repository it has no id for.
+
+### Why a dialog closes on failure
+
+Keeping a failed request's error inside its dialog, so it could be retried in place, was the first
+plan for the delete dialog. Instead every dialog closes on failure and the error is shown behind it.
+For the edit confirmation that puts the error where it can be fixed — a taken name or an invalid
+field can only be changed in the form. For delete it says, unmistakably, that **the repository was
+not deleted**: the dialog going away with the page still there, under a banner saying so, cannot be
+misread as success. Retrying means typing the name again, which is little friction for an action
+that cannot be undone.
 
 ### Why repositories are addressed by id
 
