@@ -37,11 +37,7 @@ export function useCopyableCodeBlock(
   const copy = async () => {
     setBlocked(false);
     try {
-      // `navigator.clipboard` is undefined outside a secure context, whatever its type says.
-      if (!(navigator.clipboard as Clipboard | undefined)) {
-        throw new Error("The clipboard API is unavailable.");
-      }
-      await navigator.clipboard.writeText(text);
+      await writeToClipboard(text);
       show("copied");
     } catch {
       if (block.current) {
@@ -53,4 +49,18 @@ export function useCopyableCodeBlock(
   };
 
   return { outcome, blocked, block, copy };
+}
+
+/**
+ * Puts `text` on the clipboard, rejecting where the browser has no clipboard API.
+ *
+ * Kept out of the hook because React Compiler cannot yet compile a `throw` inside a `try`, and would
+ * otherwise skip the whole hook.
+ */
+async function writeToClipboard(text: string): Promise<void> {
+  // `navigator.clipboard` is undefined outside a secure context, whatever its type says.
+  if (!(navigator.clipboard as Clipboard | undefined)) {
+    throw new Error("The clipboard API is unavailable.");
+  }
+  await navigator.clipboard.writeText(text);
 }

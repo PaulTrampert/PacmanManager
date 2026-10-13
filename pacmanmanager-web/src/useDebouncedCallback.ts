@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Returns a function that calls `callback` with the arguments of its latest call once `delayMs`
@@ -27,11 +27,8 @@ export function useDebouncedCallback<Args extends unknown[]>(
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  return useCallback(
-    (...args: Args) => {
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => callback(...args), delayMs);
-    },
-    [callback, delayMs],
-  );
+  return (...args: Args) => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => callback(...args), delayMs);
+  };
 }

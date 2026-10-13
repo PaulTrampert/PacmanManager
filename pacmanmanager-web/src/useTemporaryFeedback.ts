@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** What {@link useTemporaryFeedback} returns. */
 export interface TemporaryFeedback<Value> {
@@ -29,14 +29,11 @@ export function useTemporaryFeedback<Value>(
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  const show = useCallback(
-    (next: Value) => {
-      clearTimeout(timer.current);
-      setValue(next);
-      timer.current = setTimeout(() => setValue(resting), duration);
-    },
-    [resting, duration],
-  );
+  const show = (next: Value) => {
+    clearTimeout(timer.current);
+    setValue(next);
+    timer.current = setTimeout(() => setValue(resting), duration);
+  };
 
   return { value, show };
 }

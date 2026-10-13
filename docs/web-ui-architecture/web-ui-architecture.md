@@ -97,18 +97,22 @@ pacmanmanager-web/
   component's folder. The component renders what that hook returns, and `index.ts` doesn't export the
   hook. Behaviour that isn't specific to the component is a reusable hook of its own outside
   `components/` (such as `src/useTemporaryFeedback.ts`), which the component's hook uses.
-* **Reusable hooks memoize their callbacks.** A hook outside `components/` wraps each callback it
-  returns in `useCallback` with an honest dependency list. Its identity changes only when its inputs
-  do, and callers keep their inputs stable. Inputs are never hidden in a `useRef` to fix an identity.
-  A ref holds only state that has to outlive renders, such as a debounce's timer, with a comment
-  saying why. A component's own `use<Name>` hook uses `useCallback` only where a dependency list or a
-  memoized child needs a stable function.
+* **React Compiler memoizes.** Components and hooks don't write `useMemo` or `useCallback` by
+  hand. The compiler gives each callback a hook returns an identity that changes only when what it
+  reads does, and callers keep their inputs stable. A reusable hook's unit test asserts that its
+  callbacks keep their identity across a re-render with the same inputs. Inputs are never hidden in a
+  `useRef` to fix an identity. A ref holds only state that has to outlive renders, such as a
+  debounce's timer, with a comment saying why.
+* **Nothing is skipped silently.** A function the compiler cannot compile fails the build. It is
+  restructured until it compiles, or opts out with a `"use no memo"` directive and a comment saying
+  why; a reusable hook that opts out wraps each callback it returns in `useCallback` with an honest
+  dependency list.
 
 **Why:**
 
 * [the app lives beside the solution, not in it](#why-the-app-lives-beside-the-solution-not-in-it)
 * [components render and hooks behave](#why-components-render-and-hooks-behave)
-* [only reusable hooks memoize their callbacks](#why-only-reusable-hooks-memoize-their-callbacks)
+* [React Compiler memoizes](#why-react-compiler-memoizes)
 
 ### Toolchain
 
@@ -117,6 +121,7 @@ pacmanmanager-web/
 | Runtime | Node **LTS** (`lts/*` in `.nvmrc`, `engines.node` a floor at the current LTS major); npm as shipped with it |
 | Language | TypeScript, `strict`, `moduleResolution: bundler`, `noEmit` |
 | Build and dev server | Vite, with `@vitejs/plugin-react` and `@tanstack/router-plugin` |
+| Memoization | React Compiler (`babel-plugin-react-compiler`), run by `@rolldown/plugin-babel` with `@vitejs/plugin-react`'s `reactCompilerPreset`, `panicThreshold: "all_errors"` |
 | UI | React 19, MUI (`@mui/material`, `@mui/icons-material`), Emotion |
 | Routing | TanStack Router, file-based, `autoCodeSplitting: true` |
 | Server state | TanStack Query |
@@ -127,6 +132,8 @@ pacmanmanager-web/
 | End-to-end tests | `@playwright/test` |
 | Lint and format | ESLint flat config (`typescript-eslint`, `react-hooks`, `@tanstack/eslint-plugin-query`, `@tanstack/eslint-plugin-router`, `eslint-plugin-storybook`) and Prettier |
 
+* React Compiler is configured once, in `vite.config.ts`, so the build, the dev server, Vitest and
+  Storybook all run compiled code.
 * Every dependency is pinned by `package-lock.json`. Dependabot gains an `npm` ecosystem entry for
   `/pacmanmanager-web`, grouped like the others, and the existing `docker` entry covers the new
   Dockerfile.
@@ -139,6 +146,7 @@ pacmanmanager-web/
 * [the client is `openapi-typescript` and `openapi-fetch`](#why-openapi-typescript-and-openapi-fetch)
 * [APIs are mocked at the network with MSW](#why-msw-rather-than-swapping-the-client-module)
 * [routes are file-based](#why-routes-are-file-based)
+* [React Compiler memoizes](#why-react-compiler-memoizes)
 
 ---
 
@@ -907,28 +915,41 @@ test worth writing. A large state object in that one `useState` is a hook in dis
 Rejected: allowing `useEffect` in components and relying on stories alone, which is how the first
 components were written and what review asked to undo.
 
-### Why only reusable hooks memoize their callbacks
+### Why React Compiler memoizes
 
-React treats `useCallback` as a performance tool. A function's identity matters only when something
+React treats memoization as a performance tool. A function's identity matters only when something
 compares it: an effect or another hook's dependency list, or a child wrapped in `memo`. A reusable
 hook can't know its callers, and one that returned a new function on every render would make a
-caller's effect that lists it re-run on every render. So a reusable hook memoizes what it returns. A
-component's own hook has exactly one caller, which renders what it returns, so wrapping its callbacks
-would add dependency lists to keep right and save nothing.
+caller's effect that lists it re-run on every render. React Compiler memoizes every component and
+hook, giving a returned callback an identity that changes only when something it reads does. That is
+what a hand-written `useCallback` with an honest dependency list gave, without a dependency list to
+keep right, and it covers a component's own hook as well as a reusable one. Because a reusable hook's
+callers now rely on the compiler for that identity, the hook's unit test asserts it, and fails if the
+compiler stops running.
 
-Dependencies are honest: a callback that reads an input lists it, and gets a new identity when the
-input changes. That is how React means `useCallback` to be read, and it keeps the code plain. Keeping
-the inputs stable is the caller's part, and is usually free, since most inputs are primitives.
+The compiler skips a function it cannot compile, and by default does so silently, which would quietly
+take a reusable hook's stable identities away. `panicThreshold: "all_errors"` makes that a build
+failure instead, so a skip is always a decision recorded in the code. When the compiler was enabled,
+one function failed: `useCopyableCodeBlock`, whose `throw` inside a `try` the compiler cannot yet
+lower. The check moved into a module-level helper, and nothing opts out.
+
+The compiler runs through Babel: `@vitejs/plugin-react` 6 has no `babel` option, and documents
+`@rolldown/plugin-babel` with its `reactCompilerPreset` as the way to run `babel-plugin-react-compiler`.
+Turning it on grew the production bundle from 530.49 kB (171.01 kB gzipped) to 533.51 kB (172.18 kB
+gzipped), the price of the memo cache it adds to each component and hook.
 
 Rejected:
+* **Keeping hand-written `useCallback` in reusable hooks**, the rule before the compiler: every
+  reusable hook wrapped each callback it returned in `useCallback`, and a component's own hook did
+  not. With the compiler on, that is a second dependency list for what the compiler already does.
+  It survives only for a reusable hook that opts out with `"use no memo"`.
 * **The "latest value" ref pattern**: inputs in a `useRef` updated in a layout effect, read by a
   `useCallback` with no dependencies. It makes the identity unconditionally stable, but splits one
   piece of logic across a ref, an effect and a callback, and reads less clearly than a dependency list.
   It was briefly the rule, in #287's first draft, and was dropped in review. A ref stays acceptable for
   state that genuinely outlives renders, such as a debounce's pending timer.
-* **`useCallback` everywhere**, which costs a dependency list per function for no benefit where
-  nothing compares the function.
-* **Never `useCallback`**, which leaves callers of reusable hooks with effects that re-run on every
-  render.
-* **Waiting for React Compiler**, which would memoize all of this automatically but isn't enabled.
-  Issue #285 evaluates it, and this rule is to be revisited then.
+* **`@vitejs/plugin-react`'s `compiler` option**, which runs `oxc-transform-react`, a Rust port of the
+  compiler, without Babel. It is faster, but its README marks it experimental, where the Babel plugin
+  is the compiler's stable release.
+* **The compiler's default `panicThreshold`**, which skips a function it cannot compile without a
+  word, leaving the code relying on memoization it doesn't get.
