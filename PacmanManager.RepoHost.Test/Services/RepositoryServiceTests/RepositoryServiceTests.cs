@@ -1284,6 +1284,169 @@ public class RepositoryServiceTests
 
     #endregion
 
+    #region Permissions
+
+    private static readonly RepositoryPermissions Everything = new() { Update = true, Delete = true };
+
+    private static readonly RepositoryPermissions Nothing = new() { Update = false, Delete = false };
+
+    private Actor OwnerWithScope(string scope) =>
+        Actor.For(_existingUser, ActorScope.Parse(scope, NullLogger.Instance));
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_PermitsTheOwnerEverything()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repository.Id);
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(Everything));
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_PermitsAnotherUserNothing_OnAPublicRepository()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repository.Id);
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(Nothing));
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_PermitsAnAnonymousCallerNothing()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync(isPublic: true);
+        _actors.Actor = Actor.Anonymous;
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repository.Id);
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(Nothing));
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_DoesNotPermitUpdate_ToAnOwnersTokenWithoutTheUpdateScope()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync();
+        _actors.Actor = OwnerWithScope("pacman-manager:repositories:read pacman-manager:repositories:delete");
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repository.Id);
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(new RepositoryPermissions { Update = false, Delete = true }));
+    }
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_DoesNotPermitDelete_ToAnOwnersTokenWithoutTheDeleteScope()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync();
+        _actors.Actor = OwnerWithScope("pacman-manager:repositories:read pacman-manager:repositories:update");
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repository.Id);
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(new RepositoryPermissions { Update = true, Delete = false }));
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_SetsPermissionsForTheCaller()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "mine");
+        await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: true);
+
+        // Act
+        var mine = await _service.GetRepositoryByNameAsync("mine");
+        var theirs = await _service.GetRepositoryByNameAsync("theirs");
+
+        // Assert
+        Assert.Multiple(() =>
+        {
+            Assert.That(mine!.Permissions, Is.EqualTo(Everything));
+            Assert.That(theirs!.Permissions, Is.EqualTo(Nothing));
+        });
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SetsPermissionsForTheCallerOnEachRepository()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "mine");
+        await GivenRepositoryAsync(name: "theirs", owner: _otherUser, isPublic: true);
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams());
+
+        // Assert
+        var permissions = result.Results.ToDictionary(r => r.Name, r => r.Permissions);
+        Assert.That(permissions, Is.EqualTo(new Dictionary<string, RepositoryPermissions>
+        {
+            ["mine"] = Everything,
+            ["theirs"] = Nothing,
+        }));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_PermitsAnAnonymousCallerNothing()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "public-one", isPublic: true);
+        _actors.Actor = Actor.Anonymous;
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams());
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.Permissions), Is.EqualTo(new[] { Nothing }));
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_SetsPermissionsForTheCreator()
+    {
+        // A token that may create but not delete is told so about what it has just created.
+        // Arrange
+        _actors.Actor = OwnerWithScope(
+            "pacman-manager:repositories:read pacman-manager:repositories:create pacman-manager:repositories:update");
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "created" });
+
+        // Assert
+        Assert.That(result.Permissions, Is.EqualTo(new RepositoryPermissions { Update = true, Delete = false }));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_SetsPermissionsForTheCaller()
+    {
+        // Arrange
+        var repository = await GivenRepositoryAsync();
+        _actors.Actor = OwnerWithScope("pacman-manager:repositories:read pacman-manager:repositories:update");
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(
+            repository.Id, new WriteRepositoryRequest { Name = "renamed" });
+
+        // Assert
+        Assert.That(result!.Permissions, Is.EqualTo(new RepositoryPermissions { Update = true, Delete = false }));
+    }
+
+    #endregion
+
     private async Task<PacmanRepository> GivenRepositoryAsync(
         Guid? id = null,
         string name = "a-repo",
