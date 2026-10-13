@@ -811,11 +811,14 @@ none it is disabled on **All**; it can also be told to be disabled on a given va
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)).
 
 *Constraints:* the "one option or none" rule lives here, not in each caller. While disabled, it
-reports no value.
+reports no value. Its API takes and reports `undefined` for **All**, but the MUI `Select` inside it
+is given `""` for **All**, never `undefined`, so it stays controlled; the mapping between the two
+happens only inside `FilterSelect`.
 
 *Acceptance:* stories for several options, a single option, no options, and disabled on a fixed
 value; `play` functions assert the disabled states cannot be opened and that choosing an option and
-**All** each call `onChange` with the value and with `undefined`.
+**All** each call `onChange` with the value and with `undefined`, and that switching to **All** and
+back logs no controlled/uncontrolled warning.
 
 *Depends on:* nothing.
 
