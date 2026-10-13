@@ -44,7 +44,7 @@ describe("useDebouncedCallback", () => {
     expect(callback.mock.calls).toEqual([["a"], ["b"]]);
   });
 
-  it("calls the callback of the latest render", () => {
+  it("runs a waiting call through the callback it was made with", () => {
     const first = vi.fn();
     const second = vi.fn();
     const { result, rerender } = renderHook(
@@ -56,20 +56,41 @@ describe("useDebouncedCallback", () => {
     rerender({ callback: second });
     vi.advanceTimersByTime(300);
 
-    expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledExactlyOnceWith("a");
+    expect(first).toHaveBeenCalledExactlyOnceWith("a");
+    expect(second).not.toHaveBeenCalled();
   });
 
-  it("keeps the same function across renders", () => {
+  it("keeps one pending call across a new callback", () => {
+    const first = vi.fn();
+    const second = vi.fn();
     const { result, rerender } = renderHook(
       ({ callback }) => useDebouncedCallback(callback, 300),
-      { initialProps: { callback: vi.fn() } },
+      { initialProps: { callback: first } },
+    );
+
+    result.current("a");
+    vi.advanceTimersByTime(200);
+    rerender({ callback: second });
+    result.current("ab");
+    vi.advanceTimersByTime(300);
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledExactlyOnceWith("ab");
+  });
+
+  it("keeps its identity while the callback and delay do", () => {
+    const callback = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ delayMs }) => useDebouncedCallback(callback, delayMs),
+      { initialProps: { delayMs: 300 } },
     );
     const first = result.current;
 
-    rerender({ callback: vi.fn() });
-
+    rerender({ delayMs: 300 });
     expect(result.current).toBe(first);
+
+    rerender({ delayMs: 500 });
+    expect(result.current).not.toBe(first);
   });
 
   it("calls nothing once unmounted", () => {

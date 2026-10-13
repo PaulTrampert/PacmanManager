@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef } from "react";
  * pass without another call. Each call cancels the one still waiting, and unmounting cancels any
  * call still waiting, so `callback` is never called after its component has gone.
  *
- * The function keeps its identity across renders while `delayMs` does, and always calls the
- * `callback` of the latest render, so callers need not keep `callback` stable.
+ * The function's identity changes when `callback` or `delayMs` does. Every identity shares one
+ * pending call, so a call through a newer one still cancels a call waiting from an older one, and a
+ * caller passing an inline `callback` still gets one call per pause. A waiting call runs the
+ * `callback` it was made through.
  *
  * @param callback the function to call once calls stop.
  * @param delayMs how long calls must stop for, in milliseconds.
@@ -19,20 +21,17 @@ export function useDebouncedCallback<Args extends unknown[]>(
   callback: (...args: Args) => void,
   delayMs: number,
 ): (...args: Args) => void {
-  const callbackRef = useRef(callback);
+  // The pending call has to outlive renders, so that every identity of the returned function
+  // cancels the same one; it is state, not an input hidden from the dependency list.
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    callbackRef.current = callback;
-  }, [callback]);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
   return useCallback(
     (...args: Args) => {
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => callbackRef.current(...args), delayMs);
+      timer.current = setTimeout(() => callback(...args), delayMs);
     },
-    [delayMs],
+    [callback, delayMs],
   );
 }
