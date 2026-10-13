@@ -168,6 +168,19 @@ public class RepositoriesControllerTests
 
     #endregion
 
+    #region ServerUrl Tests
+
+    [Test]
+    public async Task EveryRepositoryResponse_CarriesTheRequestRootServerUrl_WhenPublicUrlIsUnset()
+    {
+        // This fixture's host has no PublicUrl, so serverUrl is built from the root the request was
+        // addressed to: the mapped address the test client uses.
+        await RepositoryServerUrlTests.AssertEveryResponseCarriesAsync(
+            _client, $"{_fixture.BaseUrl}/pacman/$repo/$arch");
+    }
+
+    #endregion
+
     #region GetById Tests
 
     [Test]
