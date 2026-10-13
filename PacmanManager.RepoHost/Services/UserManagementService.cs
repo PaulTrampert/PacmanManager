@@ -75,9 +75,10 @@ internal class UserManagementService(
     {
         var query = dbContext.Users.Where(filter ?? new UserFilter());
 
+        var sortOptions = sort ?? new SortOptions<UserSortField>();
         var total = await query.CountAsync(ct);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<UserSortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(PublicUserInfoProjection)
@@ -87,7 +88,8 @@ internal class UserManagementService(
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 

@@ -322,9 +322,10 @@ internal class RepositoryService(
         var query = (await VisibleAsync(cancellationToken))
             .Where(filter ?? new RepositoryFilter());
 
+        var sortOptions = sort ?? new SortOptions<RepositorySortField>();
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<RepositorySortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Repository.Projection)
@@ -334,7 +335,8 @@ internal class RepositoryService(
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 }

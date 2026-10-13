@@ -155,6 +155,16 @@ public class UserManagementServiceTests
     }
 
     [Test]
+    public async Task ListUsersAsync_EchoesTheDefaultSort_WhenNoSortIsGiven()
+    {
+        var page = await _subject.ListUsersAsync(new PaginationParams());
+
+        Assert.That(
+            page.Sort,
+            Is.EqualTo(new AppliedSort { SortBy = "DisplayName", Direction = SortDirection.Ascending }));
+    }
+
+    [Test]
     public async Task ListUsersAsync_Pages()
     {
         var users = Enumerable.Range(0, 5).Select(i => GivenUser($"user-{i}")).ToList();

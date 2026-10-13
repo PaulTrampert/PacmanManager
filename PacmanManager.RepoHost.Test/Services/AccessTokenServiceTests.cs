@@ -313,6 +313,18 @@ public class AccessTokenServiceTests
     }
 
     [Test]
+    public async Task List_EchoesTheAppliedSort()
+    {
+        var page = await _service.GetAccessTokensAsync(
+            new PaginationParams(),
+            sort: new SortOptions<AccessTokenSortField> { SortBy = AccessTokenSortField.Name });
+
+        Assert.That(
+            page.Sort,
+            Is.EqualTo(new AppliedSort { SortBy = "Name", Direction = SortDirection.Ascending }));
+    }
+
+    [Test]
     public async Task List_Pages()
     {
         var tokens = Enumerable.Range(0, 5)

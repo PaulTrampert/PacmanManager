@@ -121,9 +121,10 @@ internal class AccessTokenService(
         var query = (await OwnAsync(accessPolicy.CheckRead, ScopeValues.ActionNames.Read, ct))
             .Where(filter ?? new AccessTokenFilter());
 
+        var sortOptions = sort ?? new SortOptions<AccessTokenSortField>();
         var total = await query.CountAsync(ct);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<AccessTokenSortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(AccessToken.Projection)
@@ -133,7 +134,8 @@ internal class AccessTokenService(
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 

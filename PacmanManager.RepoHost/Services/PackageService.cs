@@ -97,9 +97,10 @@ internal class PackageService(
         var query = (await VisibleAsync(cancellationToken))
             .Where(filter ?? new PackageFilter());
 
+        var sortOptions = sort ?? new SortOptions<PackageSortField>();
         var total = await query.CountAsync(cancellationToken);
         var results = await query
-            .ApplySort(sort ?? new SortOptions<PackageSortField>())
+            .ApplySort(sortOptions)
             .Skip(paginationParams.Offset)
             .Take(paginationParams.PageSize)
             .Select(Package.Projection)
@@ -109,7 +110,8 @@ internal class PackageService(
         {
             Results = results,
             Offset = paginationParams.Offset,
-            Total = total
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 
