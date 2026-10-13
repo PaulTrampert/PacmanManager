@@ -551,10 +551,14 @@ committed OpenAPI document, which RepoHost generates from the attributes it vali
 * A small helper in `src/api` turns a property's rules into a field validator producing messages of
   the kind shown in [Name validation](#name-validation), so a form names its schema, property and
   field label, and writes only the pattern's message.
-* The translator has unit tests covering each row of the table and each kind of server-only pattern,
-  and a
-  test asserts that the generated `WriteRepositoryRequest.name` pattern accepts and rejects the same
-  names as RepoHost's `RegularExpressionsTests`.
+* The translator has unit tests covering each row of the table and each kind of server-only pattern.
+* The repository-name cases live in one shared fixture, `test-fixtures/validation/repository-names.json`
+  (`{ "accepted": [...], "rejected": [...] }`), seeded from `RegularExpressionsTests`' current
+  `[TestCase]`s. RepoHost's `RegularExpressionsTests` read it through `TestCaseSource`, located by a
+  `PacmanManager.TestUtils` helper as `PackageFixtures` locates packages, and keep no inline names for
+  that pattern. The web app's parity test reads the same file and asserts the generated
+  `WriteRepositoryRequest.name` pattern is exact, accepts every `accepted` name and rejects every
+  `rejected` one. Adding a name to the fixture adds a case to both suites.
 
 **Why:**
 
@@ -723,7 +727,8 @@ types include it.
 ### 5. Validation rules from the OpenAPI document — MINOR
 
 `scripts/generate-validation.ts` in `npm run generate`, the gitignored `src/api/validation.gen.ts`,
-and the field-validator helper in `src/api`. See
+the field-validator helper in `src/api`, and the shared repository-name fixture with
+`RegularExpressionsTests` moved onto it. See
 [Validation rules from the OpenAPI document](#validation-rules-from-the-openapi-document).
 
 *Constraints:* a pattern the translator does not fully recognise becomes server-only, with a
@@ -731,10 +736,10 @@ warning; it is never passed through untranslated, and it never fails generation.
 
 *Acceptance:* unit tests cover each row of the translation table, and assert that a pattern using each
 of `\d`, `\w`, `\s`, `\b`, `.`, a bare `$`, `\Z` and `(?i)` — including inside a character class,
-as in `[\w-]` — is generated server-only, with a warning naming the construct. A form story with a
-server-only pattern submits a value that would fail it and shows the API's `400` on the field. A test asserts the generated `WriteRepositoryRequest.name` pattern accepts and
-rejects the same names as RepoHost's `RegularExpressionsTests`. Referring to a schema or property
-the document lacks fails `npm run typecheck`.
+as in `[\w-]` — is generated server-only, with a warning naming the construct. `RegularExpressionsTests`
+and the web app's parity test both read `test-fixtures/validation/repository-names.json`, and the
+parity test asserts the generated name pattern is exact and agrees with every case in it. Referring
+to a schema or property the document lacks fails `npm run typecheck`.
 
 *Depends on:* nothing.
 
@@ -861,7 +866,8 @@ whose error replaces its helper text, shown once the field is left or the form s
 *Acceptance:* stories for a pristine field, a helper text, each kind of rule failing, a server error
 set on the field, and a pending form; `play` functions assert no error shows while first typing, the
 error shows on blur, submitting an invalid form shows every error and does not call `onSubmit`, and
-the submit button is disabled while pending.
+the submit button is disabled while pending. A story with a server-only pattern submits a value that
+would fail it, and shows the API's `400` on the field.
 
 *Depends on:* 5.
 
