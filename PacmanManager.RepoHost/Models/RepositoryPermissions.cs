@@ -1,7 +1,7 @@
 namespace PacmanManager.RepoHost.Models;
 
 /// <summary>
-/// What the caller may do to a <see cref="Repository"/>, computed for the caller of each request
+/// What the caller may do to a repository, computed for the caller of each request
 /// and never stored.
 /// </summary>
 public record RepositoryPermissions
