@@ -475,7 +475,7 @@ Its fields:
 | :--- | :--- | :--- | :--- |
 | Name | outlined text field | "Letters, digits and @ _ + - . This is the section name in pacman.conf." | `name` |
 | Visibility | radio group: **Private** — "Only you can see it and read its packages."; **Public** — "Anyone, signed in or not, can see it and read its packages." | — | `isPublic` |
-| Architectures | outlined select listing the `displayValue`s from `GET /v1/Architectures`, **disabled** | "Every supported architecture is published." | not sent on create; the repository's existing `supportedArchitectures` on edit |
+| Architectures | outlined **`multiple`** select of the `architectures` prop (from `GET /v1/Architectures`), **disabled**, showing the selected values by `displayValue`: every architecture when creating, the repository's `supportedArchitectures` when editing (a value not in the prop shown raw) | "Every supported architecture is published." | not sent on create; the repository's existing `supportedArchitectures` on edit |
 
 * A field's validation error replaces its helper text, in the error colour.
 * Errors are shown once a field has been left or the form submitted, not while first typing.
@@ -986,15 +986,19 @@ repository has an `id`. See [`RepositoryForm`](#repositoryform).
 
 *Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)), [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)), [edit-changed](wireframes/edit-changed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c298d064)), [edit-name-taken](wireframes/edit-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c55e036d)).
 
-*Constraints:* it takes `onSubmit`, `onCancel`, a pending flag and the mutation's error; it maps a
-`409` to the name field and a validation `400` through `useFormErrors`. It does not call the API.
+*Constraints:* it takes `onSubmit`, `onCancel`, a pending flag, the mutation's error and an
+`architectures` prop; it maps a `409` to the name field and a validation `400` through
+`useFormErrors`. It does not call the API. The Architectures control is a disabled `multiple`
+`Select`, so enabling it later — the [deferred](#deferred-work) choosing of architectures — needs no
+change to its shape.
 
 *Acceptance:* a story per wireframe; `play` functions assert the create and edit labels and initial
 values, that **Save** is disabled until something changes, that `onSubmit` receives the edited
 values with the existing `supportedArchitectures` when editing, and that a `409` error appears on
-the name field and not in an alert.
+the name field and not in an alert. A story with two architectures shows both selected in the edit
+form, by `displayValue`.
 
-*Depends on:* 12.
+*Depends on:* 3, 12.
 
 **Why:**
 
