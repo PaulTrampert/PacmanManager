@@ -97,17 +97,18 @@ pacmanmanager-web/
   component's folder. The component renders what that hook returns, and `index.ts` doesn't export the
   hook. Behaviour that isn't specific to the component is a reusable hook of its own outside
   `components/` (such as `src/useTemporaryFeedback.ts`), which the component's hook uses.
-* **Reusable hooks return stable callbacks.** A hook outside `components/` returns callbacks whose
-  identity never changes for the life of the component. Each is a `useCallback` with dependencies
-  that never change. Inputs that do change are read through a ref, updated in a `useLayoutEffect`.
-  A component's own `use<Name>` hook doesn't do this, and uses `useCallback` only where a dependency
-  list or a memoized child needs a stable function.
+* **Reusable hooks memoize their callbacks.** A hook outside `components/` wraps each callback it
+  returns in `useCallback` with an honest dependency list. Its identity changes only when its inputs
+  do, and callers keep their inputs stable. Inputs are never hidden in a `useRef` to fix an identity.
+  A ref holds only state that has to outlive renders, such as a debounce's timer, with a comment
+  saying why. A component's own `use<Name>` hook uses `useCallback` only where a dependency list or a
+  memoized child needs a stable function.
 
 **Why:**
 
 * [the app lives beside the solution, not in it](#why-the-app-lives-beside-the-solution-not-in-it)
 * [components render and hooks behave](#why-components-render-and-hooks-behave)
-* [only reusable hooks stabilise their callbacks](#why-only-reusable-hooks-stabilise-their-callbacks)
+* [only reusable hooks memoize their callbacks](#why-only-reusable-hooks-memoize-their-callbacks)
 
 ### Toolchain
 
@@ -906,23 +907,25 @@ test worth writing. A large state object in that one `useState` is a hook in dis
 Rejected: allowing `useEffect` in components and relying on stories alone, which is how the first
 components were written and what review asked to undo.
 
-### Why only reusable hooks stabilise their callbacks
+### Why only reusable hooks memoize their callbacks
 
 React treats `useCallback` as a performance tool. A function's identity matters only when something
 compares it: an effect or another hook's dependency list, or a child wrapped in `memo`. A reusable
-hook can't know its callers, and a caller that lists one of its callbacks as a dependency would
-re-run that effect on every render if the callback changed each time. So a reusable hook always
-returns stable callbacks. A component's own hook has exactly one caller, which renders what it
-returns, so wrapping its callbacks would add dependency lists to keep right and save nothing.
+hook can't know its callers, and one that returned a new function on every render would make a
+caller's effect that lists it re-run on every render. So a reusable hook memoizes what it returns. A
+component's own hook has exactly one caller, which renders what it returns, so wrapping its callbacks
+would add dependency lists to keep right and save nothing.
 
-Inputs that change are read through a ref because putting them in the dependency list would give the
-callback a new identity whenever they change, which is what the rule rules out. The ref is updated
-in a `useLayoutEffect`, not during render, because `eslint-plugin-react-hooks` forbids touching refs
-during render. It runs before the browser paints and before any `useEffect`, so the ref is current by
-the time a callback can be called. `useEffectEvent` would be neater, but React allows calling its
-functions only from inside effects, never from event handlers or a hook's callers.
+Dependencies are honest: a callback that reads an input lists it, and gets a new identity when the
+input changes. That is how React means `useCallback` to be read, and it keeps the code plain. Keeping
+the inputs stable is the caller's part, and is usually free, since most inputs are primitives.
 
 Rejected:
+* **The "latest value" ref pattern**: inputs in a `useRef` updated in a layout effect, read by a
+  `useCallback` with no dependencies. It makes the identity unconditionally stable, but splits one
+  piece of logic across a ref, an effect and a callback, and reads less clearly than a dependency list.
+  It was briefly the rule, in #287's first draft, and was dropped in review. A ref stays acceptable for
+  state that genuinely outlives renders, such as a debounce's pending timer.
 * **`useCallback` everywhere**, which costs a dependency list per function for no benefit where
   nothing compares the function.
 * **Never `useCallback`**, which leaves callers of reusable hooks with effects that re-run on every
