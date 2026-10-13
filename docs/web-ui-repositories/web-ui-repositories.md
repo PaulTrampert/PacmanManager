@@ -903,8 +903,10 @@ for a few seconds; when the clipboard is unavailable it selects the text and say
 
 *Wireframes:* [repository-snippet-expanded-public](wireframes/repository-snippet-expanded-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9674f4460)), [repository-snippet-copied](wireframes/repository-snippet-copied.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a96c96d0f0)), [repository-copy-failed](wireframes/repository-copy-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e654139929)).
 
-*Acceptance:* stories for idle and copied; a `play` function asserts the clipboard receives the
-exact text, newlines included, and that the label reverts. Stories with `navigator.clipboard`
+*Acceptance:* stories for idle and copied; a `play` function spies on
+`navigator.clipboard.writeText` and asserts it was called once with exactly the block's text,
+newlines included, and that the label reverts. No story reads the clipboard back, so the browser
+provider needs no `clipboard-read` permission. Stories with `navigator.clipboard`
 undefined and with `writeText` rejecting have a `play` function asserting **Couldn't copy**, the message, and that the selection is exactly the block's
 text.
 
