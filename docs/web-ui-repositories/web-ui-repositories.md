@@ -345,9 +345,11 @@ Wireframes: [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://pe
 * The list route's `beforeLoad`, which runs on every navigation to it, first awaits what decides the
   filters' state — `architecturesQuery()` and the user count (`userListQuery` with `pageSize=1`), in
   parallel, and cached after the first visit — then drops the params of
-  [disabled filters](#filters). Only after that does its loader **prefetch**
-  `repositoryListQuery(search)` with what is left, without awaiting it, and the list's search params are **not** in its `loaderDeps`, so changing a
-  filter, the sort or the page never re-runs the loader or shows the route's pending component.
+  [disabled filters](#filters). Only after that does it fire
+  `queryClient.prefetchQuery(repositoryListQuery(search))` **without awaiting it**, using the
+  validated, typed `search` that `beforeLoad` receives — never the unvalidated `location.search` a
+  loader would see. The route has no loader for the list and no `loaderDeps` for its params, so
+  changing a filter, the sort or the page never shows the route's pending component.
   The page, the filter bar included, stays mounted, and a name being typed is never lost.
 * `RepositoryTable`'s data comes from `useQuery(repositoryListQuery(search))` with
   `placeholderData: keepPreviousData`, not `useSuspenseQuery`.
@@ -1123,15 +1125,16 @@ to anything; a route test renders it against MSW for each state its wireframes s
 
 ### 32. The repository list page — MINOR
 
-`/repositories` with its `validateSearch` over the [search params](#the-repository-list), its loader
-as [Loading](#loading) sets out,
+`/repositories` with its `validateSearch` over the [search params](#the-repository-list), its
+`beforeLoad` as [Loading](#loading) sets out,
 `PageHeader` with **New repository** for a signed-in user, `RepositoryFilters`, and `RepositoryTable`
 or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to it.
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)), [list-loading](wireframes/list-loading.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e363bd4e7e)).
 
 *Acceptance:* route tests for each listing wireframe, including all three empty states, and one that
-loads `?pageSize=7` and gets 50 rows per page with `pageSize` removed from the URL, and one in which
+loads `?pageSize=7` and gets 50 rows per page with `pageSize` removed from the URL — the only list
+request sent uses `pageSize=50`, and none is ever sent with `pageSize=7` — and one in which
 a slow list response, after a filter change, leaves the filter bar mounted with its typed value intact
 and the previous rows dimmed under a spinner. Route tests also load `?architecture=x86_64` with one
 architecture, `?ownerId=…` with one user, and `?isPublic=false` anonymously, and assert each param is

@@ -333,8 +333,9 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 * List pages keep their pagination, filter and sort state in the URL's search params, validated by
   the route's `validateSearch`, with names matching the API's (`offset`, `pageSize`, `sortBy`,
   `direction`, and the filter's own parameter names).
-* A **paged, filtered list** is the exception to the loader rule above: its route's loader prefetches
-  the list without awaiting it, the list's search params are not in `loaderDeps`, and the component
+* A **paged, filtered list** is the exception to the loader rule above: its route's `beforeLoad`
+  prefetches the list from the validated `search` without awaiting it, there is no loader or
+  `loaderDeps` for the list's params, and the component
   reads it with `useQuery` and `placeholderData: keepPreviousData`, showing its previous state dimmed
   under a spinner while the next loads. See
   [Web UI: Repositories](../web-ui-repositories/web-ui-repositories.md#why-a-paged-list-is-read-with-usequery).
