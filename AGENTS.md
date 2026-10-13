@@ -203,6 +203,11 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   `index.ts`, and the component renders what that hook returns. Behaviour that isn't specific to
   the component is a reusable hook of its own (`src/useTemporaryFeedback.ts`), which the
   component's hook uses.
+* **Reusable hooks return stable callbacks.** A hook outside `src/components` returns callbacks
+  whose identity never changes: `useCallback` with dependencies that never change, reading inputs
+  that do change through a ref updated in a `useLayoutEffect`. A component's own `use<Component>`
+  hook doesn't bother, and doesn't use `useCallback` unless a dependency list or a memoized child
+  needs it.
 
 ### Testing expectations
 

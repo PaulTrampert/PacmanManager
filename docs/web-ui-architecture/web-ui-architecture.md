@@ -97,11 +97,17 @@ pacmanmanager-web/
   component's folder. The component renders what that hook returns, and `index.ts` doesn't export the
   hook. Behaviour that isn't specific to the component is a reusable hook of its own outside
   `components/` (such as `src/useTemporaryFeedback.ts`), which the component's hook uses.
+* **Reusable hooks return stable callbacks.** A hook outside `components/` returns callbacks whose
+  identity never changes for the life of the component. Each is a `useCallback` with dependencies
+  that never change. Inputs that do change are read through a ref, updated in a `useLayoutEffect`.
+  A component's own `use<Name>` hook doesn't do this, and uses `useCallback` only where a dependency
+  list or a memoized child needs a stable function.
 
 **Why:**
 
 * [the app lives beside the solution, not in it](#why-the-app-lives-beside-the-solution-not-in-it)
 * [components render and hooks behave](#why-components-render-and-hooks-behave)
+* [only reusable hooks stabilise their callbacks](#why-only-reusable-hooks-stabilise-their-callbacks)
 
 ### Toolchain
 
@@ -899,3 +905,27 @@ such as whether a panel is open, is allowed inline, because a hook for it would 
 test worth writing. A large state object in that one `useState` is a hook in disguise, so it isn't.
 Rejected: allowing `useEffect` in components and relying on stories alone, which is how the first
 components were written and what review asked to undo.
+
+### Why only reusable hooks stabilise their callbacks
+
+React treats `useCallback` as a performance tool. A function's identity matters only when something
+compares it: an effect or another hook's dependency list, or a child wrapped in `memo`. A reusable
+hook can't know its callers, and a caller that lists one of its callbacks as a dependency would
+re-run that effect on every render if the callback changed each time. So a reusable hook always
+returns stable callbacks. A component's own hook has exactly one caller, which renders what it
+returns, so wrapping its callbacks would add dependency lists to keep right and save nothing.
+
+Inputs that change are read through a ref because putting them in the dependency list would give the
+callback a new identity whenever they change, which is what the rule rules out. The ref is updated
+in a `useLayoutEffect`, not during render, because `eslint-plugin-react-hooks` forbids touching refs
+during render. It runs before the browser paints and before any `useEffect`, so the ref is current by
+the time a callback can be called. `useEffectEvent` would be neater, but React allows calling its
+functions only from inside effects, never from event handlers or a hook's callers.
+
+Rejected:
+* **`useCallback` everywhere**, which costs a dependency list per function for no benefit where
+  nothing compares the function.
+* **Never `useCallback`**, which leaves callers of reusable hooks with effects that re-run on every
+  render.
+* **Waiting for React Compiler**, which would memoize all of this automatically but isn't enabled.
+  Issue #285 evaluates it, and this rule is to be revisited then.
