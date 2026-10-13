@@ -4,6 +4,7 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import type { ReactNode } from "react";
+import { useDialog } from "./useDialog";
 
 /** The props {@link Dialog} takes. */
 export interface DialogProps {
@@ -49,27 +50,19 @@ export function Dialog({
   onCancel,
   pending = false,
 }: DialogProps) {
+  const dialog = useDialog({ confirmDisabled, onCancel, pending });
   return (
-    <MuiDialog
-      open={open}
-      fullWidth
-      maxWidth="sm"
-      onClose={() => {
-        if (!pending) {
-          onCancel();
-        }
-      }}
-    >
+    <MuiDialog open={open} fullWidth maxWidth="sm" onClose={dialog.onClose}>
       <DialogTitle>{title}</DialogTitle>
       {children !== undefined && <DialogContent>{children}</DialogContent>}
       <DialogActions>
-        <Button disabled={pending} onClick={onCancel}>
+        <Button disabled={dialog.cancelDisabled} onClick={onCancel}>
           Cancel
         </Button>
         <Button
           variant="contained"
           color={confirmColor}
-          disabled={pending || confirmDisabled}
+          disabled={dialog.confirmDisabled}
           onClick={onConfirm}
         >
           {confirmLabel}
