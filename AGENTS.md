@@ -243,11 +243,26 @@ a gate, not a release pipeline — the project is unreleased and **nothing is pu
 
 | Job | What it does |
 | :--- | :--- |
-| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
+| `changes` | On a pull request, decides from the paths it changes which of the jobs and test projects below run. On a push to `main` or a manual run, everything runs. |
+| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build` (always), `dotnet tool restore` and `dotnet test` for each affected test project. |
 | `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `web` | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
 | `e2e` | In `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `npm run e2e` against the compose stack it brings up. On failure it prints `docker compose logs` and uploads them with the Playwright report and traces as the `e2e-report` artifact; `docker compose down -v` always runs. |
 | `docker` | Builds the RepoHost, Migrations and web images from their Dockerfiles with `push: false`, as a sanity check that they still build. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
+
+What a pull request runs follows what it changes. The `changes` job's
+[`dorny/paths-filter`](https://github.com/dorny/paths-filter) filters list, for each test project,
+image and job, every path it reads, through project references included: a change to
+`LibAlpmSharp` runs `LibAlpmSharp.Test`, the `libalpm` job and `PacmanManager.RepoHost.Test`, but not
+the AUR client's tests; a change confined to `pacmanmanager-web` runs `web`, `e2e` and the web image,
+and still builds the solution, but runs no .NET tests. A change to `ci.yml` or the toolchain action
+runs everything. **When a project or test starts reading a new path** -- a new project reference, a
+fixture, a file found through `DirUtils.FindSolutionDirectory` -- add it to the filters, or a PR that
+changes only that path will skip the tests that would catch it. Skipping is done with `if:`, never
+with a workflow-level `paths:`, because a required check whose workflow never ran stays pending,
+while a skipped job counts as passing. The `docker` matrix skips its steps rather than the job, since
+a skipped matrix job reports under its unexpanded name and the required `Build repohost image`
+check would never arrive.
 
 The `test` job publishes its `.trx` files with
 [`EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action):
@@ -268,10 +283,10 @@ by editing the title, and the check re-runs on its own rather than needing an em
 `edited` on `ci.yml` would re-run the whole test and image-build matrix every time somebody touched
 a title or description.
 
-The runner is Ubuntu, and the whole solution runs on it unfiltered:
+The runner is Ubuntu, and each affected test project runs on it unfiltered:
 
 ```bash
-dotnet test PacmanManager.sln --configuration Release --no-build
+dotnet test <Project>.Test --configuration Release --no-build
 ```
 
 The E2E fixtures build their images with the **solution root as the Dockerfile directory**, passing

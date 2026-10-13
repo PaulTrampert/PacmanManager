@@ -22,8 +22,108 @@ env:
   DOTNET_NOLOGO: 1
 
 jobs:
+  # Decides what the rest of the workflow runs, from the paths a pull request changes. Each output
+  # is "true" or "false", and is "true" on every push to `main` and every manual run, so `main`
+  # always gets the whole suite.
+  #
+  # The other jobs skip with an `if:` rather than the workflow skipping itself with `paths:`: a
+  # required check whose workflow never ran stays pending forever, while a job skipped by its `if:`
+  # counts as passing. They test `!= 'false'`, not `== 'true'`, so that if this job fails, its
+  # outputs are empty and everything runs rather than everything passing unrun.
+  #
+  # Each filter lists what its subject reads, including through project references, and every
+  # filter includes this workflow and the toolchain action, so a change to CI itself runs it all.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # paths-filter lists a pull request's files through the API.
+      pull-requests: read
+    outputs:
+      libalpm: ${{ github.event_name != 'pull_request' || steps.filter.outputs.libalpm == 'true' }}
+      aur: ${{ github.event_name != 'pull_request' || steps.filter.outputs.aur == 'true' }}
+      clitools: ${{ github.event_name != 'pull_request' || steps.filter.outputs.clitools == 'true' }}
+      repohost: ${{ github.event_name != 'pull_request' || steps.filter.outputs.repohost == 'true' }}
+      web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
+      e2e: ${{ github.event_name != 'pull_request' || steps.filter.outputs.e2e == 'true' }}
+      repohost-image: ${{ github.event_name != 'pull_request' || steps.filter.outputs.repohost-image == 'true' }}
+      migrations-image: ${{ github.event_name != 'pull_request' || steps.filter.outputs.migrations-image == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          filters: |
+            workflow: &workflow
+              - .github/workflows/ci.yml
+              - .github/actions/**
+            dotnet: &dotnet
+              - *workflow
+              - PacmanManager.sln
+              - 'Directory.*'
+              - global.json
+              - '[Nn]u[Gg]et.config'
+              - .config/dotnet-tools.json
+            # What the RepoHost image is built from. Migrations has its own, smaller set.
+            repohost-image: &repohost-image
+              - *dotnet
+              - .dockerignore
+              - LibAlpmSharp/**
+              - PacmanManager.CliTools/**
+              - PacmanManager.Entities/**
+              - PacmanManager.RepoHost/**
+            migrations-image: &migrations-image
+              - *dotnet
+              - .dockerignore
+              - PacmanManager.Entities/**
+              - PacmanManager.Migrations/**
+            libalpm:
+              - *dotnet
+              - LibAlpmSharp/**
+              - LibAlpmSharp.Test/**
+              - PacmanManager.TestUtils/**
+              - test-fixtures/**
+            aur:
+              - *dotnet
+              - PacmanManager.AurClient/**
+              - PacmanManager.AurClient.Test/**
+            clitools:
+              - *dotnet
+              - PacmanManager.CliTools/**
+              - PacmanManager.CliTools.Test/**
+            # Besides its project references and the images its end to end fixtures build, the
+            # RepoHost suite reads the Keycloak realm, the committed OpenAPI document and the
+            # script that generates it, and the shared test fixtures.
+            repohost:
+              - *repohost-image
+              - *migrations-image
+              - PacmanManager.RepoHost.Test/**
+              - PacmanManager.TestUtils/**
+              - test-fixtures/**
+              - keycloak/**
+              - pacmanmanager-web/openapi/**
+              - scripts/generate-openapi.sh
+            # The web app's unit tests read the shared validation fixtures.
+            web: &web
+              - *workflow
+              - pacmanmanager-web/**
+              - test-fixtures/validation/**
+            # The whole compose stack, and the package fixture the tests upload.
+            e2e:
+              - *web
+              - *repohost-image
+              - *migrations-image
+              - compose.yaml
+              - keycloak/**
+              - test-fixtures/**
+
   test:
     name: Build and test
+    needs: changes
+    # Always runs, so the solution is always built. Only the test step depends on what changed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     # Only this job needs to write: the results publisher posts a check run and a PR comment.
@@ -53,22 +153,47 @@ jobs:
       - name: Build
         run: dotnet build PacmanManager.sln --configuration Release --no-restore
 
-      # No filter: the LibAlpmSharp fixtures that need installed packages seed their own local
-      # database under a temporary root, so they no longer depend on what this runner has installed.
-      # Everything else in the solution runs too, the end to end fixtures included: the runner's
-      # Docker daemon is what Testcontainers starts Postgres and Keycloak on and what builds the two
-      # images under test.
+      # Each test project runs only when something it reads changed (see the `changes` job); on
+      # `main` that is all of them. A project that runs, runs unfiltered: the LibAlpmSharp fixtures
+      # that need installed packages seed their own local database under a temporary root, so they
+      # no longer depend on what this runner has installed, and the end to end fixtures start
+      # Postgres and Keycloak, and build the two images under test, on the runner's Docker daemon.
+      # A failing project does not stop the others; the step fails at the end.
       # verbosity=minimal prints failures and the summary but not a line per passing test. At
       # `normal` a run emits several thousand lines, and the failures scroll off the top of what
       # the Actions log API will hand back, which is exactly when you need to read them.
       - name: Test
+        id: test
+        env:
+          LIBALPM: ${{ needs.changes.outputs.libalpm != 'false' }}
+          AUR: ${{ needs.changes.outputs.aur != 'false' }}
+          CLITOOLS: ${{ needs.changes.outputs.clitools != 'false' }}
+          REPOHOST: ${{ needs.changes.outputs.repohost != 'false' }}
         run: |
-          dotnet test PacmanManager.sln \
-            --configuration Release \
-            --no-build \
-            --logger "trx" \
-            --logger "console;verbosity=minimal" \
-            --results-directory artifacts/test-results
+          projects=()
+          [[ "$LIBALPM" == true ]] && projects+=(LibAlpmSharp.Test)
+          [[ "$AUR" == true ]] && projects+=(PacmanManager.AurClient.Test)
+          [[ "$CLITOOLS" == true ]] && projects+=(PacmanManager.CliTools.Test)
+          [[ "$REPOHOST" == true ]] && projects+=(PacmanManager.RepoHost.Test)
+
+          if (( ${#projects[@]} == 0 )); then
+            echo "No .NET test project is affected by this change."
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
+          failed=0
+          for project in "${projects[@]}"; do
+            echo "=== $project"
+            dotnet test "$project" \
+              --configuration Release \
+              --no-build \
+              --logger "trx" \
+              --logger "console;verbosity=minimal" \
+              --results-directory artifacts/test-results || failed=1
+          done
+          exit $failed
 
       # Turns the trx files into something readable: one PR comment, updated in place on every
       # later run rather than piling up, plus a "Test results" check run carrying the per-test
@@ -81,14 +206,14 @@ jobs:
       # adding if this repository starts taking fork contributions.
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ !cancelled() && steps.test.outputs.ran != 'false' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
           files: artifacts/test-results/**/*.trx
           check_name: Test results
           comment_mode: always
 
       - name: Upload test results
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.test.outputs.ran != 'false' }}
         uses: actions/upload-artifact@v7
         with:
           name: test-results
@@ -101,6 +226,8 @@ jobs:
   # the same way by both libalpm versions.
   libalpm:
     name: LibAlpmSharp on Arch
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.libalpm != 'false' }}
     runs-on: ubuntu-latest
     container: archlinux/archlinux
     timeout-minutes: 20
@@ -148,6 +275,8 @@ jobs:
   # Chromium, hence the Playwright browser install.
   web:
     name: Web app
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.web != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -192,6 +321,8 @@ jobs:
   # step rather than surfacing as a test failure. See docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
   e2e:
     name: End-to-end tests
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -238,8 +369,14 @@ jobs:
         working-directory: .
         run: docker compose down -v
 
+  # Each image builds only when something it is built from changed, as `changes` judges it. The
+  # gate is on the steps, not the job: a matrix job skipped by its `if:` reports a check named
+  # "Build ${{ matrix.name }} image", unexpanded, and the required "Build repohost image" check
+  # would never arrive.
   docker:
     name: Build ${{ matrix.name }} image
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -249,23 +386,33 @@ jobs:
           - name: repohost
             context: .
             dockerfile: PacmanManager.RepoHost/Dockerfile
+            changes: repohost-image
           - name: migrations
             context: .
             dockerfile: PacmanManager.Migrations/Dockerfile
+            changes: migrations-image
           # The web image's context is its own directory, so it never sees the .NET sources.
           - name: web
             context: pacmanmanager-web
             dockerfile: pacmanmanager-web/Dockerfile
+            changes: web
     steps:
+      - name: Skip unchanged image
+        if: ${{ needs.changes.outputs[matrix.changes] == 'false' }}
+        run: echo "Nothing the ${{ matrix.name }} image is built from has changed."
+
       - uses: actions/checkout@v7
+        if: ${{ needs.changes.outputs[matrix.changes] != 'false' }}
 
       - name: Set up Buildx
+        if: ${{ needs.changes.outputs[matrix.changes] != 'false' }}
         uses: docker/setup-buildx-action@v4
 
       # push: false is the point of this job. The project is unreleased; building the image is a
       # sanity check that the Dockerfile and its COPY lines still match the solution layout.
       # Nothing is tagged for a registry and no registry credentials are used.
       - name: Build ${{ matrix.name }} image
+        if: ${{ needs.changes.outputs[matrix.changes] != 'false' }}
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
