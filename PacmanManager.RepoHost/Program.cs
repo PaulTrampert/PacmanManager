@@ -99,13 +99,11 @@ try
     {
         c.DescribeAllParametersInCamelCase();
 
-        // A page is named for its item type alone (RepositoryPaginatedResponse), not for its sort
-        // field as well, and a listing's applied sort for its sort-field enum (RepositorySortFieldAppliedSort).
-        c.CustomSchemaIds(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(PaginatedResponse<,>)
-            ? $"{type.GenericTypeArguments[0].Name}PaginatedResponse"
-            : type.IsGenericType && type.GetGenericTypeDefinition() == typeof(AppliedSort<>)
-                ? $"{type.GenericTypeArguments[0].Name}AppliedSort"
-                : type.Name);
+        // A listing's applied sort is named for its sort-field enum (RepositorySortFieldAppliedSort);
+        // the pages are explicit subclasses, so their own names are already the schema names.
+        c.CustomSchemaIds(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(AppliedSort<>)
+            ? $"{type.GenericTypeArguments[0].Name}AppliedSort"
+            : type.Name);
     });
 
     builder.Services.AddControllers()

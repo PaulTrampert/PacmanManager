@@ -36,7 +36,7 @@ public interface IPackageService
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A paginated response containing packages.</returns>
-    Task<PaginatedResponse<Package, PackageSortField>> GetPackagesAsync(
+    Task<PackagePaginatedResponse> GetPackagesAsync(
         PaginationParams paginationParams,
         PackageFilter? filter = null,
         SortOptions<PackageSortField>? sort = null,

@@ -86,7 +86,7 @@ internal class PackageService(
         return dbContext.PacmanPackages.Where(p => visibleRepositories.Any(r => r.Id == p.RepositoryId));
     }
 
-    public async Task<PaginatedResponse<Package, PackageSortField>> GetPackagesAsync(
+    public async Task<PackagePaginatedResponse> GetPackagesAsync(
         PaginationParams paginationParams,
         PackageFilter? filter = null,
         SortOptions<PackageSortField>? sort = null,
@@ -106,7 +106,7 @@ internal class PackageService(
             .Select(Package.Projection)
             .ToListAsync(cancellationToken);
 
-        return new PaginatedResponse<Package, PackageSortField>
+        return new PackagePaginatedResponse
         {
             Results = results,
             Offset = paginationParams.Offset,

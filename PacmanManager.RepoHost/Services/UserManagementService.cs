@@ -67,7 +67,7 @@ internal class UserManagementService(
     }
 
     /// <inheritdoc />
-    public async Task<PaginatedResponse<PublicUserInfo, UserSortField>> ListUsersAsync(
+    public async Task<PublicUserInfoPaginatedResponse> ListUsersAsync(
         PaginationParams paginationParams,
         UserFilter? filter = null,
         SortOptions<UserSortField>? sort = null,
@@ -84,7 +84,7 @@ internal class UserManagementService(
             .Select(PublicUserInfoProjection)
             .ToListAsync(ct);
 
-        return new PaginatedResponse<PublicUserInfo, UserSortField>
+        return new PublicUserInfoPaginatedResponse
         {
             Results = results,
             Offset = paginationParams.Offset,

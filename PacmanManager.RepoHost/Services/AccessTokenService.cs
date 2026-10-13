@@ -110,7 +110,7 @@ internal class AccessTokenService(
     }
 
     /// <inheritdoc />
-    public async Task<PaginatedResponse<AccessToken, AccessTokenSortField>> GetAccessTokensAsync(
+    public async Task<AccessTokenPaginatedResponse> GetAccessTokensAsync(
         PaginationParams paginationParams,
         AccessTokenFilter? filter = null,
         SortOptions<AccessTokenSortField>? sort = null,
@@ -130,7 +130,7 @@ internal class AccessTokenService(
             .Select(AccessToken.Projection)
             .ToListAsync(ct);
 
-        return new PaginatedResponse<AccessToken, AccessTokenSortField>
+        return new AccessTokenPaginatedResponse
         {
             Results = results,
             Offset = paginationParams.Offset,

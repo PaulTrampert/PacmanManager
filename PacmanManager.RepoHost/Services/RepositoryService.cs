@@ -368,7 +368,7 @@ internal class RepositoryService(
         return true;
     }
 
-    public async Task<PaginatedResponse<Repository, RepositorySortField>> GetRepositoriesAsync(
+    public async Task<RepositoryPaginatedResponse> GetRepositoriesAsync(
         PaginationParams paginationParams,
         RepositoryFilter? filter = null,
         SortOptions<RepositorySortField>? sort = null,
@@ -390,7 +390,7 @@ internal class RepositoryService(
 
         var actor = await actorAccessor.GetActorAsync(cancellationToken);
         var serverUrl = serverUrls.GetServerUrl();
-        return new PaginatedResponse<Repository, RepositorySortField>
+        return new RepositoryPaginatedResponse
         {
             Results = results.Select(r => Complete(WithPermissions(r, actor), serverUrl)!).ToList(),
             Offset = paginationParams.Offset,
