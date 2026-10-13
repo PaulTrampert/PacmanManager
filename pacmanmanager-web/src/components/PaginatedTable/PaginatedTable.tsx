@@ -9,6 +9,7 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import type { Key, ReactNode } from "react";
 import type { SortDirection } from "../../api";
+import { usePaginatedTable } from "./usePaginatedTable";
 
 /** One column of a {@link PaginatedTable}. */
 export interface PaginatedTableColumn<TRow, TSortField extends string> {
@@ -84,16 +85,6 @@ export interface PaginatedTableProps<TRow, TSortField extends string> {
   "aria-label"?: string;
 }
 
-const muiDirection = {
-  Ascending: "asc",
-  Descending: "desc",
-} as const satisfies Record<SortDirection, "asc" | "desc">;
-
-const reversed = {
-  Ascending: "Descending",
-  Descending: "Ascending",
-} as const satisfies Record<SortDirection, SortDirection>;
-
 /**
  * An outlined table of one page of a listing, sortable from its column headers and paged beneath.
  * It is presentational: the sort and the page are props, and changes to them are reported through
@@ -112,13 +103,14 @@ export function PaginatedTable<TRow, TSortField extends string>({
   rowsPerPageOptions = defaultRowsPerPageOptions,
   "aria-label": ariaLabel,
 }: PaginatedTableProps<TRow, TSortField>) {
-  const sortBy = (sortField: TSortField) => {
-    onSortChange(
-      sortField === appliedSort.sortBy
-        ? { sortBy: sortField, direction: reversed[appliedSort.direction] }
-        : { sortBy: sortField },
-    );
-  };
+  const { headerSort, sortBy, page, changePage, changePageSize } =
+    usePaginatedTable({
+      appliedSort,
+      onSortChange,
+      offset,
+      pageSize,
+      onPaginationChange,
+    });
 
   return (
     <Paper variant="outlined">
@@ -127,24 +119,20 @@ export function PaginatedTable<TRow, TSortField extends string>({
           <TableHead>
             <TableRow>
               {columns.map(({ id, header, sortField }) => {
-                const active =
-                  sortField !== undefined && sortField === appliedSort.sortBy;
+                const { active, direction, sortDirection } =
+                  headerSort(sortField);
                 return (
                   <TableCell
                     key={id}
                     sx={{ fontWeight: "fontWeightMedium" }}
-                    sortDirection={
-                      active ? muiDirection[appliedSort.direction] : false
-                    }
+                    sortDirection={sortDirection}
                   >
                     {sortField === undefined ? (
                       header
                     ) : (
                       <TableSortLabel
                         active={active}
-                        direction={
-                          active ? muiDirection[appliedSort.direction] : "asc"
-                        }
+                        direction={direction}
                         onClick={() => sortBy(sortField)}
                       >
                         {header}
@@ -169,18 +157,11 @@ export function PaginatedTable<TRow, TSortField extends string>({
       <TablePagination
         component="div"
         count={total}
-        page={Math.floor(offset / pageSize)}
+        page={page}
         rowsPerPage={pageSize}
         rowsPerPageOptions={rowsPerPageOptions}
-        onPageChange={(_event, page) =>
-          onPaginationChange({ offset: page * pageSize, pageSize })
-        }
-        onRowsPerPageChange={(event) =>
-          onPaginationChange({
-            offset: 0,
-            pageSize: Number(event.target.value),
-          })
-        }
+        onPageChange={(_event, newPage) => changePage(newPage)}
+        onRowsPerPageChange={(event) => changePageSize(event.target.value)}
       />
     </Paper>
   );
