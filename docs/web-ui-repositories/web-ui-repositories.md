@@ -1216,7 +1216,8 @@ returns to the repository's page without saving.
 *Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
 list, make one private and confirm `other` can no longer see it, and rename to a taken name and see
 the dialog close with the error on the name field. A route test answers the `PUT` with a `500` and
-asserts the dialog closes and the form's alert shows it with the edits intact.
+asserts the dialog closes and the form's alert shows it with the edits intact. A Playwright test edits
+the name, presses **Cancel**, and lands on the repository's page with the name unchanged.
 
 *Depends on:* 21, 29, 32, 34.
 
