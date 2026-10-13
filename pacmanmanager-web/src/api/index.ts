@@ -27,6 +27,7 @@ export type AccessToken = Schemas["AccessToken"];
 export type AccessTokenPaginatedResponse =
   Schemas["AccessTokenPaginatedResponse"];
 export type AccessTokenSortField = Schemas["AccessTokenSortField"];
+export type Architecture = Schemas["Architecture"];
 export type CreateAccessTokenRequest = Schemas["CreateAccessTokenRequest"];
 export type CreatedAccessToken = Schemas["CreatedAccessToken"];
 export type CurrentUser = Schemas["CurrentUser"];
