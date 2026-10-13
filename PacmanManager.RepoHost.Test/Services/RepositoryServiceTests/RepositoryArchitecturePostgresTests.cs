@@ -64,7 +64,8 @@ public class RepositoryArchitecturePostgresTests
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             new Mock<IFileSystem>().Object,
-            new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" })));
+            new PackagePathResolver(Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" })),
+            new TestServerUrlProvider());
     }
 
     [TearDown]

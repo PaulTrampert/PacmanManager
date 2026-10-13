@@ -2680,7 +2680,8 @@
       },
       "Repository": {
         "required": [
-          "id"
+          "id",
+          "serverUrl"
         ],
         "type": "object",
         "properties": {
@@ -2716,6 +2717,11 @@
             "type": "string",
             "description": "When the repository was last modified.",
             "format": "date-time"
+          },
+          "serverUrl": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The URL a `pacman.conf` section's `Server` line names to reach this repository, such\nas `https://packages.example.com/pacman/$repo/$arch`. `$repo` and `$arch` are\nliteral, for pacman to fill in."
           }
         },
         "additionalProperties": false,

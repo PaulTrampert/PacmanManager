@@ -69,7 +69,8 @@ public class PacmanRepoServiceTests
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             _fileSystem.Object,
-            pathResolver);
+            pathResolver,
+            new TestServerUrlProvider());
 
         _subject = new PacmanRepoService(repositories, pathResolver, _fileSystem.Object);
     }

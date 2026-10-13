@@ -30,8 +30,23 @@ internal class RepositoryService(
     RepositoryAccessPolicy accessPolicy,
     ILogger<RepositoryService> logger,
     IFileSystem fileSystem,
-    IPackagePathResolver pathResolver) : IRepositoryService
+    IPackagePathResolver pathResolver,
+    IServerUrlProvider serverUrls) : IRepositoryService
 {
+    /// <summary>
+    /// Sets the per-response fields on a repository that has already been materialised.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Repository.ServerUrl"/> is built here, after the query, and never in
+    /// <see cref="Repository.Projection"/>: it is not a column.
+    /// </remarks>
+    private Repository? Complete(Repository? repository, string serverUrl) =>
+        repository is null ? null : repository with { ServerUrl = serverUrl };
+
+    /// <inheritdoc cref="Complete(Repository?, string)"/>
+    private Repository? Complete(Repository? repository) =>
+        repository is null ? null : Complete(repository, serverUrls.GetServerUrl());
+
     /// <summary>
     /// The database <c>repo-add</c> maintains for one of a repository's architectures.
     /// </summary>
@@ -138,10 +153,10 @@ internal class RepositoryService(
     public async Task<Repository?> GetRepositoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var visible = await VisibleAsync(cancellationToken);
-        return await visible
+        return Complete(await visible
             .Where(r => r.Id == id)
             .Select(Repository.Projection)
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken));
     }
 
     public async Task<Repository?> GetRepositoryByNameAsync(string name, CancellationToken cancellationToken = default)
@@ -150,10 +165,10 @@ internal class RepositoryService(
 
         // The name alone is the database's unique index over repositories, so this matches at most
         // one row and needs no tie-break.
-        return await visible
+        return Complete(await visible
             .Where(r => r.Name == name)
             .Select(Repository.Projection)
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken));
     }
 
     public async Task<Stream?> GetRepositoryFileByIdAsync(
@@ -255,7 +270,7 @@ internal class RepositoryService(
             throw;
         }
 
-        return Repository.FromPacmanRepository(repository);
+        return Complete(Repository.FromPacmanRepository(repository))!;
     }
 
     public async Task<Repository?> UpdateRepositoryAsync(Guid id, WriteRepositoryRequest update, CancellationToken cancellationToken = default)
@@ -280,7 +295,7 @@ internal class RepositoryService(
             throw NameTaken(e);
         }
 
-        return Repository.FromPacmanRepository(repository);
+        return Complete(Repository.FromPacmanRepository(repository))!;
     }
 
     public async Task<bool> DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)
@@ -330,9 +345,10 @@ internal class RepositoryService(
             .Select(Repository.Projection)
             .ToListAsync(cancellationToken);
 
+        var serverUrl = serverUrls.GetServerUrl();
         return new PaginatedResponse<Repository>
         {
-            Results = results,
+            Results = results.Select(r => Complete(r, serverUrl)!).ToList(),
             Offset = paginationParams.Offset,
             Total = total
         };

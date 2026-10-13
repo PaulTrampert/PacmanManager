@@ -79,7 +79,8 @@ public class RepositoryServiceCollisionTests
             new RepositoryAccessPolicy(),
             new TestOutputLogger<RepositoryService>(),
             _mockFileSystem.Object,
-            _pathResolver);
+            _pathResolver,
+            new TestServerUrlProvider());
     }
 
     [TearDown]

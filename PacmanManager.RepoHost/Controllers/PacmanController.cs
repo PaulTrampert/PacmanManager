@@ -55,6 +55,12 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
     public const string Route = "/pacman/{repoName}/{repoArch}/{fileName}";
 
     /// <summary>
+    /// The path, relative to RepoHost's root, that a <c>pacman.conf</c> <c>Server</c> line names to
+    /// reach <see cref="Route"/>: <c>$repo</c> and <c>$arch</c> are left literal for pacman to fill in.
+    /// </summary>
+    public const string ServerPath = "pacman/$repo/$arch";
+
+    /// <summary>
     /// Get a repository database or package file.
     /// </summary>
     /// <param name="repoName">The repository's name, pacman's <c>$repo</c>.</param>

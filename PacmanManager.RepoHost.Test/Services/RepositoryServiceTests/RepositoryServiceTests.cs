@@ -69,7 +69,8 @@ public class RepositoryServiceTests
             new RepositoryAccessPolicy(),
             _logger,
             _mockFileSystem.Object,
-            new PackagePathResolver(Options.Create(settings)));
+            new PackagePathResolver(Options.Create(settings)),
+            new TestServerUrlProvider());
     }
 
     /// <summary>
@@ -876,6 +877,83 @@ public class RepositoryServiceTests
         // Assert
         Assert.That(result, Is.False);
     }
+
+    #region ServerUrl
+
+    // serverUrl is not a column: it comes from IServerUrlProvider on every repository the service
+    // returns, whichever way the repository was materialised.
+
+    [Test]
+    public async Task GetRepositoryByIdAsync_SetsTheServerUrl()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "server-url-by-id");
+
+        // Act
+        var result = await _service.GetRepositoryByIdAsync(repoId);
+
+        // Assert
+        Assert.That(result!.ServerUrl, Is.EqualTo(TestServerUrlProvider.ServerUrl));
+    }
+
+    [Test]
+    public async Task GetRepositoryByNameAsync_SetsTheServerUrl()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "server-url-by-name");
+
+        // Act
+        var result = await _service.GetRepositoryByNameAsync("server-url-by-name");
+
+        // Assert
+        Assert.That(result!.ServerUrl, Is.EqualTo(TestServerUrlProvider.ServerUrl));
+    }
+
+    [Test]
+    public async Task GetRepositoriesAsync_SetsTheServerUrlOnEveryResult()
+    {
+        // Arrange
+        await GivenRepositoryAsync(name: "server-url-list-one");
+        await GivenRepositoryAsync(name: "server-url-list-two");
+
+        // Act
+        var result = await _service.GetRepositoriesAsync(new PaginationParams());
+
+        // Assert
+        Assert.That(result.Results.Select(r => r.ServerUrl),
+            Is.EqualTo(new[] { TestServerUrlProvider.ServerUrl, TestServerUrlProvider.ServerUrl }));
+    }
+
+    [Test]
+    public async Task CreateRepositoryAsync_SetsTheServerUrl()
+    {
+        // Arrange
+        _mockCliRunner.Setup(c => c.RunToolAsync(It.IsAny<RepoAdd>(), It.IsAny<ICliOutputHandler>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        // Act
+        var result = await _service.CreateRepositoryAsync(new WriteRepositoryRequest { Name = "server-url-created" });
+
+        // Assert
+        Assert.That(result.ServerUrl, Is.EqualTo(TestServerUrlProvider.ServerUrl));
+    }
+
+    [Test]
+    public async Task UpdateRepositoryAsync_SetsTheServerUrl()
+    {
+        // Arrange
+        var repoId = Guid.NewGuid();
+        await GivenRepositoryAsync(id: repoId, name: "server-url-before-update");
+
+        // Act
+        var result = await _service.UpdateRepositoryAsync(repoId, new WriteRepositoryRequest { Name = "server-url-updated" });
+
+        // Assert
+        Assert.That(result!.ServerUrl, Is.EqualTo(TestServerUrlProvider.ServerUrl));
+    }
+
+    #endregion
 
     #region Authorization
 

@@ -18,6 +18,9 @@ services:
       Auth__Authority: "http://auth:8080/realms/localdev"
       ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
       PackagePublishing__MaxUploadBytes: *max-upload-bytes
+      # The address a pacman client reaches RepoHost at, for each repository's serverUrl. Without it the
+      # web UI, whose requests SpaHost proxies, would show SpaHost's upstream address instead.
+      PublicUrl: "http://localhost:8082/"
     depends_on:
       auth:
         condition: service_started
