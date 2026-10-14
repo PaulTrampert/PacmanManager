@@ -3,16 +3,13 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { FieldValidator } from "../../api";
 import { FormContext, type FormContextValue } from "./FormContext";
-import {
-  useFormTextField,
-  type UseFormTextFieldOptions,
-} from "./useFormTextField";
+import { useFormField, type UseFormFieldOptions } from "./useFormField";
 
 const required: FieldValidator = (value) =>
   value === "" ? "Name is required." : undefined;
 
 function renderField(
-  options: Partial<UseFormTextFieldOptions> = {},
+  options: Partial<UseFormFieldOptions<string>> = {},
   submitted = false,
 ) {
   const setFieldError = vi.fn<FormContextValue["setFieldError"]>();
@@ -21,8 +18,8 @@ function renderField(
     <FormContext value={context}>{children}</FormContext>
   );
   const rendered = renderHook(
-    (props: Partial<UseFormTextFieldOptions>) =>
-      useFormTextField({
+    (props: Partial<UseFormFieldOptions<string>>) =>
+      useFormField({
         name: "name",
         value: "",
         validate: required,
@@ -35,7 +32,7 @@ function renderField(
   return { setFieldError, ...rendered };
 }
 
-describe("useFormTextField", () => {
+describe("useFormField", () => {
   it("shows no error before the field is left", () => {
     const { result } = renderField();
 
@@ -121,6 +118,34 @@ describe("useFormTextField", () => {
     expect(setFieldError).toHaveBeenLastCalledWith("name", undefined);
   });
 
+  it("validates a value that is not a string", () => {
+    const setFieldError = vi.fn<FormContextValue["setFieldError"]>();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <FormContext value={{ submitted: true, setFieldError }}>
+        {children}
+      </FormContext>
+    );
+    const atLeastOne: FieldValidator<string[]> = (value) =>
+      value.length === 0 ? "Choose an architecture." : undefined;
+
+    const { result } = renderHook(
+      () =>
+        useFormField({
+          name: "architectures",
+          value: [] as string[],
+          validate: atLeastOne,
+          serverError: undefined,
+        }),
+      { wrapper },
+    );
+
+    expect(result.current.error).toBe("Choose an architecture.");
+    expect(setFieldError).toHaveBeenLastCalledWith(
+      "architectures",
+      "Choose an architecture.",
+    );
+  });
+
   it("throws outside a form", () => {
     // React logs the error it rethrows; the test is that it throws.
     const consoleError = vi
@@ -129,7 +154,7 @@ describe("useFormTextField", () => {
     try {
       expect(() =>
         renderHook(() =>
-          useFormTextField({
+          useFormField({
             name: "name",
             value: "",
             validate: required,

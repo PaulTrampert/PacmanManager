@@ -2,20 +2,20 @@ import { useEffect, useId, useState } from "react";
 import type { FieldValidator } from "../../api";
 import { useFormContext } from "./FormContext";
 
-/** What {@link useFormTextField} needs from the field's props. */
-export interface UseFormTextFieldOptions {
+/** What {@link useFormField} needs from the field's props. */
+export interface UseFormFieldOptions<T> {
   /** The field's name, unique within its form. */
   name: string;
   /** The field's current value. */
-  value: string;
+  value: T;
   /** Checks the value in the browser. */
-  validate: FieldValidator;
+  validate: FieldValidator<T>;
   /** The API's message for the field, from the last request's validation `400` or a `409`. */
   serverError: string | undefined;
 }
 
-/** What {@link useFormTextField} gives the field to render. */
-export interface FormTextFieldState {
+/** What {@link useFormField} gives the field to render. */
+export interface FormFieldState {
   /** The field's element id. */
   id: string;
   /** The error to show in place of the helper text, if any. */
@@ -25,16 +25,17 @@ export interface FormTextFieldState {
 }
 
 /**
- * The behaviour of a form's text field: it reports its validation error to the enclosing `Form`,
- * and shows it only once the field has been left or the form submitted, so nothing complains while
- * a value is first typed. A browser error takes the place of the API's, which shows otherwise.
+ * The behaviour of a form's field, whatever control renders it: it reports its validation error to
+ * the enclosing `Form`, and shows it only once the field has been left or the form submitted, so
+ * nothing complains while a value is first entered. A browser error takes the place of the API's,
+ * which shows otherwise.
  */
-export function useFormTextField({
+export function useFormField<T>({
   name,
   value,
   validate,
   serverError,
-}: UseFormTextFieldOptions): FormTextFieldState {
+}: UseFormFieldOptions<T>): FormFieldState {
   const { submitted, setFieldError } = useFormContext();
   const [left, setLeft] = useState(false);
   const id = useId();

@@ -1,3 +1,4 @@
+import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useMutation } from "@tanstack/react-query";
 import { HttpResponse } from "msw";
@@ -9,8 +10,10 @@ import { validationRules } from "../../api/validation.gen";
 import { apiHandler } from "../../mocks/api";
 import { useFormErrors } from "../../useFormErrors";
 import { Form } from "./Form";
+import type { FormControlProps } from "./FormControlProps";
 import { FormField } from "./FormField";
 import { FormTextField } from "./FormTextField";
+import { useFormField } from "./useFormField";
 
 const helperText =
   "Letters, digits and @ _ + - . This is the section name in pacman.conf.";
@@ -191,6 +194,73 @@ export const ServerError: Story = {
     await expect(name).toHaveAccessibleDescription(
       "A repository with this name already exists.",
     );
+  },
+};
+
+/** The props of {@link FormNotesField}. */
+interface FormNotesFieldProps extends FormControlProps<string> {
+  /** How many lines the field shows. */
+  rows: number;
+}
+
+/** A multi-line text control, standing in for any `Form<Type>Field` with props of its own. */
+function FormNotesField({ rows, ...control }: FormNotesFieldProps) {
+  const field = useFormField({
+    ...control,
+    serverError: control.serverError,
+  });
+  return (
+    <TextField
+      id={field.id}
+      name={control.name}
+      label={control.label}
+      value={control.value}
+      onChange={(event) => control.onChange(event.target.value)}
+      onBlur={field.onBlur}
+      error={field.error !== undefined}
+      helperText={field.error ?? control.helperText}
+      multiline
+      rows={rows}
+    />
+  );
+}
+
+/** The name field rendered by another control. */
+function NotesControlField() {
+  const [name, setName] = useState("");
+  return (
+    <Form
+      submitLabel="Create"
+      pendingLabel="Creating…"
+      onSubmit={() => {}}
+      onCancel={() => {}}
+    >
+      <FormField
+        schema="WriteRepositoryRequest"
+        property="name"
+        label="Name"
+        patternMessage={patternMessage}
+        value={name}
+        onChange={setName}
+        control={FormNotesField}
+        rows={3}
+      />
+    </Form>
+  );
+}
+
+export const AnotherControl: Story = {
+  render: () => <NotesControlField />,
+  play: async ({ canvas }) => {
+    // The control renders the field, given its own props, and the schema's rules still apply.
+    const name = canvas.getByRole("textbox", { name: "Name" });
+    await expect(name.tagName).toBe("TEXTAREA");
+    await expect(name).toHaveAttribute("rows", "3");
+
+    await userEvent.click(name);
+    await userEvent.tab();
+    await expect(name).toBeInvalid();
+    await expect(name).toHaveAccessibleDescription("Name is required.");
   },
 };
 
