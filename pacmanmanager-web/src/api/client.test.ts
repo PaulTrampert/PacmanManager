@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { antiforgeryHandler, apiHandler } from "../mocks/api";
+import { aRepository, aUser } from "../mocks/fixtures";
 import { server } from "../mocks/node";
 import {
   antiforgeryCookie,
@@ -10,25 +11,17 @@ import {
 } from "./antiforgery";
 import { ApiError } from "./ApiError";
 import { client } from "./client";
-import type { CurrentUser, Repository } from "./index";
 import { unwrap } from "./unwrap";
 
 const repositoryId = "6f1c1f0e-8a52-4d43-9d0b-2f1a3c5e7d90";
 
-const repository: Repository = {
+const repository = aRepository({
   id: repositoryId,
   name: "custom",
-  supportedArchitectures: ["x86_64"],
   isPublic: false,
-  permissions: { update: true, delete: true },
-  serverUrl: "https://packages.example.com/pacman/$repo/$arch",
-};
+});
 
-const currentUser: CurrentUser = {
-  id: "0b8e4a8c-3f0e-4c47-8d3b-5c6e7f8a9b0c",
-  displayName: "Test User",
-  email: "test@example.com",
-};
+const currentUser = aUser();
 
 interface SentRequest {
   method: string;

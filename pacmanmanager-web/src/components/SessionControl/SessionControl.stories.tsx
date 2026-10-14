@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen } from "storybook/test";
-import { currentUser } from "../../testing/fixtures";
+import { aUser } from "../../mocks/fixtures";
 import { SessionControl } from "./SessionControl";
 
 const meta = {
@@ -30,7 +30,7 @@ export const SignedIn: Story = {
   args: {
     session: {
       status: "signedIn",
-      user: currentUser({ displayName: "Ada Lovelace" }),
+      user: aUser({ displayName: "Ada Lovelace" }),
     },
   },
   play: async ({ args, canvas, userEvent }) => {

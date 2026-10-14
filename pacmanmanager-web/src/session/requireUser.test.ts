@@ -1,11 +1,11 @@
 import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
-import { currentUser } from "../testing/fixtures";
+import { aUser } from "../mocks/fixtures";
 import { requireUser } from "./requireUser";
 
 describe("requireUser", () => {
   it("puts a signed-in user on the route's context", () => {
-    const user = currentUser();
+    const user = aUser();
 
     expect(
       requireUser({
