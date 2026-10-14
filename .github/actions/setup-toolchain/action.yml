@@ -46,7 +46,7 @@ runs:
         restore-keys: nuget-${{ runner.os }}-
 
     # The web app's Node, read from its .nvmrc (`lts/*`), so the Claude workflows can build and
-    # test pacmanmanager-web as well as the solution. The CI `web` job sets Node up the same way.
+    # test pacmanmanager-web as well as the solution. web.yml sets Node up the same way.
     - name: Set up Node
       uses: actions/setup-node@v7
       with:

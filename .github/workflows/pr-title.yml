@@ -8,9 +8,9 @@ name: PR Title
 # parenthesised form -- "(MINOR) Add a feature" -- which is also what paulhatch/semantic-version
 # reads in the shared version.yml.
 #
-# Kept separate from ci.yml so that `edited` can be in the trigger list: a mistyped prefix is fixed
-# by editing the title and the check re-runs on its own, where putting `edited` on ci.yml would
-# re-run the whole test and image-build matrix on every title or description tweak.
+# Kept separate from check-changes.yml so that `edited` can be in the trigger list: a mistyped prefix
+# is fixed by editing the title and the check re-runs on its own, where putting `edited` on
+# check-changes.yml would re-run every pipeline on every title or description tweak.
 on:
   pull_request:
     branches: [main]

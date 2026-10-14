@@ -238,18 +238,40 @@ evidence of the intended one; its layout, sizes, weights and colours still are.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request to `main` and on every push to `main`. It is
-a gate, not a release pipeline — the project is unreleased and **nothing is published**.
+CI is a gate, not a release pipeline — the project is unreleased and **nothing is published**. It is
+four reusable pipelines and the workflow that decides which of them a change needs:
 
-| Job | What it does |
+| Workflow | What it does |
 | :--- | :--- |
-| `test` | Installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. |
-| `libalpm` | Runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
-| `web` | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
-| `e2e` | In `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `npm run e2e` against the compose stack it brings up. On failure it prints `docker compose logs` and uploads them with the Playwright report and traces as the `e2e-report` artifact; `docker compose down -v` always runs. |
-| `docker` | Builds the RepoHost, Migrations and web images from their Dockerfiles with `push: false`, as a sanity check that they still build. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
+| `check-changes.yml` (**Check Changes**) | The entry point, on every pull request to `main`, every push to `main` and by hand. Its `Detect changes` job classifies the PR's changed files; it then calls the pipelines below as jobs of the same run, and its `Check changes` job — **the one required check** — passes only if every pipeline it called succeeded. |
+| `dotnet.yml` (**.NET Build & Test**) | `Build and test`: installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. `LibAlpmSharp on Arch`: runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
+| `web.yml` (**Web Build and Test**) | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
+| `docker.yml` (**Docker Build**) | Builds every deployable image — RepoHost, Migrations and web — from its Dockerfile with `push: false`, as a sanity check that it still builds. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
+| `e2e.yml` (**End-to-end Tests**) | In `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `npm run e2e` against the compose stack it brings up. On failure it prints `docker compose logs` and uploads them with the Playwright report and traces as the `e2e-report` artifact; `docker compose down -v` always runs. |
 
-The `test` job publishes its `.trx` files with
+Which pipelines run is coarse on purpose — a whole pipeline or none of it:
+
+| Change touches | Runs |
+| :--- | :--- |
+| documentation only (`docs/`, `*.md`, `.claude/`, `.run/`, `.idea/`) | nothing; `Check changes` passes |
+| the .NET projects (`*.sln`, `LibAlpmSharp*/`, `PacmanManager.*/`) | .NET, Docker, end-to-end |
+| `pacmanmanager-web/` | Web, Docker, end-to-end |
+| shared infrastructure (`compose.yaml`, `keycloak/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
+
+A push to `main` and a run by hand always run everything. The paths live in
+`.github/scripts/classify-changes.sh`, which reads changed paths on stdin and can be run locally to
+see what a change would trigger. When something new starts reading a path, or a new top-level path
+appears, update it there; until then an unlisted path runs everything, which is safe but slow.
+
+The pipelines run inside Check Changes' run rather than as runs of their own, so their checks are
+named `<pipeline> / <job>` (`.NET Build & Test / Build and test`) and the Claude workflows below
+listen for `Check Changes` alone. Each also takes `workflow_dispatch`, to run it on its own by
+hand. A called pipeline gets no more permissions than its calling job grants, so a pipeline that
+needs more — `dotnet.yml`'s results publisher writes checks and PR comments — needs them granted in
+`check-changes.yml` too. The concurrency group lives only in `check-changes.yml`; a called pipeline
+must not declare one.
+
+The `Build and test` job publishes its `.trx` files with
 [`EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action):
 one PR comment, updated in place on each later run, plus a **Test results** check run carrying the
 per-test detail. Read that before the raw log. It is skipped for pull requests from forks, which
@@ -265,10 +287,10 @@ so the rule and its wording stay the same across repositories. The pattern it ma
 at the event SHA -- the merge commit on a pull request, so a change to it takes effect on the PR
 that makes it. It is its own workflow so that it can trigger on `edited`: a mistyped prefix is fixed
 by editing the title, and the check re-runs on its own rather than needing an empty commit. Putting
-`edited` on `ci.yml` would re-run the whole test and image-build matrix every time somebody touched
+`edited` on `check-changes.yml` would re-run every pipeline every time somebody touched
 a title or description.
 
-The runner is Ubuntu, and the whole solution runs on it unfiltered:
+The runner is Ubuntu, and when the .NET pipeline runs, the whole solution runs on it unfiltered:
 
 ```bash
 dotnet test PacmanManager.sln --configuration Release --no-build
@@ -288,7 +310,7 @@ does not reference `LibAlpmSharp`.
 Everything else runs, the E2E fixtures included — the runner's Docker daemon is what Testcontainers
 starts Postgres and Keycloak on.
 
-The **`libalpm`** job runs the same `LibAlpmSharp.Test` suite inside an `archlinux/archlinux`
+The **`LibAlpmSharp on Arch`** job runs the same `LibAlpmSharp.Test` suite inside an `archlinux/archlinux`
 container, installing `dotnet-sdk` and a JRE with `pacman`. Both jobs run all of it, and the overlap
 is the point: the binding is exercised against a distribution that only carries libalpm (Ubuntu's
 13.x) and against a real Arch system (pacman 7's 15.x), which is what proves the seeded local
@@ -344,7 +366,7 @@ Playwright script, stores them with the script and links them from the descripti
 
 ### Claude fixes failing CI (`claude-fix-ci.yml`)
 
-`.github/workflows/claude-fix-ci.yml` runs when `CI` or `PR Title` fails on an open pull request
+`.github/workflows/claude-fix-ci.yml` runs when `Check Changes` or `PR Title` fails on an open pull request
 labelled **`claude-autofix`**. The label is the opt-in: `/implement-unblocked` adds it to the PRs it
 opens, and a PR without it is left alone. Claude reads the failed run, fixes the cause on the PR
 branch and pushes, reruns a failure unrelated to the change once, or explains in a PR comment what
@@ -359,7 +381,7 @@ again. It needs the same one-time setup as `claude.yml`.
 
 ### Claude resolves merge conflicts (`claude-resolve-conflicts.yml`)
 
-`.github/workflows/claude-resolve-conflicts.yml` runs when `CI` finishes on a push to `main` (the
+`.github/workflows/claude-resolve-conflicts.yml` runs when `Check Changes` finishes on a push to `main` (the
 action does not accept `push` events itself), and when a pull request is labelled `claude-autofix`. It finds the open PRs carrying that label that conflict with
 `main`, and runs Claude on each: it merges `main` into the branch (never rebasing, which would need a
 force-push and would orphan review comments), resolves the conflicts so both sides' intent survives,
