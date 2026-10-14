@@ -14,7 +14,7 @@ export type ValidatedProperty<Schema extends ValidatedSchema> =
   keyof Rules[Schema] & string;
 
 /** Checks a field's value, returning the message to show or `undefined` when it passes. */
-export type FieldValidator = (value: string) => string | undefined;
+export type FieldValidator<T = string> = (value: T) => string | undefined;
 
 /** How a field's failures are worded. */
 export interface MessageOptions {

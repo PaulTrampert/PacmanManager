@@ -897,10 +897,33 @@ column with **no** direction, so the field's default applies.
 ### 13. `Form` and `FormField` — PATCH
 
 `Form`: a `<form noValidate>` with an optional `ProblemDetailsAlert` above its fields and an actions
-row of a submit button (with a pending label) and **Cancel**. `FormField`: an outlined text field
+row of a submit button (with a pending label) and **Cancel**. `FormField`: a field
 validated by the [rules generated from the OpenAPI document](#validation-rules-from-the-openapi-document),
 whose error replaces its helper text, shown once the field is left or the form submitted. See
 [`RepositoryForm`](#repositoryform).
+
+`FormField` is split by what each part does:
+
+* **`useFormField<T>`** holds the behaviour every field shares, whatever its value's type: it
+  reports the field's error to the `Form`, and decides when it shows and when the API's error shows
+  instead. Only `ValidatedFormField` calls it.
+* **`FormControlProps<T>`** is the props every control takes, all of them for rendering: `id`,
+  `name`, `label`, `value`, `onChange`, `onBlur`, the `error` to show, `helperText` and `disabled`.
+* **A control**, named `Form<Type>Field`, renders one kind of input from those props and does
+  nothing else: it calls no hook, and never sees a validator or the API's error. It calls `onBlur`
+  when it has been left, which is the one decision of its own it makes. This issue adds
+  `FormTextField`, an outlined text field. Selects, radio groups and multi-selects are issues
+  [41](#41-formselectfield--patch), [42](#42-formradiogroupfield--patch) and
+  [43](#43-formmultiselectfield--patch).
+* **`ValidatedFormField`** takes a validator, the field's value and the API's error, calls
+  `useFormField`, and renders its `control` with the result. It is not exported from the folder,
+  so a form cannot hand it rules of its own; stories use it for rules the OpenAPI document does not
+  have yet.
+* **`FormField`** turns a schema and a property into the field's name and validator, and renders
+  `ValidatedFormField` with them. Its `control` prop is a component (not a render function) that is
+  `FormTextField` when left out, and it passes the control any props of its own, such as a select's
+  options. Until [40](#40-generic-fieldvalidator--patch) it takes only controls of a `string`,
+  since those are the only validators `fieldValidator` makes.
 
 *Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 
@@ -911,9 +934,15 @@ set on the field, and a pending form; `play` functions assert no error shows whi
 error shows on blur, submitting an invalid form shows every error and does not call `onSubmit`, and
 the submit button is disabled while pending. A story with a server-only pattern submits a value that
 would fail it, answered by a fixture `400` carrying a human message, and asserts that message — not a
-regular expression — appears on the field.
+regular expression — appears on the field. A story renders a `FormField` with another control, which
+takes a prop of its own, and asserts the control receives it and the schema's rules still apply.
+`useFormField`'s unit tests include a value that is not a string.
 
 *Depends on:* 5.
+
+**Why:**
+
+* [`FormField` takes its control](#why-formfield-takes-its-control)
 
 ### 14. `Dialog` — PATCH
 
@@ -955,6 +984,71 @@ The Public or Private chip used in the table and the repository page's title.
 *Acceptance:* a story for each value, with an accessible name naming the visibility.
 
 *Depends on:* nothing.
+
+### 40. Generic `fieldValidator` — PATCH
+
+`fieldValidator` makes a validator for a property of any type the OpenAPI document gives it, not only
+a string. The validator returns **every** failing rule's message, as a `string[]`, empty when the
+value passes, since more than one rule can fail for the same value.
+
+* `FieldValidator<T>` becomes `(value: T) => string[]`, with `T` the property's type in the generated
+  schema: `string`, `boolean`, or an array of one of them.
+* The validation generator also emits `minItems` and `maxItems` for array properties, and they are
+  exact. An array is blank, for `required`, when it is empty.
+* `useFormField` reports the field as failing while its messages are not empty, and gives the
+  control every message to show, the API's error included: `FormControlProps`' `error` becomes
+  `errors: string[]`. `FormTextField` shows each message on a line of its own in place of the
+  helper text.
+* `FormField`'s value type follows its property's: `FormField` for a `boolean` property takes a
+  control of a `boolean`, and one for a `string[]` property a control of a `string[]`.
+
+*Acceptance:* unit tests of each rule for each type, including a value failing two rules at once
+and receiving both messages; a `FormField` story whose value fails two rules at once and shows both;
+a typecheck test that a control of the wrong type is rejected for a property.
+
+*Depends on:* 13.
+
+**Why:**
+
+* [`FormField` takes its control](#why-formfield-takes-its-control)
+
+### 41. `FormSelectField` — PATCH
+
+A [form control](#13-form-and-formfield--patch) of a `string`: an outlined MUI `Select` of the
+options it is given (`{ value, label }`), whose error replaces its helper text as
+`FormTextField`'s does. A select with no choice made has the value `""`, which `required` rejects.
+
+*Acceptance:* stories for a pristine field, a helper text, a required field left without a choice,
+a server error and a disabled field; `play` functions assert no error shows until the field is left
+or the form submitted, and that choosing an option calls `onChange` with its value.
+
+*Depends on:* 13.
+
+### 42. `FormRadioGroupField` — PATCH
+
+A [form control](#13-form-and-formfield--patch) of any value type `T`: a labelled MUI `RadioGroup`
+of the options it is given (`{ value: T, label, description? }`), each description shown beneath its
+option, with the field's error or helper text below the group. It calls `onBlur` when focus leaves
+the group, not when it moves between its options.
+
+*Acceptance:* stories for a pristine field, a helper text, options with descriptions, a server error
+and a disabled field; `play` functions assert that choosing an option calls `onChange` with its
+value, typed as `T` (a `boolean` in one story), and that moving between options does not show an
+error.
+
+*Depends on:* 13.
+
+### 43. `FormMultiSelectField` — PATCH
+
+A [form control](#13-form-and-formfield--patch) of a `string[]`: an outlined MUI `Select` with
+`multiple`, of the options it is given (`{ value, label }`), showing the selected values by their
+labels. A selected value not among the options is shown raw.
+
+*Acceptance:* stories for a pristine field, a helper text, several values selected, a value not
+among the options, a server error and a disabled field; `play` functions assert that choosing and
+clearing options calls `onChange` with the selected values in option order.
+
+*Depends on:* 13.
 
 ### 17. `RepositoryFilters` — PATCH
 
@@ -1028,7 +1122,9 @@ values with the existing `supportedArchitectures` when editing, and that a `409`
 the name field and not in an alert. A story with two architectures shows both selected in the edit
 form, by `displayValue`.
 
-*Depends on:* 3, 7, 13.
+*Depends on:* 3, 7, 13, 40, 42, 43. Visibility is a `FormField` of `isPublic` with
+`FormRadioGroupField`, and Architectures one of `supportedArchitectures` with
+`FormMultiSelectField`.
 
 **Why:**
 
@@ -1492,3 +1588,34 @@ then serves every client, not just the web form.
 The pattern's message stays in the web app because the OpenAPI document has nowhere to carry one.
 Emitting it as a vendor extension from a Swashbuckle schema filter was considered and left until a
 second pattern needs a message.
+
+### Why `FormField` takes its control
+
+The first plan made `FormField` an outlined text field and nothing else. Review asked how it would
+wrap a select, a multi-select or a radio group, and it could not: its behaviour was a text field's
+hook, typed to a `string`, and it always rendered MUI's `TextField`. The forms here need all three
+— `RepositoryForm`'s visibility is a radio group and its architectures a multi-select — so the
+project owner asked for the behaviour to be generic and the rendering specific.
+
+Three shapes were weighed. **A component per control, each reading the schema itself**
+(`FormSelect` taking `schema` and `property`), repeats the schema-to-validator step in every
+control. **A render function** (`<FormField>{({ id, error, onBlur }) => …}</FormField>`) is the
+most flexible, but leaves every form to wire the id, the error colour and the helper text into each
+control, which is the work `FormField` exists to do once. **A control component that `FormField`
+renders**, with one props contract every control implements, keeps each piece to one job:
+`FormField` knows the schema, `useFormField` the timing of errors, and the control only how its
+kind of input looks. A control's own props, such as a select's options, pass through `FormField`,
+typed from the control, so a missing or misspelt one is a type error.
+
+The first version of that shape had each control call `useFormField` itself, handing it the
+validator and the API's error from its props. Review pointed out that the behaviour is the same for
+every field, so every control repeating the call was a place for one of them to get it wrong — to
+forget it, and never block the form, or pass it something else. `ValidatedFormField` now calls it
+once, and a control's props are only what it renders. The stories that need rules the OpenAPI
+document does not have use `ValidatedFormField` with a validator of their own; it stays inside the
+folder, so a form never can.
+
+A generic hook alone does not make `FormField` generic, because `fieldValidator` makes validators
+of a `string` only. Widening it is its own issue, [40](#40-generic-fieldvalidator--patch), which
+also makes a validator return every failing rule's message rather than the first, since a value can
+fail more than one.
