@@ -1,35 +1,31 @@
 import TextField from "@mui/material/TextField";
 import type { FormControlProps } from "./FormControlProps";
-import { useFormField } from "./useFormField";
 
 /** The props {@link FormTextField} takes. */
 export type FormTextFieldProps = FormControlProps<string>;
 
-/**
- * An outlined text field inside a `Form`, checked by any validator. It is the control `FormField`
- * renders unless given another.
- */
+/** An outlined text field: the control `FormField` renders unless given another. */
 export function FormTextField({
+  id,
   name,
   label,
-  validate,
   value,
   onChange,
+  onBlur,
+  error,
   helperText,
-  serverError,
   disabled,
 }: FormTextFieldProps) {
-  const field = useFormField({ name, value, validate, serverError });
   return (
     <TextField
-      id={field.id}
+      id={id}
       name={name}
       label={label}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      onBlur={field.onBlur}
-      error={field.error !== undefined}
-      helperText={field.error ?? helperText}
+      onBlur={onBlur}
+      error={error !== undefined}
+      helperText={error ?? helperText}
       disabled={disabled}
       fullWidth
     />

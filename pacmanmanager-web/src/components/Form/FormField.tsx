@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import {
   fieldValidator,
   type FieldValidatorOptions,
@@ -7,6 +7,12 @@ import {
 } from "../../api";
 import type { FormControlProps } from "./FormControlProps";
 import { FormTextField, type FormTextFieldProps } from "./FormTextField";
+import {
+  ValidatedFormField,
+  type ControlOwnProps,
+  type FieldInputs,
+  type ValidatedFormFieldProps,
+} from "./ValidatedFormField";
 
 /** The props {@link FormField} takes. */
 export type FormFieldProps<
@@ -18,24 +24,15 @@ export type FormFieldProps<
   schema: Schema;
   /** The property of `schema` the field edits, which also names the field. */
   property: Property;
-  /** The field's current value. */
-  value: string;
-  /** Called with the new value as it is edited. */
-  onChange: (value: string) => void;
-  /** Shown below the field while it has no error to show. */
-  helperText?: ReactNode;
-  /** The API's message for the field, from the last request's validation `400` or a `409`. */
-  serverError?: string;
-  /** Disables the field. */
-  disabled?: boolean;
   /**
    * The control that renders the field, a `Form<Type>Field`; {@link FormTextField} when left out.
    * Any props it takes beyond {@link FormControlProps} are passed to it.
    */
   control?: ComponentType<Props>;
-} & FieldValidatorOptions<Schema, Property> &
+} & Omit<FieldInputs<string>, "name" | "label" | "validate"> &
+  FieldValidatorOptions<Schema, Property> &
   // Props is inferred from `control` alone, and is FormTextFieldProps without one.
-  NoInfer<Omit<Props, keyof FormControlProps<string>>>;
+  ControlOwnProps<string, Props>;
 
 /**
  * A field inside a `Form`, validated by the rules the OpenAPI document gives `property` of `schema`
@@ -62,12 +59,14 @@ export function FormField<
   >;
   // Without a control Props is FormTextFieldProps, so FormTextField takes them.
   const Control = (control ?? FormTextField) as ComponentType<Props>;
-  // The rest of the props are the control's own, beside the ones given here.
+  // The rest are the field's inputs and the control's own props, which TypeScript cannot follow
+  // through a spread of a generic type.
   const props = {
     ...field,
     name: property,
     label,
     validate: fieldValidator(schema, property, options),
-  } as unknown as Props;
-  return <Control {...props} />;
+    control: Control,
+  } as unknown as ValidatedFormFieldProps<string, Props>;
+  return <ValidatedFormField {...props} />;
 }

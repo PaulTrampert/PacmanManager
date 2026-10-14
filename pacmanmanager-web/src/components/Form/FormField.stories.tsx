@@ -13,7 +13,7 @@ import { Form } from "./Form";
 import type { FormControlProps } from "./FormControlProps";
 import { FormField } from "./FormField";
 import { FormTextField } from "./FormTextField";
-import { useFormField } from "./useFormField";
+import { ValidatedFormField } from "./ValidatedFormField";
 
 const helperText =
   "Letters, digits and @ _ + - . This is the section name in pacman.conf.";
@@ -151,7 +151,8 @@ function MinLengthField() {
       onSubmit={() => {}}
       onCancel={() => {}}
     >
-      <FormTextField
+      <ValidatedFormField
+        control={FormTextField}
         name="code"
         label="Code"
         validate={validatorFor(
@@ -204,23 +205,19 @@ interface FormNotesFieldProps extends FormControlProps<string> {
 }
 
 /** A multi-line text control, standing in for any `Form<Type>Field` with props of its own. */
-function FormNotesField({ rows, ...control }: FormNotesFieldProps) {
-  const field = useFormField({
-    ...control,
-    serverError: control.serverError,
-  });
+function FormNotesField({
+  onChange,
+  error,
+  helperText,
+  ...control
+}: FormNotesFieldProps) {
   return (
     <TextField
-      id={field.id}
-      name={control.name}
-      label={control.label}
-      value={control.value}
-      onChange={(event) => control.onChange(event.target.value)}
-      onBlur={field.onBlur}
-      error={field.error !== undefined}
-      helperText={field.error ?? control.helperText}
+      {...control}
+      onChange={(event) => onChange(event.target.value)}
+      error={error !== undefined}
+      helperText={error ?? helperText}
       multiline
-      rows={rows}
     />
   );
 }
@@ -295,7 +292,8 @@ function ServerOnlyPatternField() {
       onSubmit={() => create.mutate({ name, supportedArchitectures: [] })}
       onCancel={() => {}}
     >
-      <FormTextField
+      <ValidatedFormField
+        control={FormTextField}
         name="name"
         label="Name"
         validate={serverOnlyName}
