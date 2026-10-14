@@ -911,8 +911,8 @@ whose error replaces its helper text, shown once the field is left or the form s
   `onChange`, `helperText`, `serverError` and `disabled`.
 * **A control**, named `Form<Type>Field`, renders one kind of input from those props and
   `useFormField`, and does nothing else. This issue adds `FormTextField`, an outlined text field.
-  Selects, radio groups and multi-selects are issues [40](#40-generic-fieldvalidator--patch) to
-  [43](#43-formmultiselectfield--patch).
+  Selects, radio groups and multi-selects are issues [41](#41-formselectfield--patch),
+  [42](#42-formradiogroupfield--patch) and [43](#43-formmultiselectfield--patch).
 * **`FormField`** turns a schema and a property into the field's name and validator. It renders
   them with its `control` prop, a component (not a render function) that is `FormTextField` when
   left out, and passes the control any props of its own, such as a select's options. Until
