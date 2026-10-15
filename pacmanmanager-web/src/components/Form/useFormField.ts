@@ -18,17 +18,17 @@ export interface UseFormFieldOptions<T> {
 export interface FormFieldState {
   /** The field's element id. */
   id: string;
-  /** The error to show in place of the helper text, if any. */
-  error: string | undefined;
-  /** Marks the field as left, after which its error shows. */
+  /** Every message to show in place of the helper text, none while there is nothing to show. */
+  errors: string[];
+  /** Marks the field as left, after which its errors show. */
   onBlur: () => void;
 }
 
 /**
- * The behaviour of a form's field, whatever control renders it: it reports its validation error to
- * the enclosing `Form`, and shows it only once the field has been left or the form submitted, so
- * nothing complains while a value is first entered. A browser error takes the place of the API's,
- * which shows otherwise.
+ * The behaviour of a form's field, whatever control renders it: it reports to the enclosing `Form`
+ * whether its value fails validation, and shows every failing rule's message only once the field
+ * has been left or the form submitted, so nothing complains while a value is first entered. The
+ * browser's messages take the place of the API's, which shows otherwise.
  */
 export function useFormField<T>({
   name,
@@ -36,23 +36,24 @@ export function useFormField<T>({
   validate,
   serverError,
 }: UseFormFieldOptions<T>): FormFieldState {
-  const { submitted, setFieldError } = useFormContext();
+  const { submitted, setFieldFailing } = useFormContext();
   const [left, setLeft] = useState(false);
   const id = useId();
 
-  const error = validate(value);
+  const messages = validate(value);
+  const failing = messages.length > 0;
 
   useEffect(() => {
-    setFieldError(name, error);
+    setFieldFailing(name, failing);
     // A field that goes away blocks submitting no longer.
-    return () => setFieldError(name, undefined);
-  }, [name, error, setFieldError]);
+    return () => setFieldFailing(name, false);
+  }, [name, failing, setFieldFailing]);
 
-  const shown = left || submitted ? error : undefined;
+  const shown = (left || submitted) && failing;
 
   return {
     id,
-    error: shown ?? serverError,
+    errors: shown ? messages : serverError === undefined ? [] : [serverError],
     onBlur: () => setLeft(true),
   };
 }
