@@ -2,13 +2,13 @@ import { createContext, useContext } from "react";
 
 /** What a `Form` tells the fields inside it, and how they report back. */
 export interface FormContextValue {
-  /** Whether the form has been submitted, after which every field shows its error. */
+  /** Whether the form has been submitted, after which every field shows its errors. */
   submitted: boolean;
   /**
-   * Records the browser's validation error for the field `name`, or `undefined` when it passes. The
-   * form does not call `onSubmit` while any field has one.
+   * Records whether the field `name` fails the browser's validation. The form does not call
+   * `onSubmit` while any field does.
    */
-  setFieldError: (name: string, error: string | undefined) => void;
+  setFieldFailing: (name: string, failing: boolean) => void;
 }
 
 /** The context a `Form` provides to its fields. */

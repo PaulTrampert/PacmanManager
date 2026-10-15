@@ -108,18 +108,30 @@ jobs:
       - name: Set up the build toolchain
         uses: ./.github/actions/setup-toolchain
 
+      # Chromium and the system libraries it needs, as web.yml installs them, so that Claude can
+      # retake a PR's screenshots: installing the libraries takes sudo, which Claude may not run.
+      # This installs from main's lockfile; scripts/with-web-server.sh reinstalls if the PR's
+      # differs. See AGENTS.md, "Screenshots".
+      - name: Install Chromium for screenshots
+        working-directory: pacmanmanager-web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
       # The action runs in its @claude (tag) mode: it checks out the PR branch, reads the PR and the
       # triggering comment, and replies in a progress comment. For a batched review, `prompt` lists
       # the review's requests; `track_progress` keeps the action in tag mode when a prompt is given,
       # where it would otherwise switch to its unattended agent mode. No `github_token`, so it uses
       # the Claude GitHub App's. AGENTS.md is the repository's CLAUDE.md and is read as usual.
-      # `node`, scripts/pr-screenshots.sh and `gh pr edit` let a change that alters the UI retake the
-      # PR's screenshots and relink them from its description (AGENTS.md, "Screenshots").
+      # `node`, scripts/with-web-server.sh, scripts/pr-screenshots.sh and `gh pr edit` let a change
+      # that alters the UI retake the PR's screenshots and relink them from its description
+      # (AGENTS.md, "Screenshots"). Claude has no general shell, so with-web-server.sh is what starts
+      # Storybook or `vite preview` around its Playwright script, and stops it afterwards.
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ needs.review.outputs.prompt }}
           track_progress: true
           claude_args: >-
-            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(scripts/pr-screenshots.sh:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh issue view:*)"
+            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(scripts/with-web-server.sh:*),Bash(scripts/pr-screenshots.sh:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr edit:*),Bash(gh run view:*),Bash(gh issue view:*)"
             --disallowedTools "Bash(gh pr merge:*)"

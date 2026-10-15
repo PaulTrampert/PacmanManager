@@ -359,10 +359,14 @@ It needs two things set up once, which every Claude workflow here shares:
   pushes made with the workflow's own `GITHUB_TOKEN` would not;
 * a `CLAUDE_CODE_OAUTH_TOKEN` repository secret, generated with `claude setup-token`.
 
-Claude may run `dotnet`, `git`, `npm`, `npx`, `node`, `scripts/pr-screenshots.sh`, read-only `gh`
-commands and `gh pr edit`; `gh pr merge` is denied outright. The last three exist for
-[Screenshots](#screenshots): a change that alters the UI retakes the PR's screenshots with a
-Playwright script, stores them with the script and links them from the description.
+Claude may run `dotnet`, `git`, `npm`, `npx`, `node`, `scripts/with-web-server.sh`,
+`scripts/pr-screenshots.sh`, read-only `gh` commands and `gh pr edit`; `gh pr merge` is denied
+outright. The two scripts and `gh pr edit` exist for [Screenshots](#screenshots): a change that
+alters the UI retakes the PR's screenshots with a Playwright script, stores them with the script and
+links them from the description. Claude has no general shell, so it cannot start a server in the
+background, wait for it and stop it, nor install Chromium's system libraries with `sudo`: the
+workflow installs Chromium before Claude starts, and `scripts/with-web-server.sh` serves the app
+around the one command that takes the screenshots.
 
 ### Claude fixes failing CI (`claude-fix-ci.yml`)
 
@@ -463,7 +467,11 @@ name the commit, not the branch, so an image a description already shows never c
 Take them with Playwright (`npx playwright install chromium` once). The real app is best, run
 however suits the change: the app's production build under `npx vite preview`, with Playwright's
 `page.route` answering the requests it makes (`/userinfo` and the API), needs no compose stack; a
-Storybook render suits a single component. "Before" comes from the PR's base on `main`, which a
+Storybook render suits a single component. Use Storybook's dev server for that, not a static
+`build-storybook`, which never runs a story's `play` function. `scripts/with-web-server.sh
+storybook|preview <command>...` starts either server on a free port, runs the command with
+`BASE_URL` set to it, and stops the server again, so a Playwright script needs no server handling
+of its own; it can `require("@playwright/test")` from anywhere. "Before" comes from the PR's base on `main`, which a
 `git worktree add` of it, or `git archive` into a scratch directory, provides. Don't overwrite the
 shared `pacmanmanager.*` images while doing so: `compose.yaml` names them, so a second compose
 project still re-tags them.
