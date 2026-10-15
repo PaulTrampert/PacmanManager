@@ -235,6 +235,9 @@ Wireframes: [repository-owner-public](wireframes/repository-owner-public.png) ([
   Keys and invalidation follow [Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data).
 * An edit page for a repository whose `permissions.update` is `false` shows the
   [`403` message](../web-ui-architecture/web-ui-architecture.md#error-handling) in place of the form.
+* Each path's route renders one page from `src/pages`, as
+  [Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data) sets out: `RepositoryListPage`, `NewRepositoryPage`,
+  `RepositoryPage` and `EditRepositoryPage`.
 
 **Why:**
 
@@ -1238,8 +1241,11 @@ settles.
 **Pages**
 
 Step 44 registers every route as a stub first. Each page issue after it replaces its route's stub
-with a route that renders what its loader fetched, with its callbacks not yet connected to anything;
-a route test renders it against MSW for each state its wireframes show.
+with a route that loads what the page needs and renders a page from `src/pages`, as
+[Routing and data](../web-ui-architecture/web-ui-architecture.md#routing-and-data) sets out, with the page's callbacks not yet connected to
+anything. Each state its wireframes show is a story of the page, against MSW; a route test covers
+what the route itself does. Step 32's list page was built in its route file before that rule; step 36
+moves it.
 
 ### 44. Stub the repository routes — PATCH
 
@@ -1296,13 +1302,17 @@ on a `404`. It replaces the `/repositories/$repositoryId` stub.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
-*Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
+`RepositoryPage` is given the `repositoryId`, both links and `onDelete`.
+
+*Acceptance:* stories of `RepositoryPage` for the owner, not-the-owner and anonymous cases; route
+tests for not-found and arrival by a typed link; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
 
 *Depends on:* 7, 19, 20, 25, 26, 44.
 
 **Why:**
 
+* [routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render)
 * [repositories are addressed by id](#why-repositories-are-addressed-by-id)
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 * [components take their links as props](#why-components-take-their-links-as-props)
@@ -1315,12 +1325,16 @@ replaces the `/repositories/new` stub.
 
 *Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)).
 
-*Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
+`NewRepositoryPage` is given the **Repositories** crumb's link, `onCreated` and `onCancel`.
+
+*Acceptance:* a story of `NewRepositoryPage`'s empty form; a route test in which an anonymous visit
+is sent to sign in.
 
 *Depends on:* 7, 8, 21, 26, 44.
 
 **Why:**
 
+* [routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render)
 * [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 ### 35. The edit repository page — MINOR
@@ -1331,18 +1345,23 @@ repository, or the `403` message when `permissions.update` is `false`. It replac
 
 *Wireframes:* [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)).
 
-*Acceptance:* route tests for the filled form, the `403` message and not-found.
+`EditRepositoryPage` is given the `repositoryId`, its crumbs' links, `onSaved` and `onCancel`.
+
+*Acceptance:* stories of `EditRepositoryPage`'s filled form and `403` message; route tests for
+not-found and arrival by a typed link.
 
 *Depends on:* 7, 8, 21, 25, 26, 44.
 
 **Why:**
 
+* [routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render)
 * [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 **Behaviour**
 
 Each issue connects a page's callbacks, and carries a Playwright test of the behaviour against the
-compose stack, signed in as the realm's `test` and `other` users as needed.
+compose stack, signed in as the realm's `test` and `other` users as needed. The behaviour lives in
+the page's `use<Name>Page` hook, and each navigation it makes is a callback the route passes in.
 
 ### 36. List filters, sort and paging — MINOR
 
@@ -1350,7 +1369,9 @@ compose stack, signed in as the realm's `test` and `other` users as needed.
 on any filter, sort or page-size change; the owner filter searches with `userListQuery`, pins the
 session's user, labels a URL `ownerId` with `userQuery` and drops it on a `404`; **Clear filters**
 removes every filter parameter; and a page past the end is clamped to the last page, as
-[Sorting and paging](#sorting-and-paging) sets out.
+[Sorting and paging](#sorting-and-paging) sets out. It moves step 32's page into
+`RepositoryListPage` and `useRepositoryListPage`, given the validated search, each row's link, the
+**New repository** link and `onSearchChange`, which the hook calls for every search change.
 
 *Wireframes:* [list-own-repositories](wireframes/list-own-repositories.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3fcb72b7a)), [list-owner-dropdown-open](wireframes/list-owner-dropdown-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4131f7711)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)).
 
@@ -1363,14 +1384,20 @@ under a unique name prefix, filters by that prefix at 25 rows per page, sees "1�
 the next page and sees exactly one row and "26–26 of 26", then reloads to the same page. Route tests
 load `?offset=500` with 5 repositories and end on `offset=0` with the rows shown and no empty state,
 and load `?offset=500&pageSize=50` with 120 repositories and end on `offset=100`, each by a
-history-replacing navigation.
+history-replacing navigation. Step 32's route tests of each listing state become stories of
+`RepositoryListPage`, with `play` functions for filtering, sorting, paging and **Clear filters**;
+route tests keep `?pageSize=7` and the redirects of a disabled filter's param.
 
 *Depends on:* 7, 28, 32.
 
+**Why:**
+
+* [routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render)
+
 ### 37. Create a repository — MINOR
 
-`RepositoryForm` on the new page calls `useCreateRepository`, navigates to the new repository on
-success, and returns to the list on **Cancel**.
+`RepositoryForm` on `NewRepositoryPage` calls `useCreateRepository`, navigates to the new repository
+on success through `onCreated`, and returns to the list on **Cancel** through `onCancel`.
 
 *Wireframes:* [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-name-taken](wireframes/new-name-taken.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af673c863b)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 
@@ -1390,8 +1417,8 @@ returns to the repository's page without saving.
 
 *Acceptance:* Playwright tests rename a repository and see its new name on its page and in the
 list, make one private and confirm `other` can no longer see it, and rename to a taken name and see
-the dialog close with the error on the name field. A route test answers the `PUT` with a `500` and
-asserts the dialog closes and the form's alert shows it with the edits intact. A Playwright test edits
+the dialog close with the error on the name field. A story of `EditRepositoryPage` answers the
+`PUT` with a `500` and asserts the dialog closes and the form's alert shows it with the edits intact. A Playwright test edits
 the name, presses **Cancel**, and lands on the repository's page with the name unchanged.
 
 *Depends on:* 7, 22, 30, 33, 35.
@@ -1405,9 +1432,9 @@ the name, presses **Cancel**, and lands on the repository's page with the name u
 *Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
 *Acceptance:* a Playwright test deletes a repository by typing its name and finds it gone from the
-list; its page then shows not-found. A route test answers the `DELETE` with a `500` and asserts the
-dialog closes, the alert shows above the header, and reopening the dialog starts with an empty name
-field. Another asserts a successful delete lands on the list without the root error
+list; its page then shows not-found. A story of `RepositoryPage` answers the `DELETE` with a `500`
+and asserts the dialog closes, the alert shows above the header, and reopening the dialog starts with an empty name
+field. A route test asserts a successful delete lands on the list without the root error
 component ever rendering, and without a further request for the deleted id.
 
 *Depends on:* 7, 23, 31, 33.
@@ -1612,9 +1639,10 @@ Two alternatives were rejected:
   satisfies every page, and those that could be ordered would form a chain, each held behind review
   of the one before it, where with the stubs all four can be built at once.
 * **Links as props, as the components take them.** That works for a component because the page
-  rendering it supplies the link. A page is the code that owns its links: nothing renders it but
-  the router, so there is no caller to pass a link in. The stubs keep every link typed where the
-  page writes it.
+  rendering it supplies the link. As first planned, a page was the code that owned its links:
+  nothing rendered it but the router, so there was no caller to pass a link in. Since
+  [routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render), the route rendering a page passes its links in; the stubs are still needed, because the
+  route writes those links, typed against the route tree.
 
 ### Why create and edit are one form
 
