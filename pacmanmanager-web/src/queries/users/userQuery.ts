@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, unwrap } from "../../api";
+import { userKeys } from "./userKeys";
 
 /**
  * The query options for one user's public record, `GET /v1/Users/{userId}`. The repository list
@@ -11,7 +12,7 @@ import { client, unwrap } from "../../api";
  */
 export function userQuery(id: string) {
   return queryOptions({
-    queryKey: ["users", "detail", id],
+    queryKey: userKeys.detail(id),
     queryFn: () =>
       unwrap(
         client.GET("/v1/Users/{userId}", { params: { path: { userId: id } } }),
