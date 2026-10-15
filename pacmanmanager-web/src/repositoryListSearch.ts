@@ -31,6 +31,10 @@ export const repositoryListFilterParams = [
   "architecture",
 ] as const satisfies readonly (keyof RepositoryListPageSearch)[];
 
+/** A filter param of the repository list. */
+export type RepositoryListFilterParam =
+  (typeof repositoryListFilterParams)[number];
+
 /**
  * The users search that counts the users, by its `total`: the owner filter is disabled when there
  * are fewer than two.
@@ -189,4 +193,79 @@ export function repositoryListRequest(
     ...search,
     pageSize: search.pageSize ?? defaultRepositoryListPageSize,
   };
+}
+
+/** `search` with every param whose value is `undefined` removed, so none reaches the URL. */
+function withoutUndefined(
+  search: RepositoryListPageSearch,
+): RepositoryListPageSearch {
+  return Object.fromEntries(
+    Object.entries(search).filter(([, value]) => value !== undefined),
+  ) as RepositoryListPageSearch;
+}
+
+/**
+ * `search` with `change` applied, `undefined` removing a param, and `offset` removed, since a
+ * different filter starts again at the first page.
+ */
+export function withFilterChange(
+  search: RepositoryListPageSearch,
+  change: Partial<Pick<RepositoryListPageSearch, RepositoryListFilterParam>>,
+): RepositoryListPageSearch {
+  return withoutUndefined({ ...search, ...change, offset: undefined });
+}
+
+/**
+ * `search` without any filter param, which **Clear filters** leaves, and without `offset`. The sort
+ * and the page size stay.
+ */
+export function withoutFilters(
+  search: RepositoryListPageSearch,
+): RepositoryListPageSearch {
+  return withFilterChange(
+    search,
+    Object.fromEntries(
+      repositoryListFilterParams.map((param) => [param, undefined]),
+    ),
+  );
+}
+
+/**
+ * `search` ordered by `sortBy` in `direction`, `direction` being removed when absent so that the
+ * field's default applies, and `offset` removed, since a different order starts again at the first
+ * page.
+ */
+export function withSort(
+  search: RepositoryListPageSearch,
+  sort: Pick<RepositoryListPageSearch, "sortBy" | "direction">,
+): RepositoryListPageSearch {
+  return withoutUndefined({
+    ...search,
+    sortBy: sort.sortBy,
+    direction: sort.direction,
+    offset: undefined,
+  });
+}
+
+/**
+ * `search` showing the page at `offset` with `pageSize` rows, or the default page size when that is
+ * not one the list offers. An `offset` of `0`, the first page, is removed.
+ */
+export function withPagination(
+  search: RepositoryListPageSearch,
+  { offset, pageSize }: { offset: number; pageSize: number },
+): RepositoryListPageSearch {
+  return withoutUndefined({
+    ...search,
+    offset: offset === 0 ? undefined : offset,
+    pageSize: repositoryListPageSizes.find((size) => size === pageSize),
+  });
+}
+
+/**
+ * The offset of the last page of a listing of `total` items at `pageSize` items a page: where a
+ * page past the end is moved to.
+ */
+export function lastPageOffset(total: number, pageSize: number): number {
+  return Math.max(0, Math.floor((total - 1) / pageSize) * pageSize);
 }
