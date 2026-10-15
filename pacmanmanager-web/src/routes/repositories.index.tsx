@@ -1,33 +1,15 @@
-import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import {
-  createFileRoute,
-  createLink,
-  linkOptions,
-  redirect,
-} from "@tanstack/react-router";
-import { EmptyState } from "../components/EmptyState";
-import { ErrorPage } from "../components/ErrorPage";
-import { PageHeader } from "../components/PageHeader";
-import { RepositoryFilters } from "../components/RepositoryFilters";
-import { RepositoryTable } from "../components/RepositoryTable";
+import { createFileRoute, linkOptions, redirect } from "@tanstack/react-router";
+import { RepositoryListPage } from "../pages/RepositoryListPage";
 import { architecturesQuery } from "../queries/architectures";
 import { repositoryListQuery } from "../queries/repositories";
 import { userListQuery } from "../queries/users";
 import {
   hasDroppedParams,
-  hasRepositoryListFilters,
   repositoryListRequest,
   userCountSearch,
   validateRepositoryListSearch,
   withoutDisabledFilters,
-  type RepositoryListPageSearch,
 } from "../repositoryListSearch";
-import { useSession, type Session } from "../session";
-import { useRepositoryListPage } from "./-useRepositoryListPage";
-
-/** MUI's button, navigating through the router. */
-const ButtonLink = createLink(Button);
 
 export const Route = createFileRoute("/repositories/")({
   validateSearch: validateRepositoryListSearch,
@@ -59,109 +41,25 @@ export const Route = createFileRoute("/repositories/")({
       repositoryListQuery(repositoryListRequest(valid)),
     );
   },
-  component: RepositoryListPage,
+  component: RepositoryListRoute,
 });
 
-function RepositoryListPage() {
+function RepositoryListRoute() {
   const search = Route.useSearch();
-  const session = useSession();
-  const routeNavigate = Route.useNavigate();
-  const { architectures, filters, list } = useRepositoryListPage({
-    search,
-    session,
-    navigate: (update, options) =>
-      void routeNavigate({ search: update, replace: options?.replace }),
-  });
-
+  const navigate = Route.useNavigate();
   return (
-    <>
-      <PageHeader
-        title="Repositories"
-        actions={
-          session.status === "signedIn" && (
-            <ButtonLink to="/repositories/new" variant="contained">
-              New repository
-            </ButtonLink>
-          )
-        }
-      />
-      <Stack spacing={3}>
-        <RepositoryFilters
-          filters={search}
-          onChange={filters.onChange}
-          session={session}
-          architectures={architectures}
-          users={filters.users}
-          owner={filters.owner}
-        />
-        {list.error !== null ? (
-          <ErrorPage error={list.error} onRetry={list.retry} />
-        ) : list.empty ? (
-          <RepositoryListEmptyState
-            search={search}
-            session={session}
-            onClearFilters={filters.clear}
-          />
-        ) : (
-          <RepositoryTable
-            response={list.response}
-            loading={list.loading}
-            pageSize={list.pageSize}
-            architectures={architectures}
-            repositoryLink={(repository) =>
-              linkOptions({
-                to: "/repositories/$repositoryId",
-                params: { repositoryId: repository.id },
-              })
-            }
-            onSortChange={list.onSortChange}
-            onPaginationChange={list.onPaginationChange}
-          />
-        )}
-      </Stack>
-    </>
-  );
-}
-
-function RepositoryListEmptyState({
-  search,
-  session,
-  onClearFilters,
-}: {
-  search: RepositoryListPageSearch;
-  session: Session;
-  onClearFilters: () => void;
-}) {
-  if (hasRepositoryListFilters(search)) {
-    return (
-      <EmptyState
-        heading="No repositories match"
-        message="Nothing matches the current filters."
-        action={
-          <Button variant="outlined" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        }
-      />
-    );
-  }
-  if (session.status === "signedIn") {
-    return (
-      <EmptyState
-        heading="No repositories yet"
-        message="Create a repository to start publishing packages."
-        action={
-          <ButtonLink to="/repositories/new" variant="contained">
-            Create a repository
-          </ButtonLink>
-        }
-      />
-    );
-  }
-  return (
-    <EmptyState
-      heading="No public repositories"
-      message="There are no public repositories to show."
+    <RepositoryListPage
+      search={search}
+      repositoryLink={(repository) =>
+        linkOptions({
+          to: "/repositories/$repositoryId",
+          params: { repositoryId: repository.id },
+        })
+      }
+      newRepositoryLink={linkOptions({ to: "/repositories/new" })}
+      onSearchChange={(update, options) =>
+        void navigate({ search: update, replace: options?.replace })
+      }
     />
   );
 }

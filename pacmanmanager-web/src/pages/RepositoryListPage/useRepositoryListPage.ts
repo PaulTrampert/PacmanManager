@@ -1,4 +1,3 @@
-// The `-` prefix keeps the route generator from taking this file for a route.
 import {
   keepPreviousData,
   useQuery,
@@ -11,21 +10,25 @@ import {
   type PublicUserInfo,
   type RepositoryPaginatedResponse,
   type RepositorySortField,
-} from "../api";
-import type { Pagination, RequestedSort } from "../components/PaginatedTable";
+} from "../../api";
+import type {
+  Pagination,
+  RequestedSort,
+} from "../../components/PaginatedTable";
 import type {
   OwnerSearch,
   RepositoryFilterChange,
-} from "../components/RepositoryFilters";
-import { architecturesQuery } from "../queries/architectures";
-import { repositoryListQuery } from "../queries/repositories";
+} from "../../components/RepositoryFilters";
+import { architecturesQuery } from "../../queries/architectures";
+import { repositoryListQuery } from "../../queries/repositories";
 import {
   userListQuery,
   userQuery,
   type UserListSearch,
-} from "../queries/users";
+} from "../../queries/users";
 import {
   defaultRepositoryListPageSize,
+  hasRepositoryListFilters,
   lastPageOffset,
   repositoryListRequest,
   userCountSearch,
@@ -34,33 +37,41 @@ import {
   withPagination,
   withSort,
   type RepositoryListPageSearch,
-} from "../repositoryListSearch";
-import type { Session } from "../session";
+} from "../../repositoryListSearch";
+import { useSession, type Session } from "../../session";
 
 /** How many users the owner filter lists for one search. */
 export const ownerSearchPageSize = 20;
 
 /**
  * Moves the list to the search params `update` makes of the current ones; with `replace`, in place
- * of the current history entry.
+ * of the current history entry. It takes an update rather than the new params so that a change
+ * reported late, as the name search reports 300 ms after typing stops, applies to the params as they
+ * are by then rather than undoing a change made meanwhile.
  */
-export type NavigateRepositoryList = (
+export type RepositoryListSearchChange = (
   update: (previous: RepositoryListPageSearch) => RepositoryListPageSearch,
   options?: { replace?: boolean },
 ) => void;
 
-/** What {@link useRepositoryListPage} needs from the list route. */
+/** What {@link useRepositoryListPage} needs from `RepositoryListPage`'s props. */
 export interface UseRepositoryListPageOptions {
   /** The route's validated search params. */
   search: RepositoryListPageSearch;
-  /** Who is using the app. */
-  session: Session;
-  /** Moves the route to other search params. */
-  navigate: NavigateRepositoryList;
+  /** Moves the list to other search params. */
+  onSearchChange: RepositoryListSearchChange;
 }
+
+/**
+ * Which empty state the list shows, when it is empty: no repositories match the filters, a
+ * signed-in user has none yet, or there are no public ones for an anonymous visitor.
+ */
+export type RepositoryListEmptyState = "noMatches" | "noneYet" | "noPublic";
 
 /** What the repository list page renders, as {@link useRepositoryListPage} works it out. */
 export interface RepositoryListPageState {
+  /** Who is using the app. */
+  session: Session;
   /** The architectures a repository may support. */
   architectures: Architecture[];
   /** The filter bar. */
@@ -83,8 +94,11 @@ export interface RepositoryListPageState {
     response: RepositoryPaginatedResponse | undefined;
     /** Whether a page is on its way, so the one shown is dimmed under a spinner. */
     loading: boolean;
-    /** Whether the listing is empty: the latest response, not a placeholder, has a `total` of 0. */
-    empty: boolean;
+    /**
+     * The empty state to show in place of the table, when the latest response, not a placeholder,
+     * has a `total` of 0; otherwise absent.
+     */
+    emptyState: RepositoryListEmptyState | undefined;
     /** Why the list could not be fetched, if it could not. */
     error: Error | null;
     /** Fetches the list again. */
@@ -124,9 +138,9 @@ function ownerSearch(text: string): UserListSearch {
  */
 export function useRepositoryListPage({
   search,
-  session,
-  navigate,
+  onSearchChange,
 }: UseRepositoryListPageOptions): RepositoryListPageState {
+  const session = useSession();
   // Both are ensured by the route's beforeLoad, so neither suspends.
   const { data: architectures } = useSuspenseQuery(architecturesQuery());
   const { data: users } = useSuspenseQuery(userListQuery(userCountSearch));
@@ -150,7 +164,7 @@ export function useRepositoryListPage({
   const replaceWithLastPage = pastTheEnd && !list.isPlaceholderData;
   useEffect(() => {
     if (replaceWithLastPage) {
-      navigate(
+      onSearchChange(
         (previous) => ({
           ...previous,
           offset: lastPageOffset(total, pageSize),
@@ -158,7 +172,7 @@ export function useRepositoryListPage({
         { replace: true },
       );
     }
-  }, [replaceWithLastPage, total, pageSize, navigate]);
+  }, [replaceWithLastPage, total, pageSize, onSearchChange]);
 
   const [ownerText, setOwnerText] = useState("");
   const ownerResults = useQuery({
@@ -181,20 +195,31 @@ export function useRepositoryListPage({
     owner.error.status === 404;
   useEffect(() => {
     if (ownerMissing) {
-      navigate(
+      onSearchChange(
         (previous) => withFilterChange(previous, { ownerId: undefined }),
         {
           replace: true,
         },
       );
     }
-  }, [ownerMissing, navigate]);
+  }, [ownerMissing, onSearchChange]);
+
+  const empty = !list.isPlaceholderData && list.data?.total === 0;
+  let emptyState: RepositoryListEmptyState | undefined;
+  if (empty) {
+    emptyState = hasRepositoryListFilters(search)
+      ? "noMatches"
+      : session.status === "signedIn"
+        ? "noneYet"
+        : "noPublic";
+  }
 
   return {
+    session,
     architectures,
     filters: {
       onChange: (change) =>
-        navigate((previous) => withFilterChange(previous, change)),
+        onSearchChange((previous) => withFilterChange(previous, change)),
       users: {
         results: ownerResults.data?.results ?? [],
         total: userCount,
@@ -202,18 +227,19 @@ export function useRepositoryListPage({
         onSearch: setOwnerText,
       },
       owner: labelsOwner ? owner.data : undefined,
-      clear: () => navigate(withoutFilters),
+      clear: () => onSearchChange(withoutFilters),
     },
     list: {
       response: shown,
       loading: list.isFetching || pastTheEnd,
-      empty: !list.isPlaceholderData && list.data?.total === 0,
+      emptyState,
       error: list.error,
       retry: () => void list.refetch(),
       pageSize,
-      onSortChange: (sort) => navigate((previous) => withSort(previous, sort)),
+      onSortChange: (sort) =>
+        onSearchChange((previous) => withSort(previous, sort)),
       onPaginationChange: (pagination) =>
-        navigate((previous) => withPagination(previous, pagination)),
+        onSearchChange((previous) => withPagination(previous, pagination)),
     },
   };
 }

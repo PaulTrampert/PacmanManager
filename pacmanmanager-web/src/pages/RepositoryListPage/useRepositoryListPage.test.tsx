@@ -7,22 +7,27 @@ import type {
   PublicUserInfo,
   Repository,
   RepositoryPaginatedResponse,
-} from "../api";
-import { apiHandler } from "../mocks/api";
-import { anArchitecture, aPage, aRepository, aUser } from "../mocks/fixtures";
-import { server } from "../mocks/node";
-import { architecturesQuery } from "../queries/architectures";
-import { userListQuery } from "../queries/users";
-import { createQueryClient } from "../queryClient";
+} from "../../api";
+import { apiHandler } from "../../mocks/api";
+import {
+  anArchitecture,
+  aPage,
+  aRepository,
+  aUser,
+} from "../../mocks/fixtures";
+import { server } from "../../mocks/node";
+import { architecturesQuery } from "../../queries/architectures";
+import { userListQuery } from "../../queries/users";
+import { createQueryClient } from "../../queryClient";
 import {
   userCountSearch,
   type RepositoryListPageSearch,
-} from "../repositoryListSearch";
-import type { Session } from "../session";
+} from "../../repositoryListSearch";
+import { sessionQuery, type Session } from "../../session";
 import {
   useRepositoryListPage,
-  type NavigateRepositoryList,
-} from "./-useRepositoryListPage";
+  type RepositoryListSearchChange,
+} from "./useRepositoryListPage";
 
 const me = aUser({ id: "11111111-1111-1111-1111-111111111111" });
 const sam = aUser({
@@ -30,10 +35,15 @@ const sam = aUser({
   displayName: "Sam Lee",
 });
 const signedIn: Session = { status: "signedIn", user: me };
+const anonymous: Session = { status: "anonymous" };
 
-/** A query client holding what the route's beforeLoad ensures: the architectures and user count. */
-function seededQueryClient(userCount = 3): QueryClient {
+/**
+ * A query client holding what the routes ensure before the page renders: the session, and the
+ * architectures and user count.
+ */
+function seededQueryClient(session: Session, userCount: number): QueryClient {
   const queryClient = createQueryClient();
+  queryClient.setQueryData(sessionQuery().queryKey, session);
   queryClient.setQueryData(architecturesQuery().queryKey, [anArchitecture()]);
   queryClient.setQueryData(
     userListQuery(userCountSearch).queryKey,
@@ -68,13 +78,13 @@ function renderPage(
   search: RepositoryListPageSearch,
   { session = signedIn, userCount = 3 } = {},
 ) {
-  const navigate = vi.fn<NavigateRepositoryList>();
-  const queryClient = seededQueryClient(userCount);
+  const navigate = vi.fn<RepositoryListSearchChange>();
+  const queryClient = seededQueryClient(session, userCount);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
   const hook = renderHook(
-    () => useRepositoryListPage({ search, session, navigate }),
+    () => useRepositoryListPage({ search, onSearchChange: navigate }),
     { wrapper },
   );
   /** What the `index`th navigation made of `previous`, and whether it replaced the entry. */
@@ -167,20 +177,33 @@ describe("useRepositoryListPage", () => {
     });
     expect(result.current.list.response).toBeUndefined();
     expect(result.current.list.loading).toBe(true);
-    expect(result.current.list.empty).toBe(false);
+    expect(result.current.list.emptyState).toBeUndefined();
   });
 
-  it("reports an empty listing only when its total is 0", async () => {
-    answerList(() =>
-      aPage<Repository>([], {
-        sort: { sortBy: "Name", direction: "Ascending" },
-      }),
-    );
-    const { result, navigate } = renderPage({});
+  it.each([
+    {
+      search: { nameContains: "x" },
+      session: signedIn,
+      emptyState: "noMatches",
+    },
+    { search: {}, session: signedIn, emptyState: "noneYet" },
+    { search: {}, session: anonymous, emptyState: "noPublic" },
+  ] as const)(
+    "chooses the $emptyState empty state when the listing's total is 0",
+    async ({ search, session, emptyState }) => {
+      answerList(() =>
+        aPage<Repository>([], {
+          sort: { sortBy: "Name", direction: "Ascending" },
+        }),
+      );
+      const { result, navigate } = renderPage(search, { session });
 
-    await waitFor(() => expect(result.current.list.empty).toBe(true));
-    expect(navigate).not.toHaveBeenCalled();
-  });
+      await waitFor(() =>
+        expect(result.current.list.emptyState).toBe(emptyState),
+      );
+      expect(navigate).not.toHaveBeenCalled();
+    },
+  );
 
   it("searches the owners with the text typed, 20 at a time", async () => {
     const searches: URLSearchParams[] = [];
