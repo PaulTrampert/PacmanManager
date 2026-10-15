@@ -58,22 +58,12 @@ function answerWith(repository: Repository) {
 }
 
 /**
- * How long to wait for the page to first render. Its code is split from the route tree and loaded
- * on first render, which can take over a second while other test files run.
- */
-const firstRenderTimeout = 5_000;
-
-/**
  * Waits for the page, and asserts its heading and the breadcrumbs the route links: the list, and the
  * repository's page.
  */
 async function expectEditPageHeader() {
   expect(
-    await screen.findByRole(
-      "heading",
-      { level: 1, name: "Edit repository" },
-      { timeout: firstRenderTimeout },
-    ),
+    await screen.findByRole("heading", { level: 1, name: "Edit repository" }),
   ).toBeInTheDocument();
   const trail = screen.getByRole("navigation", { name: "breadcrumb" });
   expect(
@@ -94,11 +84,7 @@ describe("the edit repository route", () => {
     renderRoute("/repositories/00000000-0000-4000-8000-000000000000/edit");
 
     expect(
-      await screen.findByRole(
-        "heading",
-        { level: 1, name: "Page not found" },
-        { timeout: firstRenderTimeout },
-      ),
+      await screen.findByRole("heading", { level: 1, name: "Page not found" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { level: 1, name: "Edit repository" }),
