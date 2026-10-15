@@ -484,7 +484,7 @@ Its fields:
 | :--- | :--- | :--- | :--- |
 | Name | outlined text field | "Letters, digits and @ _ + - . This is the section name in pacman.conf." | `name` |
 | Visibility | radio group: **Private** — "Only you can see it and read its packages."; **Public** — "Anyone, signed in or not, can see it and read its packages." | — | `isPublic` |
-| Architectures | outlined **`multiple`** select of the `architectures` prop (from `GET /v1/Architectures`), **disabled**, showing the selected values by `displayValue`: every architecture when creating, the repository's `supportedArchitectures` when editing (a value not in the prop shown raw) | "Every supported architecture is published." | not sent on create; the repository's existing `supportedArchitectures` on edit |
+| Architectures | outlined **`multiple`** select of the `architectures` prop (from `GET /v1/Architectures`), **disabled**, showing the selected values by `displayValue`: every architecture when creating, the repository's `supportedArchitectures` when editing (a value not in the prop shown raw) | "Every supported architecture is published." | `supportedArchitectures`: every architecture on create; the repository's existing value on edit |
 
 * A field's validation error replaces its helper text, in the error colour.
 * Errors are shown once a field has been left or the form submitted, not while first typing.
@@ -496,6 +496,7 @@ Its fields:
 **Why:**
 
 * [create and edit are one form](#why-create-and-edit-are-one-form)
+* [the form always sends its architectures](#why-the-form-always-sends-its-architectures)
 
 ### Name validation
 
@@ -1126,7 +1127,8 @@ change to its shape.
 
 *Acceptance:* a story per wireframe; `play` functions assert the create and edit labels and initial
 values, that **Save** is disabled until something changes, that `onSubmit` receives the edited
-values with the existing `supportedArchitectures` when editing, and that a `409` error appears on
+values with every architecture when creating and the existing `supportedArchitectures` when
+editing, and that a `409` error appears on
 the name field and not in an alert. A story with two architectures shows both selected in the edit
 form, by `displayValue`.
 
@@ -1137,6 +1139,7 @@ form, by `displayValue`.
 **Why:**
 
 * [create and edit are one form](#why-create-and-edit-are-one-form)
+* [the form always sends its architectures](#why-the-form-always-sends-its-architectures)
 
 ### 22. `ConfirmRepositoryChangesDialog` — PATCH
 
@@ -1620,6 +1623,15 @@ initial values, their request and where they go afterwards. Two components would
 most likely to change — the fields and their rules — and drift the first time a field is added to
 one of them. The project owner asked for one component keyed on the presence of an `id`, rather than
 a `mode` prop, so the form cannot be told it is editing a repository it has no id for.
+
+### Why the form always sends its architectures
+
+The first plan left `supportedArchitectures` out of the create request, letting the API default it
+to every architecture. The generated `WriteRepositoryRequest` makes the field required, so the form
+needed a submitted type of its own with the field optional, which every caller of `onSubmit` would
+then have to reconcile with the request. The project owner preferred the form to submit the request
+as it is: on create it sends the architectures its disabled control shows — every architecture —
+which is the value the API would have defaulted to anyway.
 
 ### Why a dialog closes on failure
 
