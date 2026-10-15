@@ -68,7 +68,7 @@ export function ConfirmRepositoryChangesDialog({
         sx={{ listStyleType: "disc", pl: 2.5, pb: 0 }}
       >
         {repositoryChanges(repository, edited).map((change) => (
-          <ListItem key={change} sx={{ display: "list-item", px: 0 }}>
+          <ListItem key={change} sx={{ display: "list-item", px: 0, py: 0.5 }}>
             <ListItemText
               secondary={consequence(change, edited)}
               slotProps={{ secondary: { variant: "body1" } }}
