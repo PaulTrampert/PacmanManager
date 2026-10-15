@@ -1,0 +1,55 @@
+name: Web Build and Test
+
+# Checks, tests and builds pacmanmanager-web. Check Changes calls it for any change to the web app or
+# to anything it shares with the .NET projects; it can also be run by hand.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The web app is an npm project beside the solution, not in it, so it needs none of the .NET
+  # toolchain. Its component tests are Storybook stories run by Vitest in Chromium, hence the
+  # Playwright browser install.
+  web:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pacmanmanager-web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: pacmanmanager-web/.nvmrc
+          cache: npm
+          cache-dependency-path: pacmanmanager-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Storybook
+        run: npm run build-storybook

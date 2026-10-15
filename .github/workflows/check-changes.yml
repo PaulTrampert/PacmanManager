@@ -1,0 +1,120 @@
+name: Check Changes
+
+# The CI entry point, and on a pull request to `main` its only required check. It works out which
+# pipelines a change needs, calls them, and reports their outcome as the one `Check changes` check.
+# The repository is unreleased, so this is purely a gate: nothing is published.
+#
+# | Change touches                                              | Runs                              |
+# | :---------------------------------------------------------- | :-------------------------------- |
+# | documentation only                                          | nothing                           |
+# | the .NET projects                                           | .NET, Docker, end-to-end          |
+# | pacmanmanager-web                                           | Web, Docker, end-to-end           |
+# | shared infrastructure, or anything unrecognised             | everything                        |
+#
+# `.github/scripts/classify-changes.sh` holds the paths behind each row. A push to `main` and a run
+# by hand always run everything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR makes the in-flight run irrelevant. `main` is never cancelled. The pipelines
+# this calls run inside this workflow's run, so this one group covers them too; they must not
+# declare a concurrency group of their own.
+concurrency:
+  group: check-changes-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dotnet: ${{ steps.classify.outputs.dotnet }}
+      web: ${{ steps.classify.outputs.web }}
+      docker: ${{ steps.classify.outputs.docker }}
+      e2e: ${{ steps.classify.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The PR's files come from the API rather than from a diff against the base, so the checkout
+      # needs no history. A renamed file contributes its old path too: moving a file out of a
+      # project is a change to that project.
+      - name: List changed files
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > changed-files.txt
+          cat changed-files.txt
+
+      - name: Classify
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" == pull_request ]]; then
+            .github/scripts/classify-changes.sh < changed-files.txt | tee -a "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' dotnet=true web=true docker=true e2e=true | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  dotnet:
+    name: .NET Build & Test
+    needs: changes
+    if: ${{ needs.changes.outputs.dotnet == 'true' }}
+    # What dotnet.yml's test-results publisher needs; a called workflow gets no more than this.
+    permissions:
+      contents: read
+      issues: read
+      checks: write
+      pull-requests: write
+    uses: ./.github/workflows/dotnet.yml
+
+  web:
+    name: Web Build and Test
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    uses: ./.github/workflows/web.yml
+
+  docker:
+    name: Docker Build
+    needs: changes
+    if: ${{ needs.changes.outputs.docker == 'true' }}
+    uses: ./.github/workflows/docker.yml
+
+  e2e:
+    name: End-to-end Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.e2e == 'true' }}
+    uses: ./.github/workflows/e2e.yml
+
+  # The required check. It passes when every pipeline the change needed succeeded and the rest were
+  # skipped, and fails otherwise, including when the change could not be classified at all. It runs
+  # on `always()`, not `!cancelled()`: a skipped required check counts as passing, so a cancelled
+  # run must report a failure rather than skip it.
+  check:
+    name: Check changes
+    needs: [changes, dotnet, web, docker, e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the pipelines' results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          jq -e '.changes.result == "success"
+            and all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null

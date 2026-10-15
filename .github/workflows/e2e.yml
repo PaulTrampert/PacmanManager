@@ -1,0 +1,63 @@
+name: End-to-end Tests
+
+# The Playwright tests, against the whole compose stack. They are the only tests that exercise the
+# web app and the API together, so Check Changes calls this for any change to either; it can also be
+# run by hand.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # `npm run e2e` is the one command, as it is locally: its `pree2e` script runs
+  # `docker compose up -d --build`, so a broken image fails that step rather than surfacing as a test
+  # failure. See docs/web-ui-architecture/web-ui-architecture.md, "End-to-end tests".
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pacmanmanager-web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: pacmanmanager-web/.nvmrc
+          cache: npm
+          cache-dependency-path: pacmanmanager-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: npm run e2e
+
+      # Printed for reading in the log, and saved beside the report for downloading.
+      - name: Collect compose logs
+        if: ${{ failure() }}
+        working-directory: .
+        run: docker compose logs --no-color --timestamps | tee compose.log
+
+      - name: Upload the report and compose logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            pacmanmanager-web/playwright-report
+            pacmanmanager-web/test-results
+            compose.log
+          if-no-files-found: warn
+
+      - name: Stop the stack
+        if: ${{ always() }}
+        working-directory: .
+        run: docker compose down -v

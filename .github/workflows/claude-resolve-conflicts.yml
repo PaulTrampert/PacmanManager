@@ -7,7 +7,7 @@ on:
   # When CI finishes on a push to main, rather than on the push itself: claude-code-action rejects
   # `push` as an unsupported event, and CI runs on every push to main anyway.
   workflow_run:
-    workflows: [CI]
+    workflows: [Check Changes]
     branches: [main]
     types: [completed]
   # pull_request_target, not pull_request: GitHub does not run pull_request workflows on a PR that

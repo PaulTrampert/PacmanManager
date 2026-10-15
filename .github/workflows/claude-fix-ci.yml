@@ -13,7 +13,7 @@ name: Claude fixes CI
 #     counted, so rerunning the failed workflow tries again.
 on:
   workflow_run:
-    workflows: [CI, PR Title]
+    workflows: [Check Changes, PR Title]
     types: [completed]
 
 # A fix for one failure queues behind a fix for another on the same branch, rather than both
