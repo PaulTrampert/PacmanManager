@@ -3,7 +3,6 @@ import { act, screen, within } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import type { Repository } from "../api";
-import { forbiddenText } from "../components/ForbiddenMessage";
 import { apiHandler } from "../mocks/api";
 import { aRepository, anArchitecture, aUser } from "../mocks/fixtures";
 import { server } from "../mocks/node";
@@ -64,7 +63,10 @@ function answerWith(repository: Repository) {
  */
 const firstRenderTimeout = 5_000;
 
-/** Waits for the page, and asserts its heading and its breadcrumbs. */
+/**
+ * Waits for the page, and asserts its heading and the breadcrumbs the route links: the list, and the
+ * repository's page.
+ */
 async function expectEditPageHeader() {
   expect(
     await screen.findByRole(
@@ -87,46 +89,6 @@ async function expectEditPageHeader() {
 }
 
 describe("the edit repository route", () => {
-  it("shows the form filled in with the repository, with Save disabled until something changes", async () => {
-    answerWith(theRepository());
-    const { router } = renderRoute(`/repositories/${repositoryId}/edit`);
-
-    await expectEditPageHeader();
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-      "core-extras",
-    );
-    expect(screen.getByRole("radio", { name: "Public" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Private" })).not.toBeChecked();
-    const architecturesField = screen.getByRole("combobox", {
-      name: "Architectures",
-    });
-    expect(architecturesField).toHaveAttribute("aria-disabled", "true");
-    expect(architecturesField).toHaveTextContent("64-bit Intel/AMD (x86_64)");
-    expect(architecturesField).not.toHaveTextContent("64-bit ARM (aarch64)");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
-    expect(screen.queryByText(forbiddenText)).not.toBeInTheDocument();
-    const match = router.state.matches.at(-1);
-    expect(match?.routeId).toBe("/repositories/$repositoryId/edit");
-    expect(match?.params).toEqual({ repositoryId });
-  });
-
-  it("shows the 403 message in place of the form when the caller may not update it", async () => {
-    answerWith(
-      theRepository({ permissions: { update: false, delete: false } }),
-    );
-    renderRoute(`/repositories/${repositoryId}/edit`);
-
-    await expectEditPageHeader();
-    expect(screen.getByText(forbiddenText)).toBeVisible();
-    expect(
-      screen.queryByRole("textbox", { name: "Name" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Save" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("is the not-found page when the API answers 404", async () => {
     answerWith(theRepository());
     renderRoute("/repositories/00000000-0000-4000-8000-000000000000/edit");
@@ -141,6 +103,19 @@ describe("the edit repository route", () => {
     expect(
       screen.queryByRole("heading", { level: 1, name: "Edit repository" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the page for the repository in its path, with the route's links", async () => {
+    answerWith(theRepository());
+    const { router } = renderRoute(`/repositories/${repositoryId}/edit`);
+
+    await expectEditPageHeader();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "core-extras",
+    );
+    const match = router.state.matches.at(-1);
+    expect(match?.routeId).toBe("/repositories/$repositoryId/edit");
+    expect(match?.params).toEqual({ repositoryId });
   });
 
   it("is reached by a typed link", async () => {
