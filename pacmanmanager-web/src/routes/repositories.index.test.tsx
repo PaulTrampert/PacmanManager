@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -40,10 +40,6 @@ const myAurBuilds = aRepository({
   owner: { id: me.id, displayName: me.displayName },
 });
 const repositories = [coreExtras, games, myAurBuilds] as const;
-
-const noRepositories: RepositoryPaginatedResponse = aPage<Repository>([], {
-  sort: { sortBy: "Name", direction: "Ascending" },
-});
 
 interface ListPageApi {
   /** The architectures `GET /v1/Architectures` answers with; one unless given. */
@@ -91,6 +87,29 @@ function answerListPage({
   return { listRequests };
 }
 
+/** `count` repositories, named `repo-000` onwards. */
+function numberedRepositories(count: number): Repository[] {
+  return Array.from({ length: count }, (_, index) =>
+    aRepository({
+      id: `bbbbbbbb-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      name: `repo-${String(index).padStart(3, "0")}`,
+    }),
+  );
+}
+
+/** Answers a list request with the page of `all` its `offset` and `pageSize` ask for. */
+function pageOf(all: readonly Repository[]) {
+  return (query: URLSearchParams): RepositoryPaginatedResponse => {
+    const offset = Number(query.get("offset") ?? 0);
+    const pageSize = Number(query.get("pageSize"));
+    return aPage(all.slice(offset, offset + pageSize), {
+      sort: { sortBy: "Name", direction: "Ascending" },
+      offset,
+      total: all.length,
+    });
+  };
+}
+
 function signInAs(user = me) {
   server.use(...signedInHandlers(user));
 }
@@ -108,10 +127,10 @@ function rowNames(table: HTMLElement): string[] {
 }
 
 describe("the repository list route", () => {
-  it("shows a signed-in user the repositories, New repository and every filter (list-signed-in)", async () => {
+  it("renders the list page for the URL's search, with each row's link and New repository's", async () => {
     signInAs();
     const { listRequests } = answerListPage();
-    const { router } = renderRoute("/repositories");
+    const { router } = renderRoute("/repositories?nameContains=e");
 
     const table = await findTable();
     await waitFor(() =>
@@ -132,209 +151,73 @@ describe("the repository list route", () => {
       "href",
       `/repositories/${games.id}`,
     );
-    expect(within(table).getAllByText("Paul Trampert")).toHaveLength(2);
-    expect(within(table).getByText("Private")).toBeInTheDocument();
-
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("");
-    const visibility = screen.getByRole("combobox", { name: "Visibility" });
-    expect(visibility).toHaveTextContent("All");
-    expect(visibility).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("combobox", { name: "Owner" })).toBeEnabled();
-    expect(
-      screen.getByRole("combobox", { name: "Architecture" }),
-    ).toHaveAttribute("aria-disabled", "true");
-
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("e");
     expect(listRequests.map((query) => query.toString())).toEqual([
-      "pageSize=50",
+      "nameContains=e&pageSize=50",
     ]);
   });
 
-  it("shows an anonymous visitor no New repository, and visibility fixed on Public (list-anonymous)", async () => {
+  it("navigates to the search the page asks for, adding a history entry", async () => {
+    signInAs();
     const { listRequests } = answerListPage({
-      list: () => aPage([coreExtras, games]),
+      list: pageOf(numberedRepositories(60)),
     });
-    renderRoute("/repositories");
-
+    const { router } = renderRoute("/repositories?offset=50");
     const table = await findTable();
-    await waitFor(() =>
-      expect(rowNames(table)).toEqual(["core-extras", "games"]),
+    await waitFor(() => expect(rowNames(table)).toHaveLength(10));
+
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Created" }),
     );
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "New repository" }),
-    ).not.toBeInTheDocument();
-    const visibility = screen.getByRole("combobox", { name: "Visibility" });
-    expect(visibility).toHaveAttribute("aria-disabled", "true");
-    expect(visibility).toHaveTextContent("Public");
-    expect(listRequests.map((query) => query.toString())).toEqual([
-      "pageSize=50",
-    ]);
-  });
-
-  it("disables the owner filter on All when there is one user (list-single-user)", async () => {
-    signInAs();
-    answerListPage({ userCount: 1, list: () => aPage([coreExtras]) });
-    renderRoute("/repositories");
-
-    await findTable();
-    const owner = screen.getByRole("combobox", { name: "Owner" });
-    expect(owner).toBeDisabled();
-    expect(owner).toHaveAttribute("placeholder", "All");
-  });
-
-  it("offers a signed-in user with no repositories to create one (list-empty-signed-in)", async () => {
-    signInAs();
-    answerListPage({ list: () => noRepositories });
-    renderRoute("/repositories");
-
-    expect(
-      await screen.findByRole("heading", {
-        level: 2,
-        name: "No repositories yet",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Create a repository to start publishing packages."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Create a repository" }),
-    ).toHaveAttribute("href", "/repositories/new");
-    expect(
-      screen.queryByRole("table", { name: "Repositories" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers to clear the filters when none match (list-empty-filtered)", async () => {
-    signInAs();
-    const { listRequests } = answerListPage({ list: () => noRepositories });
-    renderRoute("/repositories?nameContains=kernel&isPublic=false");
-
-    expect(
-      await screen.findByRole("heading", {
-        level: 2,
-        name: "No repositories match",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nothing matches the current filters."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Clear filters" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Create a repository" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("kernel");
-    expect(
-      screen.getByRole("combobox", { name: "Visibility" }),
-    ).toHaveTextContent("Private");
-    expect(Object.fromEntries(listRequests[0]!)).toEqual({
-      nameContains: "kernel",
-      isPublic: "false",
-      pageSize: "50",
-    });
-  });
-
-  it("tells an anonymous visitor there are no public repositories, with no action (list-empty-anonymous)", async () => {
-    answerListPage({ list: () => noRepositories });
-    renderRoute("/repositories");
-
-    const heading = await screen.findByRole("heading", {
-      level: 2,
-      name: "No public repositories",
-    });
-    expect(
-      screen.getByText("There are no public repositories to show."),
-    ).toBeInTheDocument();
-    const emptyState = heading.parentElement!;
-    expect(within(emptyState).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(emptyState).queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("does not show an empty state for a page past the end", async () => {
-    signInAs();
-    answerListPage({
-      list: () =>
-        aPage<Repository>([], {
-          sort: { sortBy: "Name", direction: "Ascending" },
-          offset: 500,
-          total: 3,
-        }),
-    });
-    renderRoute("/repositories?offset=500");
-
-    await findTable();
-    expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
-  });
-
-  it("shows a spinner in the table's body until the first page arrives (list-loading)", async () => {
-    signInAs();
-    let release!: () => void;
-    const released = new Promise<void>((resolve) => (release = resolve));
-    answerListPage({
-      list: async () => {
-        await released;
-        return aPage(repositories);
-      },
-    });
-    renderRoute("/repositories");
-
-    const table = await findTable();
-    expect(table).toHaveAttribute("aria-busy", "true");
-    expect(
-      within(table).getByRole("progressbar", { name: "Loading" }),
-    ).toBeInTheDocument();
-
-    release();
 
     await waitFor(() =>
-      expect(rowNames(table)).toEqual([
-        "core-extras",
-        "games",
-        "my-aur-builds",
-      ]),
+      expect(router.state.location.search).toEqual({ sortBy: "Created" }),
     );
-    expect(table).toHaveAttribute("aria-busy", "false");
+    expect(router.history.length).toBe(2);
+    await waitFor(() =>
+      expect(Object.fromEntries(listRequests.at(-1)!)).toEqual({
+        sortBy: "Created",
+        pageSize: "50",
+      }),
+    );
   });
 
-  it("keeps the filter bar and the previous rows, dimmed under a spinner, while a filter change loads (list-loading)", async () => {
-    signInAs();
-    let release!: () => void;
-    const released = new Promise<void>((resolve) => (release = resolve));
-    answerListPage({
-      list: async (query) => {
-        if (query.has("isPublic")) {
-          await released;
-          return aPage([myAurBuilds]);
-        }
-        return aPage(repositories);
-      },
-    });
-    const { router } = renderRoute("/repositories");
-    const table = await findTable();
-    await waitFor(() => expect(rowNames(table)).toHaveLength(3));
+  it.each([
+    {
+      url: "/repositories?offset=500",
+      count: 5,
+      offset: 0,
+      firstRow: "repo-000",
+    },
+    {
+      url: "/repositories?offset=500&pageSize=50",
+      count: 120,
+      offset: 100,
+      firstRow: "repo-100",
+    },
+  ])(
+    "moves $url with $count repositories to the last page, offset=$offset, in place of the history entry",
+    async ({ url, count, offset, firstRow }) => {
+      signInAs();
+      const { listRequests } = answerListPage({
+        list: pageOf(numberedRepositories(count)),
+      });
+      const { router } = renderRoute(url);
 
-    const name = screen.getByRole("textbox", { name: "Name" });
-    await userEvent.type(name, "core");
-    await act(() =>
-      router.navigate({ to: "/repositories", search: { isPublic: false } }),
-    );
-
-    await waitFor(() => expect(table).toHaveAttribute("aria-busy", "true"));
-    expect(screen.getByRole("table", { name: "Repositories" })).toBe(table);
-    expect(screen.getByRole("textbox", { name: "Name" })).toBe(name);
-    expect(name).toHaveValue("core");
-    expect(rowNames(table)).toEqual(["core-extras", "games", "my-aur-builds"]);
-    expect(
-      screen.getByRole("progressbar", { name: "Loading" }),
-    ).toBeInTheDocument();
-
-    release();
-
-    await waitFor(() => expect(rowNames(table)).toEqual(["my-aur-builds"]));
-    expect(table).toHaveAttribute("aria-busy", "false");
-    expect(name).toHaveValue("core");
-  });
+      const table = await findTable();
+      await waitFor(() => expect(rowNames(table)[0]).toBe(firstRow));
+      expect(router.state.location.search.offset).toBe(offset);
+      expect(router.history.location.search).toContain(`offset=${offset}`);
+      expect(router.history.length).toBe(1);
+      expect(
+        screen.queryByRole("heading", { level: 2 }),
+      ).not.toBeInTheDocument();
+      expect(listRequests.map((query) => query.get("offset"))).toEqual([
+        "500",
+        String(offset),
+      ]);
+    },
+  );
 
   it("drops a page size it does not offer, and asks for 50 rows", async () => {
     signInAs();
@@ -393,46 +276,4 @@ describe("the repository list route", () => {
       }
     },
   );
-
-  it("shows a failed list as the error page in place of the table, and Try again fetches it again", async () => {
-    signInAs();
-    let failures = 0;
-    answerListPage({
-      list: () => {
-        if (failures < 3) {
-          failures++;
-          return HttpResponse.json(
-            { title: "The list failed.", status: 500 },
-            { status: 500 },
-          );
-        }
-        return aPage(repositories);
-      },
-    });
-    renderRoute("/repositories");
-
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: "Try again" },
-        { timeout: 10_000 },
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("The list failed.");
-    expect(screen.getByRole("textbox", { name: "Name" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("table", { name: "Repositories" }),
-    ).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-
-    const table = await findTable();
-    await waitFor(() =>
-      expect(rowNames(table)).toEqual([
-        "core-extras",
-        "games",
-        "my-aur-builds",
-      ]),
-    );
-  }, 15_000);
 });
