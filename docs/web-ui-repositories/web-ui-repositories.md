@@ -920,10 +920,10 @@ whose error replaces its helper text, shown once the field is left or the form s
   so a form cannot hand it rules of its own; stories use it for rules the OpenAPI document does not
   have yet.
 * **`FormField`** turns a schema and a property into the field's name and validator, and renders
-  `ValidatedFormField` with them. Its `control` prop is a component (not a render function) that is
-  `FormTextField` when left out, and it passes the control any props of its own, such as a select's
-  options. Until [40](#40-generic-fieldvalidator--patch) it takes only controls of a `string`,
-  since those are the only validators `fieldValidator` makes.
+  `ValidatedFormField` with them. Its `control` prop is a component (not a render function), always
+  required, and it passes the control any props of its own, such as a select's options. Until
+  [40](#40-generic-fieldvalidator--patch) it takes only controls of a `string`, since those are the
+  only validators `fieldValidator` makes.
 
 *Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)), [new-filled-in](wireframes/new-filled-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af635debd6)), [new-invalid-name](wireframes/new-invalid-name.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af652f51ed)), [new-required](wireframes/new-required.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6997c384)), [new-submitting](wireframes/new-submitting.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af6c30cd81)).
 

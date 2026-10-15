@@ -70,6 +70,8 @@ async function expectReportedSort(
 export const SeveralRows: Story = {
   play: async ({ canvas }) => {
     const table = canvas.getByRole("table", { name: "Items" });
+    await expect(table).toHaveAttribute("aria-busy", "false");
+    await expect(canvas.queryByRole("progressbar")).not.toBeInTheDocument();
     // A header row and one row per item.
     await expect(canvas.getAllByRole("row")).toHaveLength(rows.length + 1);
     await expect(table).toHaveTextContent("core-extras");
@@ -174,5 +176,41 @@ export const CustomPageSizes: Story = {
       "20",
     ]);
     await userEvent.keyboard("{Escape}");
+  },
+};
+
+/** The next page is loading: the previous rows stay, dimmed, with a spinner over them. */
+export const LoadingWithPreviousRows: Story = {
+  args: { loading: true },
+  play: async ({ canvas }) => {
+    const table = canvas.getByRole("table", { name: "Items" });
+    await expect(table).toHaveAttribute("aria-busy", "true");
+    await expect(canvas.getAllByRole("row")).toHaveLength(rows.length + 1);
+    await expect(table).toHaveTextContent("core-extras");
+    await expect(
+      canvas.getByRole("progressbar", { name: "Loading" }),
+    ).toBeVisible();
+  },
+};
+
+/** The first page is loading: no rows and no sort yet, and a spinner in the table's body. */
+export const FirstLoad: Story = {
+  args: { loading: true, rows: [], total: 0, appliedSort: undefined },
+  play: async ({ args, canvas, userEvent }) => {
+    const table = canvas.getByRole("table", { name: "Items" });
+    await expect(table).toHaveAttribute("aria-busy", "true");
+    // The header row and the spinner's row.
+    await expect(canvas.getAllByRole("row")).toHaveLength(2);
+    await expect(table).not.toHaveTextContent("core-extras");
+    await expect(
+      canvas.getByRole("progressbar", { name: "Loading" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("columnheader", { name: /^Name/ }),
+    ).not.toHaveAttribute("aria-sort");
+
+    // With no applied sort, a header asks for its field with no direction.
+    await userEvent.click(canvas.getByRole("button", { name: /^Name/ }));
+    await expectReportedSort(args.onSortChange, { sortBy: "Name" });
   },
 };

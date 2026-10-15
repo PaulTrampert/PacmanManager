@@ -14,6 +14,8 @@ export {
   fieldValidator,
   type FieldValidator,
   type FieldValidatorOptions,
+  type FieldValue,
+  type PropertyValue,
   type ValidatedProperty,
   type ValidatedSchema,
 } from "./fieldValidator";

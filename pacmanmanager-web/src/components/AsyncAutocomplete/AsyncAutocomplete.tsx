@@ -79,6 +79,7 @@ export function AsyncAutocomplete<T>({
 
   return (
     <Autocomplete<T>
+      size="small"
       sx={{ width: 240 }}
       options={autocomplete.options}
       // The search filters the results and visibleOptions the pinned options, so MUI must not.
