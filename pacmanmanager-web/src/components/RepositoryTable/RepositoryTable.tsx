@@ -1,6 +1,6 @@
-import Link from "@mui/material/Link";
+import MuiLink from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { createLink, type LinkOptions } from "@tanstack/react-router";
 import type {
   Architecture,
   Repository,
@@ -17,6 +17,9 @@ import {
 } from "../PaginatedTable";
 import { VisibilityChip } from "../VisibilityChip";
 
+/** MUI's link, navigating through the router. */
+const Link = createLink(MuiLink);
+
 /** The props {@link RepositoryTable} takes. */
 export interface RepositoryTableProps {
   /**
@@ -30,6 +33,8 @@ export interface RepositoryTableProps {
   pageSize: number;
   /** The architectures a repository may support, by which each repository's are named. */
   architectures: readonly Architecture[];
+  /** Where a row's name links to: the repository's page, checked against the app's routes. */
+  repositoryLink: (repository: Repository) => LinkOptions;
   /** Called with the sort a header click asks for. */
   onSortChange: (sort: RequestedSort<RepositorySortField>) => void;
   /** Called with the page asked for. */
@@ -54,6 +59,7 @@ function DateCell({ value }: { value: string | undefined }) {
 
 function repositoryColumns(
   architectures: readonly Architecture[],
+  repositoryLink: (repository: Repository) => LinkOptions,
 ): PaginatedTableColumn<Repository, RepositorySortField>[] {
   return [
     {
@@ -62,10 +68,7 @@ function repositoryColumns(
       sortField: "Name",
       render: (repository) => (
         <Link
-          component={RouterLink}
-          // The repository page's route is not yet in the route tree, so its path cannot be checked
-          // with `params`; an id is a UUID, which needs no escaping.
-          to={`/repositories/${repository.id}`}
+          {...repositoryLink(repository)}
           underline="hover"
           sx={{ fontWeight: "fontWeightMedium" }}
         >
@@ -118,13 +121,14 @@ export function RepositoryTable({
   loading,
   pageSize,
   architectures,
+  repositoryLink,
   onSortChange,
   onPaginationChange,
 }: RepositoryTableProps) {
   return (
     <PaginatedTable
       aria-label="Repositories"
-      columns={repositoryColumns(architectures)}
+      columns={repositoryColumns(architectures, repositoryLink)}
       rows={response?.results ?? []}
       getRowKey={(repository) => repository.id}
       appliedSort={response?.sort}
