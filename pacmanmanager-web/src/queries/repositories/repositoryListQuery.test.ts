@@ -5,8 +5,8 @@ import { ApiError } from "../../api";
 import { apiHandler, toMockPath } from "../../mocks/api";
 import { aPage, aRepository } from "../../mocks/fixtures";
 import { server } from "../../mocks/node";
+import { repositoryKeys } from "./repositoryKeys";
 import {
-  repositoryListKey,
   repositoryListQuery,
   type RepositoryListSearch,
 } from "./repositoryListQuery";
@@ -100,7 +100,7 @@ describe("repositoryListQuery", () => {
     const search: RepositoryListSearch = { nameContains: "core", offset: 50 };
 
     expect(repositoryListQuery(search).queryKey).toEqual([
-      ...repositoryListKey,
+      ...repositoryKeys.lists(),
       search,
     ]);
   });
