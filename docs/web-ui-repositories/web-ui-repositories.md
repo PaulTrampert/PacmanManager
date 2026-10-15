@@ -653,14 +653,16 @@ The API is not told about the confirmation, and deletes as it does today.
 
 One issue per heading. Dependencies are noted; anything without a dependency can start immediately.
 
-The work is in six layers, and an issue depends only on issues in earlier layers:
+The work is in six layers, and an issue depends only on issues in earlier layers, except that each
+page depends on [the route stubs](#44-stub-the-repository-routes--patch) at the head of its own:
 
 1. **API** — RepoHost's additions, and the generated validation rules.
 2. **Groundwork components** — generic components in `src/components` that know nothing about
    repositories, and that later milestones reuse.
 3. **Repository components** — the components the wireframes show, built from the groundwork.
 4. **Queries and mutations** — one issue each, under `src/queries`.
-5. **Pages** — each route assembled from components and queries, rendering what the API returns.
+5. **Pages** — a stub of every route, then each route assembled from components and queries,
+   rendering what the API returns.
 6. **Behaviour** — each page's interactions wired to the URL, the mutations and navigation.
 
 Every component is **presentational**: it takes values and callbacks as props, and never calls the
@@ -1232,8 +1234,29 @@ settles.
 
 **Pages**
 
-Each issue adds a route that renders what its loader fetched, with its callbacks not yet connected
-to anything; a route test renders it against MSW for each state its wireframes show.
+Step 44 registers every route as a stub first. Each page issue after it replaces its route's stub
+with a route that renders what its loader fetched, with its callbacks not yet connected to anything;
+a route test renders it against MSW for each state its wireframes show.
+
+### 44. Stub the repository routes — PATCH
+
+A file route in `src/routes/` for each of `/repositories`, `/repositories/new`,
+`/repositories/$repositoryId` and `/repositories/$repositoryId/edit`, as [Routes](#routes) lists
+them, so that each is in the generated route tree and a page can write a typed link to any of them.
+
+*Constraints:* a stub renders a placeholder heading and nothing else. It has no `validateSearch`,
+`beforeLoad`, `loader` or `requireUser`: each belongs to the page issue that replaces the stub. `/`
+is unchanged; redirecting it is step 32's.
+
+*Acceptance:* a route test per stub asserts that its path matches the stub's route and renders its
+placeholder, and, for each route with a `repositoryId`, that a `LinkOptions` built with
+`linkOptions` navigates to it.
+
+*Depends on:* nothing.
+
+**Why:**
+
+* [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 ### 32. The repository list page — MINOR
 
@@ -1241,7 +1264,7 @@ to anything; a route test renders it against MSW for each state its wireframes s
 `beforeLoad` as [Loading](#loading) sets out,
 `PageHeader` with **New repository** for a signed-in user, `RepositoryFilters`, and `RepositoryTable`
 — given each row's link to `/repositories/$repositoryId` — or the `EmptyState` the
-[table](#empty-states) chooses; and `/` redirecting to it.
+[table](#empty-states) chooses; and `/` redirecting to it. It replaces the `/repositories` stub.
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)), [list-loading](wireframes/list-loading.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e363bd4e7e)).
 
@@ -1254,52 +1277,64 @@ architecture, `?ownerId=…` with one user, and `?isPublic=false` anonymously, a
 removed by a history-replacing redirect and absent from the list request; a Playwright test
 signs in, and sees a repository it created through the API.
 
-*Depends on:* 6, 7, 8, 9, 17, 18, 24, 26, 27.
+*Depends on:* 6, 7, 8, 9, 17, 18, 24, 26, 27, 44.
 
 **Why:**
 
 * [`/` redirects to the list](#why--redirects-to-the-list)
 * [components take their links as props](#why-components-take-their-links-as-props)
+* [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 ### 33. The repository page — MINOR
 
 `/repositories/$repositoryId`: `RepositoryHeader`, given `architecturesQuery()`'s result and its
 links to `/repositories` and `/repositories/$repositoryId/edit`, and `PacmanConfSection`; not-found
-on a `404`.
+on a `404`. It replaces the `/repositories/$repositoryId` stub.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* route tests for the owner, not-the-owner, anonymous and not-found cases; a Playwright
 test opens a repository from the list and sees its `pacman.conf` section after expanding it.
 
-*Depends on:* 7, 19, 20, 25, 26.
+*Depends on:* 7, 19, 20, 25, 26, 44.
 
 **Why:**
 
 * [repositories are addressed by id](#why-repositories-are-addressed-by-id)
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 * [components take their links as props](#why-components-take-their-links-as-props)
+* [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 ### 34. The new repository page — MINOR
 
-`/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository.
+`/repositories/new` behind `requireUser`: `PageHeader` and `RepositoryForm` with no repository. It
+replaces the `/repositories/new` stub.
 
 *Wireframes:* [new-empty](wireframes/new-empty.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7af61beee92)).
 
 *Acceptance:* a route test of the empty form; an anonymous visit is sent to sign in.
 
-*Depends on:* 7, 8, 21, 26.
+*Depends on:* 7, 8, 21, 26, 44.
+
+**Why:**
+
+* [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 ### 35. The edit repository page — MINOR
 
 `/repositories/$repositoryId/edit` behind `requireUser`: `PageHeader` and `RepositoryForm` with the
-repository, or the `403` message when `permissions.update` is `false`.
+repository, or the `403` message when `permissions.update` is `false`. It replaces the
+`/repositories/$repositoryId/edit` stub.
 
 *Wireframes:* [edit-unchanged](wireframes/edit-unchanged.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0c019c630)).
 
 *Acceptance:* route tests for the filled form, the `403` message and not-found.
 
-*Depends on:* 7, 8, 21, 25, 26.
+*Depends on:* 7, 8, 21, 25, 26, 44.
+
+**Why:**
+
+* [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
 
 **Behaviour**
 
@@ -1553,10 +1588,30 @@ Two alternatives were rejected:
 
 * **Stub routes added early**, in a groundwork issue, so the components could link to them. Each
   stub would be a route that renders nothing until its page lands, and the components would depend
-  on that issue for no gain in what they render.
+  on that issue for no gain in what they render. The pages do link through such stubs, since a page
+  writes its own links; see [the next entry](#why-pages-link-to-each-other-through-stub-routes).
 * **An untyped path or a cast** in the component, such as a template string for the repository's
   page. It compiles, but a renamed route or a missing param would no longer fail at typecheck,
   which is the point of the router's types.
+
+### Why pages link to each other through stub routes
+
+The four repository pages link to one another: the list to the repository page and the new page,
+the repository page to the list and the edit page. A page writes those links itself, typed against
+the route tree, and TanStack Router's types reject a link to a route that is not yet in it. As first
+planned, none of steps 32–35 listed that dependency, so whichever page landed first could not link to
+the others. Step 44 registers every route as a stub, and each page replaces its own.
+
+Two alternatives were rejected:
+
+* **Ordering the pages** so that each links only to pages already merged. The links run both ways —
+  the list links to the repository page and the repository page back to the list — so no order
+  satisfies every page, and those that could be ordered would form a chain, each held behind review
+  of the one before it, where with the stubs all four can be built at once.
+* **Links as props, as the components take them.** That works for a component because the page
+  rendering it supplies the link. A page is the code that owns its links: nothing renders it but
+  the router, so there is no caller to pass a link in. The stubs keep every link typed where the
+  page writes it.
 
 ### Why create and edit are one form
 
