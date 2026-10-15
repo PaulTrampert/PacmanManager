@@ -19,7 +19,7 @@ const nightlyUnavailable = "Nightly builds are not available yet.";
 
 /** Fails for **Nightly**, so a story can tell whether the field has been left. */
 const validateChannel: FieldValidator<string> = (value) =>
-  value === "nightly" ? nightlyUnavailable : undefined;
+  value === "nightly" ? [nightlyUnavailable] : [];
 
 /** The props of {@link ChannelField}. */
 interface ChannelFieldProps {
@@ -178,7 +178,7 @@ function VisibilityField({ onChange }: VisibilityFieldProps) {
         control={FormRadioGroupField<boolean>}
         name="isPublic"
         label="Visibility"
-        validate={() => undefined}
+        validate={() => []}
         value={isPublic}
         onChange={(value) => {
           setIsPublic(value);
