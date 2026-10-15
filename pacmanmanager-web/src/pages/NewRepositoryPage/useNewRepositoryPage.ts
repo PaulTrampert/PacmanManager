@@ -30,7 +30,9 @@ export function useNewRepositoryPage(
   const { data: architectures } = useSuspenseQuery(architecturesQuery());
   const createRepository = useCreateRepository();
   const create = (values: WriteRepositoryRequest) => {
-    createRepository.mutate(values, { onSuccess: onCreated });
+    createRepository.mutate(values, {
+      onSuccess: (repository) => onCreated(repository),
+    });
   };
   return {
     architectures,
