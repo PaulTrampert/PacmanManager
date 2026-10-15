@@ -1,7 +1,12 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "../mocks/node";
+
+// CI runs these tests beside the storybook project's Chromium, several times slower than a
+// workstation, so a render that takes a few hundred milliseconds locally can exceed the default
+// one-second wait for an element there.
+configure({ asyncUtilTimeout: 3_000 });
 
 // jsdom does not implement scrolling, which the router's navigation calls.
 vi.spyOn(window, "scrollTo").mockImplementation(() => {});
