@@ -261,9 +261,9 @@ architecture document requires:
 | `offset` | the same | `0` |
 | `pageSize` | the same | `50` |
 
-* The list is a table with the columns **Name** (linking to the repository's page), **Owner** (the
-  display name), **Visibility** (a Public or Private chip), **Architectures** (the
-  `displayValue`s), **Created** and **Updated**.
+* The list is a table with the columns **Name** (linking to the repository's page, by the link
+  the list page gives the table for each row), **Owner** (the display name), **Visibility** (a
+  Public or Private chip), **Architectures** (the `displayValue`s), **Created** and **Updated**.
 * `pageSize` accepts only **25, 50 or 100**. Any other value, or one that is not a number, is
   dropped from the search params by `validateSearch`, so the page uses 50 and the URL never
   disagrees with it. This narrows only what the web app sends; the API still accepts 1 to 500.
@@ -271,6 +271,10 @@ architecture document requires:
 * The name search updates the URL **300 ms after typing stops**, not on every keystroke.
 * A signed-in user sees a **New repository** button linking to `/repositories/new`. An anonymous
   visitor does not.
+
+**Why:**
+
+* [components take their links as props](#why-components-take-their-links-as-props)
 
 ### Filters
 
@@ -407,11 +411,14 @@ beneath. Top to bottom:
    `displayValue`s), **Created** and **Updated**;
 4. the [`pacman.conf` section](#the-pacmanconf-section), collapsed.
 
+The page gives the header the links its **Repositories** crumb and its **Edit** button go to.
+
 Wireframes: [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 **Why:**
 
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
+* [components take their links as props](#why-components-take-their-links-as-props)
 
 ### The `pacman.conf` section
 
@@ -1054,8 +1061,9 @@ parameter, and that anonymous visibility and a single-user owner filter are disa
 
 ### 18. `RepositoryTable` — PATCH
 
-`PaginatedTable` configured with the list's columns, the name linking to the repository's page,
-passing the response's `sort` as the applied sort, and an `architectures` prop — the
+`PaginatedTable` configured with the list's columns, the name linking to the repository's page by
+a prop giving each row's `LinkOptions`, which the page supplies ([#325](https://github.com/PaulTrampert/PacmanManager/issues/325)
+implements it), passing the response's `sort` as the applied sort, and an `architectures` prop — the
 `{ value, displayValue }` array — by which it shows each repository's `supportedArchitectures`,
 falling back to the raw value for one not in the array. See [The repository list](#the-repository-list).
 
@@ -1066,18 +1074,28 @@ spinner over them) and a first load (spinner, no rows).
 
 *Depends on:* 3, 6, 7, 12, 16.
 
+**Why:**
+
+* [components take their links as props](#why-components-take-their-links-as-props)
+
 ### 19. `RepositoryHeader` — PATCH
 
 The repository page's header: `PageHeader` with breadcrumbs, the name and its `VisibilityChip`,
 **Edit** and **Delete** by `permissions`, and the row of details. It takes the generated `Repository`
-and an `architectures` prop, showing architectures as `RepositoryTable` does. See [The repository page](#the-repository-page).
+and an `architectures` prop, showing architectures as `RepositoryTable` does; `repositoriesLink` and
+`editLink`, the `LinkOptions` the **Repositories** crumb and **Edit** go to, which the page
+supplies; and an `onDelete` callback. See [The repository page](#the-repository-page).
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
 *Acceptance:* a story per combination of `permissions.update` and `permissions.delete`; a `play`
-function asserts **Delete** calls its callback and **Edit** links to the edit route.
+function asserts **Delete** calls its callback and **Edit** links to `editLink`.
 
 *Depends on:* 2, 3, 7, 8, 16.
+
+**Why:**
+
+* [components take their links as props](#why-components-take-their-links-as-props)
 
 ### 20. `PacmanConfSection` — PATCH
 
@@ -1222,7 +1240,8 @@ to anything; a route test renders it against MSW for each state its wireframes s
 `/repositories` with its `validateSearch` over the [search params](#the-repository-list), its
 `beforeLoad` as [Loading](#loading) sets out,
 `PageHeader` with **New repository** for a signed-in user, `RepositoryFilters`, and `RepositoryTable`
-or the `EmptyState` the [table](#empty-states) chooses; and `/` redirecting to it.
+— given each row's link to `/repositories/$repositoryId` — or the `EmptyState` the
+[table](#empty-states) chooses; and `/` redirecting to it.
 
 *Wireframes:* [list-signed-in](wireframes/list-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f616e001)), [list-anonymous](wireframes/list-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a3f8e58ebc)), [list-single-user](wireframes/list-single-user.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a401c9ab54)), [list-empty-signed-in](wireframes/list-empty-signed-in.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a403ecb644)), [list-empty-filtered](wireframes/list-empty-filtered.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4064f4841)), [list-empty-anonymous](wireframes/list-empty-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a4089d6065)), [list-loading](wireframes/list-loading.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7e363bd4e7e)).
 
@@ -1240,11 +1259,13 @@ signs in, and sees a repository it created through the API.
 **Why:**
 
 * [`/` redirects to the list](#why--redirects-to-the-list)
+* [components take their links as props](#why-components-take-their-links-as-props)
 
 ### 33. The repository page — MINOR
 
-`/repositories/$repositoryId`: `RepositoryHeader`, given `architecturesQuery()`'s result, and
-`PacmanConfSection`; not-found on a `404`.
+`/repositories/$repositoryId`: `RepositoryHeader`, given `architecturesQuery()`'s result and its
+links to `/repositories` and `/repositories/$repositoryId/edit`, and `PacmanConfSection`; not-found
+on a `404`.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
@@ -1257,6 +1278,7 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 
 * [repositories are addressed by id](#why-repositories-are-addressed-by-id)
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
+* [components take their links as props](#why-components-take-their-links-as-props)
 
 ### 34. The new repository page — MINOR
 
@@ -1516,6 +1538,25 @@ a button beside Edit and Delete was also considered, and rejected because an acc
 snippet in the page, where it is found by reading rather than by guessing at a button. The collapsed
 state is not remembered: a visitor who needs the snippet needs it once per machine, and remembering
 it would make the page's height depend on history.
+
+### Why components take their links as props
+
+`RepositoryTable` and `RepositoryHeader` were planned to build their own router links: the table to
+each repository's page, the header to the list and the edit page. Those routes belong to the pages
+layer, after the components, and TanStack Router's types reject a link to a route that is not yet
+in the route tree. A component therefore takes each link as a typed `LinkOptions` prop, and the page
+that renders it supplies the link; its stories point the links at a route that exists, as
+`PageHeader`'s do. The component stays presentational — what the page chooses includes where it
+links — and every link is still checked against the route tree, where the page writes it.
+
+Two alternatives were rejected:
+
+* **Stub routes added early**, in a groundwork issue, so the components could link to them. Each
+  stub would be a route that renders nothing until its page lands, and the components would depend
+  on that issue for no gain in what they render.
+* **An untyped path or a cast** in the component, such as a template string for the repository's
+  page. It compiles, but a renamed route or a missing param would no longer fail at typecheck,
+  which is the point of the router's types.
 
 ### Why create and edit are one form
 
