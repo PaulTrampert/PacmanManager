@@ -141,6 +141,35 @@ export const InvalidPattern: Story = {
   },
 };
 
+export const FailsTwoRules: Story = {
+  args: { helperText },
+  play: async ({ canvas }) => {
+    const { maxLength } = validationRules.WriteRepositoryRequest.name;
+    const tooLong = `Name must be ${maxLength} characters or fewer.`;
+    const name = canvas.getByRole("textbox", { name: "Name" });
+
+    // Too long, and starting with a `-` the pattern forbids.
+    await userEvent.click(name);
+    await userEvent.paste(`-${"a".repeat(maxLength)}`);
+    await userEvent.tab();
+
+    // Both messages show, each on a line of its own, in place of the helper text.
+    await expect(name).toBeInvalid();
+    const first = canvas.getByText(tooLong);
+    const second = canvas.getByText(patternMessage);
+    await expect(getComputedStyle(first).display).toBe("block");
+    await expect(getComputedStyle(second).display).toBe("block");
+    await expect(first.parentElement).toBe(second.parentElement);
+    await expect(name).toHaveAccessibleDescription(
+      expect.stringContaining(tooLong),
+    );
+    await expect(name).toHaveAccessibleDescription(
+      expect.stringContaining(patternMessage),
+    );
+    await expect(canvas.queryByText(helperText)).not.toBeInTheDocument();
+  },
+};
+
 /** A field whose rules have a minimum length, which no property in the OpenAPI document has yet. */
 function MinLengthField() {
   const [value, setValue] = useState("");
@@ -207,7 +236,7 @@ interface FormNotesFieldProps extends FormControlProps<string> {
 /** A multi-line text control, standing in for any `Form<Type>Field` with props of its own. */
 function FormNotesField({
   onChange,
-  error,
+  errors,
   helperText,
   ...control
 }: FormNotesFieldProps) {
@@ -215,8 +244,8 @@ function FormNotesField({
     <TextField
       {...control}
       onChange={(event) => onChange(event.target.value)}
-      error={error !== undefined}
-      helperText={error ?? helperText}
+      error={errors.length > 0}
+      helperText={errors.length > 0 ? errors.join(" ") : helperText}
       multiline
     />
   );

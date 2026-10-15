@@ -33,36 +33,32 @@ describe("useForm", () => {
     expect(result.current.context.submitted).toBe(true);
   });
 
-  it("does not submit while a field has an error, but marks the form submitted", () => {
+  it("does not submit while a field fails, but marks the form submitted", () => {
     const { result, onSubmit } = renderForm();
 
-    act(() =>
-      result.current.context.setFieldError("name", "Name is required."),
-    );
+    act(() => result.current.context.setFieldFailing("name", true));
     act(() => result.current.onSubmit(submitEvent()));
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(result.current.context.submitted).toBe(true);
   });
 
-  it("submits once the field's error is cleared", () => {
+  it("submits once the field passes", () => {
     const { result, onSubmit } = renderForm();
 
-    act(() =>
-      result.current.context.setFieldError("name", "Name is required."),
-    );
-    act(() => result.current.context.setFieldError("name", undefined));
+    act(() => result.current.context.setFieldFailing("name", true));
+    act(() => result.current.context.setFieldFailing("name", false));
     act(() => result.current.onSubmit(submitEvent()));
 
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it("blocks on any one field's error", () => {
+  it("blocks on any one failing field", () => {
     const { result, onSubmit } = renderForm();
 
     act(() => {
-      result.current.context.setFieldError("name", undefined);
-      result.current.context.setFieldError("description", "Too long.");
+      result.current.context.setFieldFailing("name", false);
+      result.current.context.setFieldFailing("description", true);
     });
     act(() => result.current.onSubmit(submitEvent()));
 
@@ -97,14 +93,14 @@ describe("useForm", () => {
     expect(result.current.context.submitted).toBe(false);
   });
 
-  it("keeps setFieldError stable across renders", () => {
+  it("keeps setFieldFailing stable across renders", () => {
     const { result, rerender } = renderForm();
-    const { setFieldError } = result.current.context;
+    const { setFieldFailing } = result.current.context;
 
-    act(() => setFieldError("name", "Name is required."));
+    act(() => setFieldFailing("name", true));
     rerender({ pending: true });
 
-    expect(result.current.context.setFieldError).toBe(setFieldError);
+    expect(result.current.context.setFieldFailing).toBe(setFieldFailing);
   });
 
   it("keeps the context's identity until the form is submitted", () => {
@@ -116,19 +112,17 @@ describe("useForm", () => {
 
     act(() => result.current.onSubmit(submitEvent()));
     expect(result.current.context).not.toBe(context);
-    expect(result.current.context.setFieldError).toBe(context.setFieldError);
+    expect(result.current.context.setFieldFailing).toBe(
+      context.setFieldFailing,
+    );
   });
 
-  it("keeps the context unchanged when a field reports the error it already has", () => {
+  it("keeps the context unchanged when a field reports what it already has", () => {
     const { result } = renderForm();
-    act(() =>
-      result.current.context.setFieldError("name", "Name is required."),
-    );
+    act(() => result.current.context.setFieldFailing("name", true));
     const { context } = result.current;
 
-    act(() =>
-      result.current.context.setFieldError("name", "Name is required."),
-    );
+    act(() => result.current.context.setFieldFailing("name", true));
 
     expect(result.current.context).toBe(context);
   });
