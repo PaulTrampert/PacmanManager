@@ -148,8 +148,9 @@ The sub-agents share one machine, and their browser and stack runs interfere wit
 Storybook tests, Playwright screenshot scripts and `npm run e2e` (which brings up the compose stack
 on its fixed ports) each fail or hang when another agent's run overlaps them. You coordinate those
 runs: create one lock that every sub-agent takes around each such command, so they run one at a
-time while everything else stays parallel. It lives in the shared git directory, which every
-worktree can reach and git never tracks:
+time while everything else stays parallel. A compose stack left running after its command holds
+those fixed ports and blocks every later run, so the lock covers bringing the stack down as well as
+up. It lives in the shared git directory, which every worktree can reach and git never tracks:
 
 ```bash
 BROWSER_LOCK="$(git -C "$PRIMARY" rev-parse --path-format=absolute --git-common-dir)/browser-tests.lock"
@@ -189,7 +190,10 @@ prompt, filled in:
 >    `storybook` project, `npm run e2e`, `scripts/with-web-server.sh`, and any Playwright script,
 >    screenshots included. Take the lock for one command at a time, and never hold it while you
 >    edit or think. A `vitest` run of only the `unit` project, `lint`, `typecheck`, `format:check`
->    and `build` need no lock.
+>    and `build` need no lock. A command that brings the compose stack up, `npm run e2e` included,
+>    takes it down again inside the same lock, whether the command passes or not:
+>    `flock <browser lock path> sh -c 'npm run e2e; rc=$?; docker compose -f <absolute worktree path>/compose.yaml down -v; exit $rc'`.
+>    Never take down a stack another worktree started.
 > 6. Commit in meaningful steps. End each commit message with
 >    `Co-Authored-By: Claude <noreply@anthropic.com>`.
 > 7. Push with `git -C <path> push -u origin <branch>` and open a PR against `main` with

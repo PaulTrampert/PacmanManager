@@ -74,7 +74,8 @@ pacmanmanager-web/
 └── src/
     ├── main.tsx           # providers and the router
     ├── theme.ts           # the MUI theme
-    ├── routes/            # TanStack Router file-based routes
+    ├── routes/            # TanStack Router file-based routes: what a page loads, and nothing else
+    ├── pages/<Name>Page/  # NamePage.tsx, NamePage.stories.tsx, useNamePage.ts(+.test.ts), index.ts
     ├── api/               # the client, its middleware, ApiError; schema.gen.ts is generated
     ├── session/           # the session query, useSession, requireUser
     ├── queries/<resource>/ # query-options factories and mutations, one folder per resource
@@ -339,12 +340,22 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 * Routes are files under `src/routes`; `__root.tsx` is created with
   `createRootRouteWithContext<{ queryClient: QueryClient; session: Session }>()`.
+* **Routes load; pages render.** A route file holds only the route's options — `validateSearch`,
+  `beforeLoad`, `loader`, `onError` — and a `component` that renders one page from `src/pages`.
+  That component calls only the router's own hooks (`Route.useParams`, `Route.useSearch`,
+  `useNavigate`) and passes the page what they give it: the params and validated search, the
+  `LinkOptions` of every link the page shows, and callbacks that do nothing but navigate, such as
+  `onSearchChange` or `onCreated`. A route file has no hook of its own and reads no query.
+* A page is a component in `src/pages/<Name>Page/`, laid out like one in `src/components`: it
+  renders, and its `use<Name>Page` hook behaves. The hook reads the page's queries with the same
+  factories the loader used, and owns its mutations. A page never imports from `src/routes` and
+  never calls a router hook, so it renders in a story from props alone.
 * The router is created with `defaultPreload: "intent"` and `defaultPreloadStaleTime: 0`, so
   TanStack Query, not the router, decides freshness.
 * Each resource has a folder under `src/queries/<resource>/` holding **query-options factories**
   (`repositoryListQuery(params)`, `repositoryQuery(name)`) and **mutation hooks**. Query keys start
   with the resource name, and a factory's key includes every parameter its request sends.
-* Route loaders call `queryClient.ensureQueryData(...)` with the same factory the component passes
+* Route loaders call `queryClient.ensureQueryData(...)` with the same factory the page's hook passes
   to `useSuspenseQuery`. A component never builds a query key or calls the client inline.
 * A mutation invalidates the list queries of its resource and updates or removes the affected
   detail query, on success only.
@@ -357,7 +368,7 @@ The app renders for everyone. What a page shows depends on the **session**, whic
   `direction`, and the filter's own parameter names).
 * A **paged, filtered list** is the exception to the loader rule above: its route's `beforeLoad`
   prefetches the list from the validated `search` without awaiting it, there is no loader or
-  `loaderDeps` for the list's params, and the component
+  `loaderDeps` for the list's params, and the page's hook
   reads it with `useQuery` and `placeholderData: keepPreviousData`, showing its previous state dimmed
   under a spinner while the next loads. See
   [Web UI: Repositories](../web-ui-repositories/web-ui-repositories.md#why-a-paged-list-is-read-with-usequery).
@@ -373,6 +384,7 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 **Why:**
 
 * [routes are file-based](#why-routes-are-file-based)
+* [routes load and pages render](#why-routes-load-and-pages-render)
 * [a `4xx` is never retried](#why-a-4xx-is-never-retried)
 
 ---
@@ -415,8 +427,9 @@ The app renders for everyone. What a page shows depends on the **session**, whic
 
 | Level | Covers | Tool | Runs against | Command |
 | :--- | :--- | :--- | :--- | :--- |
-| Unit | Functions, hooks (each component's `use<Name>` among them), the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
-| Component | Every component in `src/components`: a story per meaningful state, with a `play` function for each interaction | Storybook + `@storybook/addon-vitest`, Chromium | MSW handlers | `npm test` |
+| Unit | Functions, hooks (each component's `use<Name>` and each page's `use<Name>Page` among them), the client middleware, the session logic | Vitest + Testing Library, jsdom | MSW handlers | `npm test` |
+| Route | Each route's `validateSearch`, `beforeLoad`, loader and `onError`: redirects, sign-in, not-found, and which page it renders with which params, search and links | Vitest + Testing Library, jsdom, the real router | MSW handlers | `npm test` |
+| Component | Every component in `src/components` and every page in `src/pages`: a story per meaningful state, with a `play` function for each interaction | Storybook + `@storybook/addon-vitest`, Chromium | MSW handlers | `npm test` |
 | End to end | User journeys across SpaHost, Keycloak and RepoHost | `@playwright/test` | The compose stack | `npm run e2e` |
 
 * Vitest has two projects in `vite.config.ts`, `unit` and `storybook`; `npm test` runs both once and
@@ -841,6 +854,29 @@ TanStack Router's file-based routing generates the route tree and its types from
 automatic code splitting, and is what Budgy uses. A route is one file named for its path, which is
 the easiest structure for the feature milestones to extend without touching a central route table.
 Code-based routing was rejected for that central table.
+
+### Why routes load and pages render
+
+The first pages were written in their route files, as TanStack Router's examples are. A page's
+behaviour then had nowhere to go: a hook beside the route is picked up as a route unless its name
+starts with `-`, so the list page's hook became `src/routes/-useRepositoryListPage.ts`, and every
+page's states could be tested only as route tests, through the router and its loader. Moving the
+page to `src/pages` gives its hook the same home a component's has and lets each state be a story
+given props, while a route test keeps only what the router owns — search validation, redirects,
+sign-in, the loader and not-found.
+
+The route passes the page its links, as a page passes them to its components, so every link is
+still typed against the route tree where it is written, and the page needs no router context of its
+own beyond what rendering a `LinkOptions` takes. Its navigation callbacks come in the same way, so a
+story asserts what a page asked for without a router recording it.
+
+Two alternatives were rejected:
+
+* **Pages in their route files, hooks prefixed with `-`.** It works, but scatters behaviour among
+  the route files and leaves each page's states testable only through the router.
+* **Pages that read the router themselves**, calling `useSearch` and `useNavigate` and writing their
+  own links. They would still be separate from the route files, but a story could reach a state only
+  through a URL, and a page could not be rendered outside the route it is registered at.
 
 ### Why a `4xx` is never retried
 
