@@ -26,12 +26,13 @@ export const users = {
 
 /**
  * Signs `user` in through the web host's `/login` and the real Keycloak sign-in form, and waits until
- * the browser is back on the web host at `path` (the app's root by default).
+ * the browser is back on the web host at `path` (the repository list by default, where `/`
+ * redirects).
  */
 export async function signIn(
   page: Page,
   user: RealmUser,
-  path = "/",
+  path = "/repositories",
 ): Promise<void> {
   await page.goto(`/login?${new URLSearchParams({ redirectUri: path })}`);
   await submitSignInForm(page, user, path);
