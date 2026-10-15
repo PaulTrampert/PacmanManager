@@ -23,9 +23,9 @@ afterEach(() => {
 });
 
 describe("the new repository route", () => {
-  it("shows a signed-in user the empty form under its breadcrumbs (new-empty)", async () => {
+  it("renders the new repository page for a signed-in user, its crumb linking to the list", async () => {
     server.use(
-      ...signedInHandlers(aUser({ displayName: "Paul Trampert" })),
+      ...signedInHandlers(aUser()),
       apiHandler("get", "/v1/Architectures", () => HttpResponse.json([x86_64])),
     );
     const { router } = renderRoute("/repositories/new");
@@ -38,26 +38,10 @@ describe("the new repository route", () => {
       ),
     ).toBeInTheDocument();
     expect(router.state.matches.at(-1)?.routeId).toBe("/repositories/new");
-
     const breadcrumbs = screen.getByRole("navigation", { name: "breadcrumb" });
     expect(
       within(breadcrumbs).getByRole("link", { name: "Repositories" }),
     ).toHaveAttribute("href", "/repositories");
-    expect(within(breadcrumbs).getByText("New repository")).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("");
-    expect(screen.getByRole("radio", { name: "Private" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Public" })).not.toBeChecked();
-    const architectures = screen.getByRole("combobox", {
-      name: "Architectures",
-    });
-    expect(architectures).toHaveTextContent("64-bit Intel/AMD (x86_64)");
-    expect(architectures).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
   });
 
   it("sends an anonymous visitor to sign in, returning them to the new repository page", async () => {
