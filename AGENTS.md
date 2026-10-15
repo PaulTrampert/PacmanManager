@@ -207,6 +207,11 @@ These come from `CONTRIBUTING.md`; the highlights that most often apply:
   `index.ts`, and the component renders what that hook returns. Behaviour that isn't specific to
   the component is a reusable hook of its own (`src/useTemporaryFeedback.ts`), which the
   component's hook uses.
+* **Routes load; pages render.** In `pacmanmanager-web`, a route file in `src/routes` holds only
+  the route's options and a component that renders one page from `src/pages`, passing it the params,
+  search, links and navigation callbacks it gets from the router's own hooks. The page and its
+  `use<Name>Page` hook hold everything else, and never touch the router. See
+  `docs/web-ui-architecture/web-ui-architecture.md`.
 * **React Compiler memoizes.** `pacmanmanager-web` runs React Compiler, so don't write `useMemo` or
   `useCallback` by hand: a callback a hook returns already keeps its identity until what it reads
   changes, and callers keep their inputs stable. A reusable hook's unit test asserts that identity.
