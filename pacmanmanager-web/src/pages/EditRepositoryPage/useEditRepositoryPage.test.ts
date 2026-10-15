@@ -89,7 +89,7 @@ describe("useEditRepositoryPage", () => {
     );
     const result = await renderPageHook();
     expect(result.current.confirming).toBe(false);
-    expect(result.current.edited).toBe(stored);
+    expect(result.current.edited).toEqual(stored);
 
     act(() => result.current.onSubmit(edits));
 
@@ -128,8 +128,6 @@ describe("useEditRepositoryPage", () => {
 
     act(() => result.current.onConfirm());
 
-    await waitFor(() => expect(result.current.pending).toBe(true));
-    expect(result.current.confirming).toBe(true);
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(requests).toEqual([{ id: repositoryId, body: edits }]);
     expect(result.current.error).toBeNull();

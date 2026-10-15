@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { expect, fn } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Repository } from "../../api";
 import { forbiddenText } from "../../components/ForbiddenMessage";
 import { apiHandler } from "../../mocks/api";
@@ -119,5 +119,54 @@ export const Forbidden: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Save" }),
     ).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * The wireframes edit-changed and edit-confirm-changes, failing: **Save** opens the confirmation,
+ * whose **Save** the API answers with a `500`. The dialog closes and the form's alert shows the
+ * error, with the edits intact.
+ */
+export const SaveFailed: Story = {
+  beforeEach: ({ msw }) => {
+    msw.use(
+      ...answerWith(coreExtras()),
+      apiHandler("put", "/v1/Repositories/{id}", () =>
+        HttpResponse.json(
+          {
+            title: "The repository could not be saved.",
+            status: 500,
+            detail: "The database is unavailable.",
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+  },
+  play: async ({ canvas, args }) => {
+    const name = await canvas.findByRole("textbox", { name: "Name" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "core-extras-renamed");
+    await userEvent.click(canvas.getByRole("radio", { name: "Private" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Save these changes?",
+    });
+    const consequences = within(dialog).getAllByRole("listitem");
+    await expect(consequences).toHaveLength(2);
+    await expect(consequences[0]).toHaveTextContent(
+      "Renaming it to core-extras-renamed",
+    );
+    await expect(consequences[1]).toHaveTextContent("Making it private");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    const alert = await canvas.findByRole("alert");
+    await expect(alert).toHaveTextContent("The repository could not be saved.");
+    await expect(alert).toHaveTextContent("The database is unavailable.");
+    await expect(name).toHaveValue("core-extras-renamed");
+    await expect(canvas.getByRole("radio", { name: "Private" })).toBeChecked();
+    await expect(args.onSaved).not.toHaveBeenCalled();
   },
 };
