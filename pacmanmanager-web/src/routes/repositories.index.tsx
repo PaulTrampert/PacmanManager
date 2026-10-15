@@ -1,17 +1,11 @@
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import {
-  keepPreviousData,
-  useQuery,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import {
   createFileRoute,
   createLink,
   linkOptions,
   redirect,
 } from "@tanstack/react-router";
-import type { RepositoryPaginatedResponse } from "../api";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorPage } from "../components/ErrorPage";
 import { PageHeader } from "../components/PageHeader";
@@ -21,7 +15,6 @@ import { architecturesQuery } from "../queries/architectures";
 import { repositoryListQuery } from "../queries/repositories";
 import { userListQuery } from "../queries/users";
 import {
-  defaultRepositoryListPageSize,
   hasDroppedParams,
   hasRepositoryListFilters,
   repositoryListRequest,
@@ -31,6 +24,7 @@ import {
   type RepositoryListPageSearch,
 } from "../repositoryListSearch";
 import { useSession, type Session } from "../session";
+import { useRepositoryListPage } from "./-useRepositoryListPage";
 
 /** MUI's button, navigating through the router. */
 const ButtonLink = createLink(Button);
@@ -68,19 +62,15 @@ export const Route = createFileRoute("/repositories/")({
   component: RepositoryListPage,
 });
 
-// The filters, the sort and the page are connected to the URL by step 36 of the Web UI:
-// Repositories plan; until then their callbacks do nothing.
-function notYetConnected() {}
-
 function RepositoryListPage() {
   const search = Route.useSearch();
   const session = useSession();
-  // Both are ensured by beforeLoad, so neither suspends.
-  const { data: architectures } = useSuspenseQuery(architecturesQuery());
-  const { data: users } = useSuspenseQuery(userListQuery(userCountSearch));
-  const list = useQuery({
-    ...repositoryListQuery(repositoryListRequest(search)),
-    placeholderData: keepPreviousData,
+  const routeNavigate = Route.useNavigate();
+  const { architectures, filters, list } = useRepositoryListPage({
+    search,
+    session,
+    navigate: (update, options) =>
+      void routeNavigate({ search: update, replace: options?.replace }),
   });
 
   return (
@@ -98,20 +88,25 @@ function RepositoryListPage() {
       <Stack spacing={3}>
         <RepositoryFilters
           filters={search}
-          onChange={notYetConnected}
+          onChange={filters.onChange}
           session={session}
           architectures={architectures}
-          users={{ results: [], total: users.total, onSearch: notYetConnected }}
+          users={filters.users}
+          owner={filters.owner}
         />
-        {list.isError ? (
-          <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
-        ) : isEmpty(list.data, list.isPlaceholderData) ? (
-          <RepositoryListEmptyState search={search} session={session} />
+        {list.error !== null ? (
+          <ErrorPage error={list.error} onRetry={list.retry} />
+        ) : list.empty ? (
+          <RepositoryListEmptyState
+            search={search}
+            session={session}
+            onClearFilters={filters.clear}
+          />
         ) : (
           <RepositoryTable
-            response={list.data}
-            loading={list.isFetching}
-            pageSize={search.pageSize ?? defaultRepositoryListPageSize}
+            response={list.response}
+            loading={list.loading}
+            pageSize={list.pageSize}
             architectures={architectures}
             repositoryLink={(repository) =>
               linkOptions({
@@ -119,8 +114,8 @@ function RepositoryListPage() {
                 params: { repositoryId: repository.id },
               })
             }
-            onSortChange={notYetConnected}
-            onPaginationChange={notYetConnected}
+            onSortChange={list.onSortChange}
+            onPaginationChange={list.onPaginationChange}
           />
         )}
       </Stack>
@@ -128,23 +123,14 @@ function RepositoryListPage() {
   );
 }
 
-/**
- * Whether the list is empty: the current response has a `total` of 0. A page past the end, empty
- * but with a `total`, is not, and neither is the previous response shown while the next loads.
- */
-function isEmpty(
-  response: RepositoryPaginatedResponse | undefined,
-  isPlaceholderData: boolean,
-): boolean {
-  return !isPlaceholderData && response?.total === 0;
-}
-
 function RepositoryListEmptyState({
   search,
   session,
+  onClearFilters,
 }: {
   search: RepositoryListPageSearch;
   session: Session;
+  onClearFilters: () => void;
 }) {
   if (hasRepositoryListFilters(search)) {
     return (
@@ -152,7 +138,7 @@ function RepositoryListEmptyState({
         heading="No repositories match"
         message="Nothing matches the current filters."
         action={
-          <Button variant="outlined" onClick={notYetConnected}>
+          <Button variant="outlined" onClick={onClearFilters}>
             Clear filters
           </Button>
         }

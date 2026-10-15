@@ -3,9 +3,14 @@ import { anArchitecture, aUser } from "./mocks/fixtures";
 import {
   hasDroppedParams,
   hasRepositoryListFilters,
+  lastPageOffset,
   repositoryListRequest,
   validateRepositoryListSearch,
+  withFilterChange,
   withoutDisabledFilters,
+  withoutFilters,
+  withPagination,
+  withSort,
   type RepositoryListFilterState,
   type RepositoryListPageSearch,
 } from "./repositoryListSearch";
@@ -214,4 +219,113 @@ describe("repositoryListRequest", () => {
       offset: 100,
     });
   });
+});
+
+describe("withFilterChange", () => {
+  it("sets the filter and starts again at the first page, keeping the sort and page size", () => {
+    expect(
+      withFilterChange(
+        { nameContains: "core", sortBy: "Created", offset: 50, pageSize: 25 },
+        { isPublic: false },
+      ),
+    ).toEqual({
+      nameContains: "core",
+      isPublic: false,
+      sortBy: "Created",
+      pageSize: 25,
+    });
+  });
+
+  it("removes a filter set back to All, leaving no undefined param", () => {
+    const search = withFilterChange(
+      { nameContains: "core", ownerId },
+      { ownerId: undefined },
+    );
+    expect(search).toEqual({ nameContains: "core" });
+    expect(Object.keys(search)).toEqual(["nameContains"]);
+  });
+});
+
+describe("withoutFilters", () => {
+  it("removes every filter param and the offset, and keeps the sort and page size", () => {
+    const search = withoutFilters({
+      nameContains: "core",
+      isPublic: true,
+      ownerId,
+      architecture: "aarch64",
+      sortBy: "Updated",
+      direction: "Ascending",
+      offset: 100,
+      pageSize: 25,
+    });
+    expect(search).toEqual({
+      sortBy: "Updated",
+      direction: "Ascending",
+      pageSize: 25,
+    });
+    expect(Object.keys(search)).toHaveLength(3);
+  });
+});
+
+describe("withSort", () => {
+  it("sets the field and direction and starts again at the first page", () => {
+    expect(
+      withSort(
+        { nameContains: "core", offset: 25 },
+        { sortBy: "Created", direction: "Ascending" },
+      ),
+    ).toEqual({
+      nameContains: "core",
+      sortBy: "Created",
+      direction: "Ascending",
+    });
+  });
+
+  it("removes the direction when none is asked for, so the field's default applies", () => {
+    const search = withSort(
+      { sortBy: "Name", direction: "Descending" },
+      { sortBy: "Updated" },
+    );
+    expect(search).toEqual({ sortBy: "Updated" });
+    expect(Object.keys(search)).toEqual(["sortBy"]);
+  });
+});
+
+describe("withPagination", () => {
+  it("sets the offset and page size", () => {
+    expect(
+      withPagination({ nameContains: "core" }, { offset: 25, pageSize: 25 }),
+    ).toEqual({ nameContains: "core", offset: 25, pageSize: 25 });
+  });
+
+  it("removes an offset of 0", () => {
+    expect(
+      withPagination(
+        { offset: 50, pageSize: 50 },
+        { offset: 0, pageSize: 100 },
+      ),
+    ).toEqual({ pageSize: 100 });
+  });
+
+  it("removes a page size the list does not offer", () => {
+    expect(withPagination({}, { offset: 7, pageSize: 7 })).toEqual({
+      offset: 7,
+    });
+  });
+});
+
+describe("lastPageOffset", () => {
+  it.each([
+    { total: 5, pageSize: 50, offset: 0 },
+    { total: 50, pageSize: 50, offset: 0 },
+    { total: 51, pageSize: 50, offset: 50 },
+    { total: 120, pageSize: 50, offset: 100 },
+    { total: 26, pageSize: 25, offset: 25 },
+    { total: 0, pageSize: 25, offset: 0 },
+  ])(
+    "is $offset for $total items at $pageSize a page",
+    ({ total, pageSize, offset }) => {
+      expect(lastPageOffset(total, pageSize)).toBe(offset);
+    },
+  );
 });
