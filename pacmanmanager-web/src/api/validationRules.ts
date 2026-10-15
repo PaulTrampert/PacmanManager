@@ -21,6 +21,10 @@ export interface PropertyRules {
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: PatternRule;
+  /** The fewest items an array property may hold. */
+  readonly minItems?: number;
+  /** The most items an array property may hold. */
+  readonly maxItems?: number;
 }
 
 /** Each request-body schema's properties' rules, keyed by schema name and then property name. */
@@ -43,6 +47,8 @@ interface PropertyObject {
   minLength?: number;
   maxLength?: number;
   pattern?: string;
+  minItems?: number;
+  maxItems?: number;
 }
 
 /** The parts of an OpenAPI 3 document the rules are read from. */
@@ -77,9 +83,10 @@ export function requestBodySchemaNames(document: ValidationDocument): string[] {
 }
 
 /**
- * Every request-body schema's properties' `required`, `minLength`, `maxLength` and `pattern`, with
- * each pattern translated for the browser where the translator recognises all of it, and server-only
- * with a warning where it does not. Never throws over a pattern.
+ * Every request-body schema's properties' `required`, `minLength`, `maxLength`, `pattern`, and an
+ * array's `minItems` and `maxItems`, with each pattern translated for the browser where the
+ * translator recognises all of it, and server-only with a warning where it does not. Never throws
+ * over a pattern.
  */
 export function extractValidationRules(
   document: ValidationDocument,
@@ -119,6 +126,12 @@ export function extractValidationRules(
           maxLength: property.maxLength,
         }),
         ...(pattern && { pattern }),
+        ...(property.minItems !== undefined && {
+          minItems: property.minItems,
+        }),
+        ...(property.maxItems !== undefined && {
+          maxItems: property.maxItems,
+        }),
       };
     }
     rules[schemaName] = properties;

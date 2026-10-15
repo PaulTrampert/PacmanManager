@@ -31,27 +31,27 @@ export function useForm({
   submitDisabled,
 }: UseFormOptions): FormState {
   const [submitted, setSubmitted] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<
-    Readonly<Record<string, string>>
+  const [failingFields, setFailingFields] = useState<
+    Readonly<Record<string, true>>
   >({});
 
   // React Compiler keeps this function's identity, and so the context's, until what it reads
-  // changes; every field lists `setFieldError` as an effect's dependency.
-  const setFieldError = (name: string, error: string | undefined) =>
-    setFieldErrors((current) => {
-      if (current[name] === error) {
+  // changes; every field lists `setFieldFailing` as an effect's dependency.
+  const setFieldFailing = (name: string, failing: boolean) =>
+    setFailingFields((current) => {
+      if ((current[name] === true) === failing) {
         return current;
       }
       const next = { ...current };
-      if (error === undefined) {
-        delete next[name];
+      if (failing) {
+        next[name] = true;
       } else {
-        next[name] = error;
+        delete next[name];
       }
       return next;
     });
 
-  const context = { submitted, setFieldError };
+  const context = { submitted, setFieldFailing };
 
   const disabled = pending || submitDisabled;
 
@@ -64,7 +64,7 @@ export function useForm({
         return;
       }
       setSubmitted(true);
-      if (Object.keys(fieldErrors).length === 0) {
+      if (Object.keys(failingFields).length === 0) {
         onSubmit();
       }
     },

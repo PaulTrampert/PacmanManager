@@ -4,6 +4,7 @@ import { expect, fn, userEvent } from "storybook/test";
 import { ApiError } from "../../api";
 import { Form } from "./Form";
 import { FormField } from "./FormField";
+import { FormTextField } from "./FormTextField";
 
 const patternMessage =
   "Use letters, digits and @ _ + - .; - and . cannot start or end the name, or appear twice in a row.";
@@ -21,6 +22,7 @@ function Fields() {
         patternMessage={patternMessage}
         value={name}
         onChange={setName}
+        control={FormTextField}
         helperText="Letters, digits and @ _ + - . This is the section name in pacman.conf."
       />
       <FormField
@@ -29,6 +31,7 @@ function Fields() {
         label="Display name"
         value={displayName}
         onChange={setDisplayName}
+        control={FormTextField}
       />
     </>
   );

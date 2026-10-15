@@ -7,10 +7,13 @@ type Field = "Name" | "CreatedAt";
 
 function setup({
   appliedSort = { sortBy: "Name", direction: "Ascending" },
+  noAppliedSort = false,
   offset = 0,
   pageSize = 25,
 }: {
   appliedSort?: AppliedSort<Field>;
+  /** Leaves the applied sort absent, as before the first response. */
+  noAppliedSort?: boolean;
   offset?: number;
   pageSize?: number;
 } = {}) {
@@ -18,7 +21,7 @@ function setup({
   const onPaginationChange = vi.fn();
   const { result } = renderHook(() =>
     usePaginatedTable<Field>({
-      appliedSort,
+      appliedSort: noAppliedSort ? undefined : appliedSort,
       onSortChange,
       offset,
       pageSize,
@@ -67,6 +70,27 @@ describe("usePaginatedTable", () => {
       const [sort] = onSortChange.mock.calls[0] as [object];
       expect(sort).toStrictEqual({ sortBy: "CreatedAt" });
       expect("direction" in sort).toBe(false);
+    });
+  });
+
+  describe("with no applied sort", () => {
+    it("asks for the clicked field with no direction key", () => {
+      const { result, onSortChange } = setup({ noAppliedSort: true });
+
+      result.current.sortBy("Name");
+
+      expect(onSortChange).toHaveBeenCalledOnce();
+      expect(onSortChange.mock.calls[0][0]).toStrictEqual({ sortBy: "Name" });
+    });
+
+    it("leaves every column inactive", () => {
+      const { result } = setup({ noAppliedSort: true });
+
+      expect(result.current.headerSort("Name")).toEqual({
+        active: false,
+        direction: "asc",
+        sortDirection: false,
+      });
     });
   });
 
