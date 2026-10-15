@@ -13,7 +13,7 @@ import {
 
 describe("architecturesQuery", () => {
   it("is keyed by the resource name alone", () => {
-    expect(architecturesQuery().queryKey).toEqual(["architectures"]);
+    expect(architecturesQuery().queryKey).toEqual(["architectures", "list"]);
   });
 
   it("sends GET /v1/Architectures with no parameters and returns its array", async () => {
