@@ -1,39 +1,15 @@
-import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import {
-  keepPreviousData,
-  useQuery,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import {
-  createFileRoute,
-  createLink,
-  linkOptions,
-  redirect,
-} from "@tanstack/react-router";
-import type { RepositoryPaginatedResponse } from "../api";
-import { EmptyState } from "../components/EmptyState";
-import { ErrorPage } from "../components/ErrorPage";
-import { PageHeader } from "../components/PageHeader";
-import { RepositoryFilters } from "../components/RepositoryFilters";
-import { RepositoryTable } from "../components/RepositoryTable";
+import { createFileRoute, linkOptions, redirect } from "@tanstack/react-router";
+import { RepositoryListPage } from "../pages/RepositoryListPage";
 import { architecturesQuery } from "../queries/architectures";
 import { repositoryListQuery } from "../queries/repositories";
 import { userListQuery } from "../queries/users";
 import {
-  defaultRepositoryListPageSize,
   hasDroppedParams,
-  hasRepositoryListFilters,
   repositoryListRequest,
   userCountSearch,
   validateRepositoryListSearch,
   withoutDisabledFilters,
-  type RepositoryListPageSearch,
 } from "../repositoryListSearch";
-import { useSession, type Session } from "../session";
-
-/** MUI's button, navigating through the router. */
-const ButtonLink = createLink(Button);
 
 export const Route = createFileRoute("/repositories/")({
   validateSearch: validateRepositoryListSearch,
@@ -65,117 +41,25 @@ export const Route = createFileRoute("/repositories/")({
       repositoryListQuery(repositoryListRequest(valid)),
     );
   },
-  component: RepositoryListPage,
+  component: RepositoryListRoute,
 });
 
-// The filters, the sort and the page are connected to the URL by step 36 of the Web UI:
-// Repositories plan; until then their callbacks do nothing.
-function notYetConnected() {}
-
-function RepositoryListPage() {
+function RepositoryListRoute() {
   const search = Route.useSearch();
-  const session = useSession();
-  // Both are ensured by beforeLoad, so neither suspends.
-  const { data: architectures } = useSuspenseQuery(architecturesQuery());
-  const { data: users } = useSuspenseQuery(userListQuery(userCountSearch));
-  const list = useQuery({
-    ...repositoryListQuery(repositoryListRequest(search)),
-    placeholderData: keepPreviousData,
-  });
-
+  const navigate = Route.useNavigate();
   return (
-    <>
-      <PageHeader
-        title="Repositories"
-        actions={
-          session.status === "signedIn" && (
-            <ButtonLink to="/repositories/new" variant="contained">
-              New repository
-            </ButtonLink>
-          )
-        }
-      />
-      <Stack spacing={3}>
-        <RepositoryFilters
-          filters={search}
-          onChange={notYetConnected}
-          session={session}
-          architectures={architectures}
-          users={{ results: [], total: users.total, onSearch: notYetConnected }}
-        />
-        {list.isError ? (
-          <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
-        ) : isEmpty(list.data, list.isPlaceholderData) ? (
-          <RepositoryListEmptyState search={search} session={session} />
-        ) : (
-          <RepositoryTable
-            response={list.data}
-            loading={list.isFetching}
-            pageSize={search.pageSize ?? defaultRepositoryListPageSize}
-            architectures={architectures}
-            repositoryLink={(repository) =>
-              linkOptions({
-                to: "/repositories/$repositoryId",
-                params: { repositoryId: repository.id },
-              })
-            }
-            onSortChange={notYetConnected}
-            onPaginationChange={notYetConnected}
-          />
-        )}
-      </Stack>
-    </>
-  );
-}
-
-/**
- * Whether the list is empty: the current response has a `total` of 0. A page past the end, empty
- * but with a `total`, is not, and neither is the previous response shown while the next loads.
- */
-function isEmpty(
-  response: RepositoryPaginatedResponse | undefined,
-  isPlaceholderData: boolean,
-): boolean {
-  return !isPlaceholderData && response?.total === 0;
-}
-
-function RepositoryListEmptyState({
-  search,
-  session,
-}: {
-  search: RepositoryListPageSearch;
-  session: Session;
-}) {
-  if (hasRepositoryListFilters(search)) {
-    return (
-      <EmptyState
-        heading="No repositories match"
-        message="Nothing matches the current filters."
-        action={
-          <Button variant="outlined" onClick={notYetConnected}>
-            Clear filters
-          </Button>
-        }
-      />
-    );
-  }
-  if (session.status === "signedIn") {
-    return (
-      <EmptyState
-        heading="No repositories yet"
-        message="Create a repository to start publishing packages."
-        action={
-          <ButtonLink to="/repositories/new" variant="contained">
-            Create a repository
-          </ButtonLink>
-        }
-      />
-    );
-  }
-  return (
-    <EmptyState
-      heading="No public repositories"
-      message="There are no public repositories to show."
+    <RepositoryListPage
+      search={search}
+      repositoryLink={(repository) =>
+        linkOptions({
+          to: "/repositories/$repositoryId",
+          params: { repositoryId: repository.id },
+        })
+      }
+      newRepositoryLink={linkOptions({ to: "/repositories/new" })}
+      onSearchChange={(update, options) =>
+        void navigate({ search: update, replace: options?.replace })
+      }
     />
   );
 }
