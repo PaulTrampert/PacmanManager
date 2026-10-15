@@ -1,4 +1,8 @@
-import { createFileRoute, linkOptions } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  linkOptions,
+  useNavigate,
+} from "@tanstack/react-router";
 import { notFoundOn404 } from "../notFoundOn404";
 import { RepositoryPage } from "../pages/RepositoryPage";
 import { architecturesQuery } from "../queries/architectures";
@@ -23,6 +27,7 @@ const repositoriesLink = linkOptions({ to: "/repositories" });
 
 function RepositoryRoute() {
   const { repositoryId } = Route.useParams();
+  const navigate = useNavigate();
   return (
     <RepositoryPage
       repositoryId={repositoryId}
@@ -31,8 +36,7 @@ function RepositoryRoute() {
         to: "/repositories/$repositoryId/edit",
         params: { repositoryId },
       })}
-      // Opening the delete dialog is step 39 of the Web UI: Repositories plan.
-      onDelete={() => {}}
+      onDeleted={() => navigate(repositoriesLink)}
     />
   );
 }
