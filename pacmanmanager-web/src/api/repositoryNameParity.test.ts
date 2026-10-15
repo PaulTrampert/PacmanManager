@@ -19,10 +19,10 @@ describe("WriteRepositoryRequest.name", () => {
   });
 
   it.each(fixture.accepted)("accepts %j", (name) => {
-    expect(validate(name)).toBeUndefined();
+    expect(validate(name)).toEqual([]);
   });
 
   it.each(fixture.rejected)("rejects %j", (name) => {
-    expect(validate(name)).toBe(patternMessage);
+    expect(validate(name)).toEqual([patternMessage]);
   });
 });
