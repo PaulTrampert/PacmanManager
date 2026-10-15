@@ -16,6 +16,13 @@ export interface ProblemDetailsAlertProps {
    * to show them on, say.
    */
   messages?: readonly string[];
+  /**
+   * The alert's title, in place of the error's own: what the failure means to the page, such as
+   * "core-extras was not deleted". The error's detail is still shown beneath it.
+   */
+  title?: string;
+  /** Called when the alert's close button is clicked. Without it, the alert has none. */
+  onClose?: () => void;
 }
 
 /** The title shown for an error that carries none of its own. */
@@ -35,16 +42,21 @@ function describe(error: unknown): { title: string; detail?: string } {
 }
 
 /**
- * An error alert describing a failed request: the response's problem details `title` and `detail`,
- * and any further `messages` as a list.
+ * An error alert describing a failed request: the response's problem details `title`, or the
+ * `title` given, and `detail`, and any further `messages` as a list. Given `onClose`, it is
+ * dismissible.
  */
 export function ProblemDetailsAlert({
   error,
   messages = [],
+  title: titleOverride,
+  onClose,
 }: ProblemDetailsAlertProps) {
-  const { title, detail } = describe(error);
+  const described = describe(error);
+  const title = titleOverride ?? described.title;
+  const { detail } = described;
   return (
-    <Alert severity="error">
+    <Alert severity="error" onClose={onClose}>
       <AlertTitle>{title}</AlertTitle>
       {detail && <Typography variant="body2">{detail}</Typography>}
       {messages.length > 0 && (

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import { ApiError } from "../../api";
 import { fallbackErrorTitle, ProblemDetailsAlert } from "./ProblemDetailsAlert";
 
@@ -71,5 +71,42 @@ export const NetworkFailure: Story = {
     const alert = canvas.getByRole("alert");
     await expect(alert).toHaveTextContent(fallbackErrorTitle);
     await expect(alert).toHaveTextContent("Failed to fetch");
+  },
+};
+
+/** No close button unless the alert is given `onClose`. */
+export const NotDismissible: Story = {
+  args: {
+    error: new ApiError(500, { title: "An error occurred on the server." }),
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.queryByRole("button", { name: "Close" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+/** A title of the page's own in place of the error's, the detail beneath it, and a close button. */
+export const TitledAndDismissible: Story = {
+  args: {
+    error: new ApiError(500, {
+      title: "An error occurred on the server.",
+      detail: "The server couldn't be reached. Try again.",
+    }),
+    title: "core-extras was not deleted",
+    onClose: fn(),
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    const alert = canvas.getByRole("alert");
+    await expect(alert).toHaveTextContent("core-extras was not deleted");
+    await expect(alert).toHaveTextContent(
+      "The server couldn't be reached. Try again.",
+    );
+    await expect(alert).not.toHaveTextContent(
+      "An error occurred on the server.",
+    );
+
+    await userEvent.click(canvas.getByRole("button", { name: "Close" }));
+    await expect(args.onClose).toHaveBeenCalledOnce();
   },
 };

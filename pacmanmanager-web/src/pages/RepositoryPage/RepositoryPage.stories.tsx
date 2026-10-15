@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, screen, waitFor, within } from "storybook/test";
 import type { Repository } from "../../api";
 import { apiHandler } from "../../mocks/api";
 import { aRepository, anArchitecture, aUser } from "../../mocks/fixtures";
@@ -57,7 +57,7 @@ const meta = {
     // The story's router has only `/`; the links carry hashes so that they can be told apart.
     repositoriesLink: { to: "/", hash: "repositories" },
     editLink: { to: "/", hash: "edit" },
-    onDelete: fn(),
+    onDeleted: fn(() => Promise.resolve()),
   },
 } satisfies Meta<typeof RepositoryPage>;
 
@@ -90,6 +90,18 @@ async function expectRepository(canvas: Canvas, visibility: string) {
   ).toHaveAttribute("aria-expanded", "false");
 }
 
+/** The delete dialog, which MUI renders in a portal outside the story's canvas. */
+function findDeleteDialog(): Promise<HTMLElement> {
+  return screen.findByRole("dialog", { name: "Delete core-extras?" });
+}
+
+/** The delete dialog's confirmation field. */
+function nameField(dialog: HTMLElement): HTMLElement {
+  return within(dialog).getByRole("textbox", {
+    name: "Type core-extras to confirm",
+  });
+}
+
 /** Its owner, on a public repository: Edit and Delete, and the section once expanded. */
 export const OwnerPublic: Story = {
   beforeEach: ({ msw }) => {
@@ -102,8 +114,14 @@ export const OwnerPublic: Story = {
       "/#edit",
     );
 
+    // Delete opens the dialog, and Cancel closes it without deleting.
     await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
-    await expect(args.onDelete).toHaveBeenCalledOnce();
+    const dialog = await findDeleteDialog();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await expect(args.onDeleted).not.toHaveBeenCalled();
 
     await userEvent.click(
       canvas.getByRole("button", { name: /Use this repository/ }),
@@ -130,6 +148,92 @@ export const OwnerPrivate: Story = {
     await expect(
       await canvas.findByText(/pacman must authenticate to read it/),
     ).toBeVisible();
+  },
+};
+
+/** Typing the name and confirming deletes the repository, then calls `onDeleted`. */
+export const Deleted: Story = {
+  beforeEach: ({ msw }) => {
+    msw.use(
+      ...answerWith(coreExtras()),
+      apiHandler("delete", "/v1/Repositories/{id}", ({ params }) =>
+        params.id === repositoryId
+          ? new HttpResponse(null, { status: 204 })
+          : HttpResponse.json({ status: 404 }, { status: 404 }),
+      ),
+    );
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    await expectRepository(canvas, "Public");
+    await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
+    const dialog = await findDeleteDialog();
+    await userEvent.type(nameField(dialog), "core-extras");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Delete" }),
+    );
+
+    await waitFor(() => expect(args.onDeleted).toHaveBeenCalledOnce());
+    await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * The `DELETE` fails: the dialog closes, the alert shows above the header, and reopening the dialog
+ * starts with an empty name field (delete-failed).
+ */
+export const DeleteFailed: Story = {
+  beforeEach: ({ msw }) => {
+    msw.use(
+      ...answerWith(coreExtras()),
+      apiHandler("delete", "/v1/Repositories/{id}", () =>
+        HttpResponse.json(
+          {
+            title: "An error occurred on the server.",
+            detail: "The server couldn't be reached. Try again.",
+            status: 500,
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    await expectRepository(canvas, "Public");
+    await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
+    const dialog = await findDeleteDialog();
+    await userEvent.type(nameField(dialog), "core-extras");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Delete" }),
+    );
+
+    const alert = await canvas.findByRole("alert");
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await expect(alert).toHaveTextContent("core-extras was not deleted");
+    await expect(alert).toHaveTextContent(
+      "The server couldn't be reached. Try again.",
+    );
+    // Above the header, whose first line is the breadcrumbs.
+    const trail = canvas.getByRole("navigation", { name: "breadcrumb" });
+    await expect(
+      alert.compareDocumentPosition(trail) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await expect(args.onDeleted).not.toHaveBeenCalled();
+
+    // Retrying means typing the name again.
+    await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
+    const reopened = await findDeleteDialog();
+    await expect(nameField(reopened)).toHaveValue("");
+    await expect(
+      within(reopened).getByRole("button", { name: "Delete" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      within(reopened).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() => expect(reopened).not.toBeInTheDocument());
+
+    // The alert can be dismissed.
+    await userEvent.click(within(alert).getByRole("button", { name: "Close" }));
+    await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
   },
 };
 
