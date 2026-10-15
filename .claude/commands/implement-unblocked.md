@@ -1,7 +1,7 @@
 ---
 description: Assign every unblocked, unassigned issue not awaiting a decision to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
-allowed-tools: Bash(gh:*), Bash(git:*), Agent
+allowed-tools: Bash(gh:*), Bash(git:*), Bash(flock:*), Agent, SendMessage
 ---
 
 # Implement unblocked issues
@@ -24,6 +24,8 @@ Stop and tell the user how to fix it if this fails. Do not work around a failure
 * `gh auth status` must list the `project` scope, which moving an issue on a project board needs.
   If it is missing, the fix is `gh auth refresh -s project` — ask the user to run it as
   `! gh auth refresh -s project`.
+* `flock --version` must succeed, since step 4's browser lock depends on it. It is part of
+  util-linux, so if it is missing, ask the user to install that.
 * Bring `main` up to date, so every worktree starts from the latest `main` rather than whatever this
   clone last fetched. Resolve the primary checkout from the shared git directory, so this works
   whichever worktree you were started in, then fetch and pin the commit the whole batch branches
@@ -140,6 +142,22 @@ git -C "$PRIMARY" worktree add "$WORKTREES/issue-<n>" -b <branch> "$BASE"
 If the branch or the directory already exists, do not reuse or overwrite it — skip that issue and
 report it. Never switch the branch of an existing worktree.
 
+### The browser lock
+
+The sub-agents share one machine, and their browser and stack runs interfere with one another. The
+Storybook tests, Playwright screenshot scripts and `npm run e2e` (which brings up the compose stack
+on its fixed ports) each fail or hang when another agent's run overlaps them. You coordinate those
+runs: create one lock that every sub-agent takes around each such command, so they run one at a
+time while everything else stays parallel. It lives in the shared git directory, which every
+worktree can reach and git never tracks:
+
+```bash
+BROWSER_LOCK="$(git -C "$PRIMARY" rev-parse --path-format=absolute --git-common-dir)/browser-tests.lock"
+flock "$BROWSER_LOCK" true   # creates it
+```
+
+Pass `$BROWSER_LOCK`'s absolute path into every sub-agent's prompt in step 5.
+
 ## 5. Implement, one sub-agent per issue
 
 Launch every sub-agent **in a single message** so they run concurrently. Use the `general-purpose`
@@ -165,9 +183,16 @@ prompt, filled in:
 > 4. `dotnet build` must pass with no new warnings. Run the unit tests for the projects you touched
 >    with `dotnet test <project> --filter ...`. Run E2E fixtures only if you added or changed one,
 >    and only those fixtures — other agents are building Docker images at the same time.
-> 5. Commit in meaningful steps. End each commit message with
+> 5. Other agents are running browser tests on this machine too, and those runs interfere with one
+>    another. Run every command that starts a browser or the compose stack under the shared lock:
+>    `flock <browser lock path> <command>`. That covers `npm test`, any `vitest` run of the
+>    `storybook` project, `npm run e2e`, `scripts/with-web-server.sh`, and any Playwright script,
+>    screenshots included. Take the lock for one command at a time, and never hold it while you
+>    edit or think. A `vitest` run of only the `unit` project, `lint`, `typecheck`, `format:check`
+>    and `build` need no lock.
+> 6. Commit in meaningful steps. End each commit message with
 >    `Co-Authored-By: Claude <noreply@anthropic.com>`.
-> 6. Push with `git -C <path> push -u origin <branch>` and open a PR against `main` with
+> 7. Push with `git -C <path> push -u origin <branch>` and open a PR against `main` with
 >    `gh pr create --label claude-autofix`; the label lets the Claude workflows fix the PR's CI
 >    failures and merge conflicts after you finish. The title starts with `(PATCH)`, `(MINOR)` or
 >    `(MAJOR)` per `AGENTS.md`; the body starts with `Fixes #<n>`, explains what the diff does not make obvious, and ends with
@@ -178,6 +203,11 @@ prompt, filled in:
 
 Replace `Claude` in the co-author line with the attribution your own system prompt specifies, if it
 gives one.
+
+While the sub-agents run, you are still their coordinator. If the user adds a rule partway through
+that affects how they work, such as another command to run under the browser lock, pass it to every
+sub-agent that is still running with `SendMessage`. Don't wait to report it at the end; a sub-agent
+that has already finished needs nothing.
 
 ## 6. Report
 
