@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, unwrap } from "../../api";
+import { repositoryKeys } from "./repositoryKeys";
 
 /**
  * One repository's query options, by id, over `GET /v1/Repositories/{id}`. A repository the caller
@@ -12,7 +13,7 @@ import { client, unwrap } from "../../api";
  */
 export function repositoryQuery(id: string) {
   return queryOptions({
-    queryKey: ["repositories", "detail", id],
+    queryKey: repositoryKeys.detail(id),
     queryFn: ({ signal }) =>
       unwrap(
         client.GET("/v1/Repositories/{id}", {
