@@ -5,6 +5,7 @@ import { apiHandler, toMockPath } from "../../mocks/api";
 import { aPage, aUser } from "../../mocks/fixtures";
 import { server } from "../../mocks/node";
 import { createQueryClient } from "../../queryClient";
+import { userKeys } from "./userKeys";
 import { userListQuery } from "./userListQuery";
 
 /** Answers `GET /v1/Users` with `page`, recording the query string of each request it answers. */
@@ -77,10 +78,13 @@ describe("userListQuery", () => {
     expect([...requests[0]!]).toEqual([]);
   });
 
-  it("keys the query by the users resource and every parameter it sends", () => {
-    expect(
-      userListQuery({ displayNameContains: "ada", pageSize: 20 }).queryKey,
-    ).toEqual(["users", "list", { displayNameContains: "ada", pageSize: 20 }]);
+  it("keys the query by the list key and the search it sends", () => {
+    const search = { displayNameContains: "ada", pageSize: 20 };
+
+    expect(userListQuery(search).queryKey).toEqual([
+      ...userKeys.lists(),
+      search,
+    ]);
   });
 
   it("gives the owner search and the user count separate cache entries", async () => {
