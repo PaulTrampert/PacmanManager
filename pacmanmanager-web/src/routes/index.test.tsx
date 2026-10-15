@@ -29,12 +29,7 @@ describe("the index route", () => {
     const { router } = renderRoute("/");
 
     expect(
-      // The list page's code is loaded on first render, which can take over a second.
-      await screen.findByRole(
-        "heading",
-        { level: 1, name: "Repositories" },
-        { timeout: 5_000 },
-      ),
+      await screen.findByRole("heading", { level: 1, name: "Repositories" }),
     ).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "core" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/repositories");
