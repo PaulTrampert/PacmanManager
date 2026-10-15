@@ -77,6 +77,31 @@ describe("extractValidationRules", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("takes an array's minItems and maxItems as they are", () => {
+    const { rules, warnings } = extractValidationRules(
+      documentWith(
+        {
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 3,
+          },
+          flags: { type: "array", items: { type: "boolean" } },
+        },
+        ["tags"],
+      ),
+    );
+
+    expect(rules).toEqual({
+      WriteThing: {
+        tags: { required: true, minItems: 1, maxItems: 3 },
+        flags: { required: false },
+      },
+    });
+    expect(warnings).toEqual([]);
+  });
+
   it("translates a pattern it recognises into an exact rule", () => {
     const { rules, warnings } = extractValidationRules(
       documentWith({ name: { type: "string", pattern: "\\A[a-z]+\\z" } }),

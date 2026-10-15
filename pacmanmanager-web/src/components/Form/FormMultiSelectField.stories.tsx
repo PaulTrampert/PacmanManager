@@ -39,7 +39,7 @@ const meta = {
     value: [],
     onChange: fn(),
     onBlur: fn(),
-    error: undefined,
+    errors: [],
   },
   render: (args) => <StatefulFormMultiSelectField {...args} />,
 } satisfies Meta<typeof FormMultiSelectField>;
@@ -161,7 +161,7 @@ export const ServerError: Story = {
   args: {
     value: ["x86_64"],
     helperText,
-    error: "Supported architectures must not be empty.",
+    errors: ["Supported architectures must not be empty."],
   },
   play: async ({ canvas }) => {
     const select = canvas.getByRole("combobox", { name: "Architectures" });

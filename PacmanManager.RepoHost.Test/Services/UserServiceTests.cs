@@ -259,4 +259,127 @@ public class UserServiceTests
         await Assert.ThrowsAsync<DbUpdateException>(async () => 
              await _service.EnsureUserLinkedAsync($"{new string('a', 1000)}@example.com", "Fail", "auth", "sub")); 
     }
+
+    [Test]
+    public async Task EnsureUserLinkedAsync_ConcurrentFirstSignIns_AllResolveToOneUserAndOneMapping()
+    {
+        // Each call has its own context and connection, as concurrent requests do.
+        const int signIns = 16;
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = Enumerable.Range(0, signIns).Select(_ => Task.Run(async () =>
+        {
+            await using var context = new PacmanManagerDbContext(_dbContextOptions);
+            var service = NewService(context);
+            await start.Task;
+            return await service.EnsureUserLinkedAsync("racer@example.com", "Racer", "auth", "sub");
+        })).ToList();
+
+        start.SetResult();
+        var users = await Task.WhenAll(calls);
+
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        var stored = await fresh.Users.SingleAsync();
+        var mapping = await fresh.UserMappings.Include(m => m.User).SingleAsync();
+        Assert.That(users.Select(u => u.Id), Has.All.EqualTo(stored.Id));
+        Assert.That(mapping.User.Id, Is.EqualTo(stored.Id));
+    }
+
+    [Test]
+    public async Task EnsureUserLinkedAsync_UserCreatedConcurrentlyAfterLookup_UsesThatUser()
+    {
+        // The lookup by email finds nothing, then another request commits the user and its mapping
+        // before this one writes, so this one's insert collides on IX_Users_Email.
+        User? winner = null;
+        var interceptor = new AfterFirstReader("\"Users\"", async () =>
+        {
+            winner = await CommitUserAsync("racer@example.com", "auth", "sub");
+        });
+        await using var context = new PacmanManagerDbContext(
+            new DbContextOptionsBuilder<PacmanManagerDbContext>()
+                .UseNpgsql(_database.LocalConnectionString)
+                .AddInterceptors(interceptor)
+                .Options);
+
+        var result = await NewService(context).EnsureUserLinkedAsync("racer@example.com", "Racer", "auth", "sub");
+
+        Assert.That(interceptor.Fired, Is.True);
+        Assert.That(result.Id, Is.EqualTo(winner!.Id));
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        Assert.That(await fresh.Users.CountAsync(), Is.EqualTo(1));
+        Assert.That(await fresh.UserMappings.CountAsync(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task EnsureUserLinkedAsync_MappingCreatedConcurrentlyAfterLookup_UsesExistingMapping()
+    {
+        // The user already exists. The mapping check finds nothing, then another request commits the
+        // mapping before this one writes, so this one's insert collides on
+        // IX_UserMappings_ExternalAuthority_ExternalId.
+        var user = new User { Email = "existing@example.com", DisplayName = "Existing", NormalizedDisplayName = "existing" };
+        await _dbContext.Users.AddAsync(user);
+        await _dbContext.SaveChangesAsync();
+
+        var interceptor = new AfterFirstReader("\"UserMappings\"", async () =>
+        {
+            await using var other = new PacmanManagerDbContext(_dbContextOptions);
+            other.Users.Attach(user);
+            other.UserMappings.Add(new ExternalProviderUserMapping { ExternalAuthority = "auth", ExternalId = "sub", User = user });
+            await other.SaveChangesAsync();
+        });
+        await using var context = new PacmanManagerDbContext(
+            new DbContextOptionsBuilder<PacmanManagerDbContext>()
+                .UseNpgsql(_database.LocalConnectionString)
+                .AddInterceptors(interceptor)
+                .Options);
+
+        var result = await NewService(context).EnsureUserLinkedAsync(user.Email, "Existing", "auth", "sub");
+
+        Assert.That(interceptor.Fired, Is.True);
+        Assert.That(result.Id, Is.EqualTo(user.Id));
+        await using var fresh = new PacmanManagerDbContext(_dbContextOptions);
+        Assert.That(await fresh.Users.CountAsync(), Is.EqualTo(1));
+        Assert.That(await fresh.UserMappings.CountAsync(), Is.EqualTo(1));
+    }
+
+    private static UserService NewService(PacmanManagerDbContext context) => new(
+        context,
+        Options.Create(new AccessTokenConfig()),
+        TimeProvider.System,
+        NullLogger<UserService>.Instance);
+
+    /// <summary>Commits a user and its mapping from a context of its own, as a concurrent request would.</summary>
+    private async Task<User> CommitUserAsync(string email, string authority, string subject)
+    {
+        await using var other = new PacmanManagerDbContext(_dbContextOptions);
+        var user = new User { Email = email, DisplayName = "Winner", NormalizedDisplayName = "winner" };
+        other.Users.Add(user);
+        other.UserMappings.Add(new ExternalProviderUserMapping { ExternalAuthority = authority, ExternalId = subject, User = user });
+        await other.SaveChangesAsync();
+        return user;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> once, after the first query whose SQL selects from
+    /// <paramref name="table"/> has executed: its result is already fixed, so whatever the action
+    /// commits is invisible to it, which is exactly the window a concurrent request races into.
+    /// </summary>
+    private sealed class AfterFirstReader(string table, Func<Task> action) : DbCommandInterceptor
+    {
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<System.Data.Common.DbDataReader> ReaderExecutedAsync(
+            System.Data.Common.DbCommand command,
+            CommandExecutedEventData eventData,
+            System.Data.Common.DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Fired && command.CommandText.Contains($"FROM {table}"))
+            {
+                Fired = true;
+                await action();
+            }
+
+            return result;
+        }
+    }
 }

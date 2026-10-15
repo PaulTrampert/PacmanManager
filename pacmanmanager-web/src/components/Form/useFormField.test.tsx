@@ -6,14 +6,14 @@ import { FormContext, type FormContextValue } from "./FormContext";
 import { useFormField, type UseFormFieldOptions } from "./useFormField";
 
 const required: FieldValidator = (value) =>
-  value === "" ? "Name is required." : undefined;
+  value === "" ? ["Name is required."] : [];
 
 function renderField(
   options: Partial<UseFormFieldOptions<string>> = {},
   submitted = false,
 ) {
-  const setFieldError = vi.fn<FormContextValue["setFieldError"]>();
-  const context = { submitted, setFieldError };
+  const setFieldFailing = vi.fn<FormContextValue["setFieldFailing"]>();
+  const context = { submitted, setFieldFailing };
   const wrapper = ({ children }: { children: ReactNode }) => (
     <FormContext value={context}>{children}</FormContext>
   );
@@ -29,14 +29,14 @@ function renderField(
       }),
     { wrapper },
   );
-  return { setFieldError, ...rendered };
+  return { setFieldFailing, ...rendered };
 }
 
 describe("useFormField", () => {
   it("shows no error before the field is left", () => {
     const { result } = renderField();
 
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.errors).toEqual([]);
   });
 
   it("shows its error once the field is left", () => {
@@ -44,13 +44,13 @@ describe("useFormField", () => {
 
     act(() => result.current.onBlur());
 
-    expect(result.current.error).toBe("Name is required.");
+    expect(result.current.errors).toEqual(["Name is required."]);
   });
 
   it("shows its error once the form is submitted, though the field was never left", () => {
     const { result } = renderField({}, true);
 
-    expect(result.current.error).toBe("Name is required.");
+    expect(result.current.errors).toEqual(["Name is required."]);
   });
 
   it("shows nothing for a valid value that has been left", () => {
@@ -58,7 +58,7 @@ describe("useFormField", () => {
 
     act(() => result.current.onBlur());
 
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.errors).toEqual([]);
   });
 
   it("follows the value once left", () => {
@@ -67,25 +67,25 @@ describe("useFormField", () => {
 
     rerender({ value: "" });
 
-    expect(result.current.error).toBe("Name is required.");
+    expect(result.current.errors).toEqual(["Name is required."]);
   });
 
-  it("reports its error to the form, whether shown or not", () => {
-    const { setFieldError, rerender } = renderField();
+  it("reports to the form whether it fails, whether its errors are shown or not", () => {
+    const { setFieldFailing, rerender } = renderField();
 
-    expect(setFieldError).toHaveBeenLastCalledWith("name", "Name is required.");
+    expect(setFieldFailing).toHaveBeenLastCalledWith("name", true);
 
     rerender({ value: "core" });
 
-    expect(setFieldError).toHaveBeenLastCalledWith("name", undefined);
+    expect(setFieldFailing).toHaveBeenLastCalledWith("name", false);
   });
 
-  it("clears its error from the form when it goes away", () => {
-    const { setFieldError, unmount } = renderField();
+  it("stops failing the form when it goes away", () => {
+    const { setFieldFailing, unmount } = renderField();
 
     unmount();
 
-    expect(setFieldError).toHaveBeenLastCalledWith("name", undefined);
+    expect(setFieldFailing).toHaveBeenLastCalledWith("name", false);
   });
 
   it("shows the API's error straight away", () => {
@@ -94,9 +94,9 @@ describe("useFormField", () => {
       serverError: "A repository with this name already exists.",
     });
 
-    expect(result.current.error).toBe(
+    expect(result.current.errors).toEqual([
       "A repository with this name already exists.",
-    );
+    ]);
   });
 
   it("shows its own error in place of the API's", () => {
@@ -106,27 +106,27 @@ describe("useFormField", () => {
 
     act(() => result.current.onBlur());
 
-    expect(result.current.error).toBe("Name is required.");
+    expect(result.current.errors).toEqual(["Name is required."]);
   });
 
   it("does not block submitting over the API's error", () => {
-    const { setFieldError } = renderField({
+    const { setFieldFailing } = renderField({
       value: "core",
       serverError: "A repository with this name already exists.",
     });
 
-    expect(setFieldError).toHaveBeenLastCalledWith("name", undefined);
+    expect(setFieldFailing).toHaveBeenLastCalledWith("name", false);
   });
 
   it("validates a value that is not a string", () => {
-    const setFieldError = vi.fn<FormContextValue["setFieldError"]>();
+    const setFieldFailing = vi.fn<FormContextValue["setFieldFailing"]>();
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <FormContext value={{ submitted: true, setFieldError }}>
+      <FormContext value={{ submitted: true, setFieldFailing }}>
         {children}
       </FormContext>
     );
     const atLeastOne: FieldValidator<string[]> = (value) =>
-      value.length === 0 ? "Choose an architecture." : undefined;
+      value.length === 0 ? ["Choose an architecture."] : [];
 
     const { result } = renderHook(
       () =>
@@ -139,11 +139,24 @@ describe("useFormField", () => {
       { wrapper },
     );
 
-    expect(result.current.error).toBe("Choose an architecture.");
-    expect(setFieldError).toHaveBeenLastCalledWith(
-      "architectures",
-      "Choose an architecture.",
+    expect(result.current.errors).toEqual(["Choose an architecture."]);
+    expect(setFieldFailing).toHaveBeenLastCalledWith("architectures", true);
+  });
+
+  it("shows every message its validator gives", () => {
+    const { result } = renderField(
+      {
+        value: "-core",
+        validate: () => ["Name is too long.", "Name is not valid."],
+        serverError: "A repository with this name already exists.",
+      },
+      true,
     );
+
+    expect(result.current.errors).toEqual([
+      "Name is too long.",
+      "Name is not valid.",
+    ]);
   });
 
   it("throws outside a form", () => {

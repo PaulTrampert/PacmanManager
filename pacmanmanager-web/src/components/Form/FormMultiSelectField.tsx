@@ -1,3 +1,4 @@
+import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import type { FormControlProps } from "./FormControlProps";
@@ -29,7 +30,7 @@ export function FormMultiSelectField({
   value,
   onChange,
   onBlur,
-  error,
+  errors,
   helperText,
   disabled,
   options,
@@ -58,8 +59,16 @@ export function FormMultiSelectField({
       // MUI's Select calls this only when it loses focus with its menu closed, so moving into the
       // menu and back does not count as leaving the field.
       onBlur={onBlur}
-      error={error !== undefined}
-      helperText={error ?? helperText}
+      error={errors.length > 0}
+      helperText={
+        errors.length > 0
+          ? errors.map((message) => (
+              <Box component="span" key={message} sx={{ display: "block" }}>
+                {message}
+              </Box>
+            ))
+          : helperText
+      }
       disabled={disabled}
       fullWidth
       slotProps={{
