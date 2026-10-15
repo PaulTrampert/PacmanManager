@@ -58,6 +58,12 @@ updates:
     ignore:
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # babel-plugin-react-compiler is built against Babel 7's AST (it depends on
+      # @babel/types ^7), and under Babel 8 it fails to compile ordinary code, such as a default in
+      # an object pattern, which fails the build. Take Babel majors by hand once the compiler
+      # supports them.
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "(PATCH) "
 
