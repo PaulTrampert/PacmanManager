@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { server } from "../mocks/node";
 import { signedInHandlers } from "../mocks/session";
-import { currentUser } from "../testing/fixtures";
+import { aUser } from "../mocks/fixtures";
 import { renderRoute } from "../testing/renderRoute";
 
 describe("the session in the app", () => {
@@ -21,9 +21,7 @@ describe("the session in the app", () => {
   });
 
   it("shows a signed-in user their display name, with Sign out in its menu", async () => {
-    server.use(
-      ...signedInHandlers(currentUser({ displayName: "Ada Lovelace" })),
-    );
+    server.use(...signedInHandlers(aUser({ displayName: "Ada Lovelace" })));
 
     renderRoute("/");
 
@@ -43,9 +41,7 @@ describe("the session in the app", () => {
   });
 
   it("resolves the session before rendering any route", async () => {
-    server.use(
-      ...signedInHandlers(currentUser({ displayName: "Ada Lovelace" })),
-    );
+    server.use(...signedInHandlers(aUser({ displayName: "Ada Lovelace" })));
 
     const { router } = renderRoute("/");
 

@@ -71,7 +71,7 @@ export function toMockPath(path: string): string {
  * @example
  * server.use(
  *   apiHandler("get", "/v1/Repositories/{id}", ({ params }) =>
- *     HttpResponse.json(repository({ id: params.id })),
+ *     HttpResponse.json(aRepository({ id: params.id })),
  *   ),
  * );
  */

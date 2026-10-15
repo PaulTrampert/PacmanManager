@@ -4,7 +4,7 @@ import { ApiError } from "../api";
 import { apiHandler } from "../mocks/api";
 import { server } from "../mocks/node";
 import { signedInHandlers } from "../mocks/session";
-import { currentUser } from "../testing/fixtures";
+import { aUser } from "../mocks/fixtures";
 import { userinfoPath } from "./paths";
 import { fetchSession, SessionError } from "./session";
 
@@ -14,7 +14,7 @@ describe("fetchSession", () => {
     server.use(
       apiHandler("get", "/v1/Users/me", () => {
         apiCalled = true;
-        return HttpResponse.json(currentUser());
+        return HttpResponse.json(aUser());
       }),
     );
 
@@ -23,7 +23,7 @@ describe("fetchSession", () => {
   });
 
   it("is signed in as the API's current user when /userinfo answers 200", async () => {
-    const user = currentUser({ displayName: "Ada Lovelace" });
+    const user = aUser({ displayName: "Ada Lovelace" });
     server.use(...signedInHandlers(user));
 
     await expect(fetchSession()).resolves.toEqual({
@@ -39,7 +39,7 @@ describe("fetchSession", () => {
       apiHandler("get", "/v1/Users/me", () =>
         HttpResponse.json({ title: "Forbidden" }, { status: 403 }),
       ),
-      ...signedInHandlers(currentUser()),
+      ...signedInHandlers(aUser()),
     );
 
     const error = await fetchSession().catch((e: unknown) => e);

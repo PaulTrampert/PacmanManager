@@ -3,7 +3,7 @@ import createClient from "openapi-fetch";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { antiforgeryHandler, apiHandler } from "../mocks/api";
 import { server } from "../mocks/node";
-import { currentUser } from "../testing/fixtures";
+import { aUser } from "../mocks/fixtures";
 import { antiforgeryMiddleware } from "./antiforgery";
 import { apiBaseUrl } from "./apiPaths";
 import type { paths } from "./schema.gen";
@@ -95,7 +95,7 @@ describe("a 401 from the API", () => {
 
 describe("any other response", () => {
   it("is returned without leaving the app", async () => {
-    const user = currentUser();
+    const user = aUser();
     server.use(
       apiHandler("get", "/v1/Users/me", () => HttpResponse.json(user)),
     );
