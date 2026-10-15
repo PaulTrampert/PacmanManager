@@ -912,9 +912,9 @@ whose error replaces its helper text, shown once the field is left or the form s
 * **A control**, named `Form<Type>Field`, renders one kind of input from those props and does
   nothing else: it calls no hook, and never sees a validator or the API's error. It calls `onBlur`
   when it has been left, which is the one decision of its own it makes. This issue adds
-  `FormTextField`, an outlined text field. Selects, radio groups and multi-selects are issues
-  [41](#41-formselectfield--patch), [42](#42-formradiogroupfield--patch) and
-  [43](#43-formmultiselectfield--patch).
+  `FormTextField`, an outlined text field. Radio groups and multi-selects are issues
+  [42](#42-formradiogroupfield--patch) and [43](#43-formmultiselectfield--patch); a single
+  select is [deferred](#why-there-is-no-formselectfield).
 * **`ValidatedFormField`** takes a validator, the field's value and the API's error, calls
   `useFormField`, and renders its `control` with the result. It is not exported from the folder,
   so a form cannot hand it rules of its own; stories use it for rules the OpenAPI document does not
@@ -1011,18 +1011,6 @@ a typecheck test that a control of the wrong type is rejected for a property.
 **Why:**
 
 * [`FormField` takes its control](#why-formfield-takes-its-control)
-
-### 41. `FormSelectField` — PATCH
-
-A [form control](#13-form-and-formfield--patch) of a `string`: an outlined MUI `Select` of the
-options it is given (`{ value, label }`), whose error replaces its helper text as
-`FormTextField`'s does. A select with no choice made has the value `""`, which `required` rejects.
-
-*Acceptance:* stories for a pristine field, a helper text, a required field left without a choice,
-a server error and a disabled field; `play` functions assert no error shows until the field is left
-or the form submitted, and that choosing an option calls `onChange` with its value.
-
-*Depends on:* 13.
 
 ### 42. `FormRadioGroupField` — PATCH
 
@@ -1386,6 +1374,9 @@ Worth filing as issues, but explicitly out of scope for the work above.
 * **Choosing architectures** — once RepoHost supports more than one, the create and edit forms'
   disabled architecture control becomes enabled. The control and `GET /v1/Architectures` already
   exist, so this is additive.
+* **`FormSelectField`** — a form control of a single `string` chosen from options. No form in this
+  milestone has such a field, so it waits for the first one that does. Additive: it is one more
+  control behind `FormField`. See [there is no `FormSelectField`](#why-there-is-no-formselectfield).
 
 ---
 
@@ -1619,3 +1610,12 @@ A generic hook alone does not make `FormField` generic, because `fieldValidator`
 of a `string` only. Widening it is its own issue, [40](#40-generic-fieldvalidator--patch), which
 also makes a validator return every failing rule's message rather than the first, since a value can
 fail more than one.
+
+### Why there is no `FormSelectField`
+
+Step 41 planned `FormSelectField` beside the radio-group and multi-select controls, but nothing in
+the plan used it: `RepositoryForm`'s visibility is a radio group and its architectures a
+multi-select, and the list's filters are not a form. They use `FilterSelect`, a single select with
+an **All** option, which matches the API: `GET /v1/Repositories` takes one `architecture`, not a
+list. A control with no consumer would be built and reviewed against stories alone, so it was
+dropped from this milestone and deferred until a form needs it.
