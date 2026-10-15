@@ -8,14 +8,10 @@ import {
 import { useFormErrors } from "../../useFormErrors";
 
 /**
- * What `RepositoryForm` submits: the request body, without `supportedArchitectures` when creating,
- * which the API then defaults to every architecture a repository may support.
+ * What `RepositoryForm` submits: the request body, whose `supportedArchitectures` starts as every
+ * architecture when creating and as the repository's own when editing.
  */
-export type RepositoryFormValues = Omit<
-  WriteRepositoryRequest,
-  "supportedArchitectures"
-> &
-  Partial<Pick<WriteRepositoryRequest, "supportedArchitectures">>;
+export type RepositoryFormValues = WriteRepositoryRequest;
 
 /** The fields of the form, as the request body names them. */
 const fields = ["name", "isPublic", "supportedArchitectures"] as const;
@@ -120,11 +116,6 @@ export function useRepositoryForm({
     alertMessages: validation ? otherErrors : [],
     submitDisabled:
       editing && name === storedName && isPublic === storedIsPublic,
-    onSubmit: () =>
-      onSubmit(
-        editing
-          ? { name, isPublic, supportedArchitectures }
-          : { name, isPublic },
-      ),
+    onSubmit: () => onSubmit({ name, isPublic, supportedArchitectures }),
   };
 }

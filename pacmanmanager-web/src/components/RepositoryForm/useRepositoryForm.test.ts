@@ -56,7 +56,7 @@ describe("useRepositoryForm", () => {
       ]);
     });
 
-    it("submits the name and visibility, without architectures", () => {
+    it("submits the name, visibility and every architecture", () => {
       const { result, onSubmit } = renderForm();
 
       act(() => result.current.onNameChange("nightly"));
@@ -66,6 +66,9 @@ describe("useRepositoryForm", () => {
       expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
         name: "nightly",
         isPublic: true,
+        supportedArchitectures: architectures.map(
+          (architecture) => architecture.value,
+        ),
       });
     });
   });

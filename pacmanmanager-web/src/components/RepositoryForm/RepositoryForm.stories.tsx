@@ -104,11 +104,12 @@ export const NewFilledIn: Story = {
     await expect(nameField(canvas)).not.toBeInvalid();
 
     await userEvent.click(canvas.getByRole("button", { name: "Create" }));
-    // Creating sends no architectures, so the API publishes every one.
+    // Creating selects every architecture by default and sends them.
     await expect(args.onSubmit).toHaveBeenCalledOnce();
     await expect(args.onSubmit).toHaveBeenCalledWith({
       name: "nightly-builds",
       isPublic: true,
+      supportedArchitectures: ["x86_64"],
     });
   },
 };

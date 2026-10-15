@@ -22,8 +22,8 @@ export interface RepositoryFormProps {
   /** Every architecture a repository may support, from `GET /v1/Architectures`. */
   architectures: readonly Architecture[];
   /**
-   * Called with the form's values when it is submitted valid. Editing, they carry the repository's
-   * existing `supportedArchitectures`; creating, they carry none, and the API publishes every one.
+   * Called with the form's values when it is submitted valid. They always carry `supportedArchitectures`:
+   * the repository's own when editing, every architecture when creating.
    */
   onSubmit: (values: RepositoryFormValues) => void;
   /** Called when **Cancel** is chosen. */
