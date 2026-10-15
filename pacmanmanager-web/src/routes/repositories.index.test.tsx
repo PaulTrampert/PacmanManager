@@ -95,18 +95,8 @@ function signInAs(user = me) {
   server.use(...signedInHandlers(user));
 }
 
-/**
- * How long to wait for the page to first render. Its code is split from the route tree and loaded
- * on first render, which can take over a second while other test files run.
- */
-const firstRenderTimeout = 5_000;
-
 async function findTable() {
-  return screen.findByRole(
-    "table",
-    { name: "Repositories" },
-    { timeout: firstRenderTimeout },
-  );
+  return screen.findByRole("table", { name: "Repositories" });
 }
 
 /** The names in the table's rows, in order. */
@@ -198,14 +188,10 @@ describe("the repository list route", () => {
     renderRoute("/repositories");
 
     expect(
-      await screen.findByRole(
-        "heading",
-        {
-          level: 2,
-          name: "No repositories yet",
-        },
-        { timeout: firstRenderTimeout },
-      ),
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "No repositories yet",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Create a repository to start publishing packages."),
@@ -224,14 +210,10 @@ describe("the repository list route", () => {
     renderRoute("/repositories?nameContains=kernel&isPublic=false");
 
     expect(
-      await screen.findByRole(
-        "heading",
-        {
-          level: 2,
-          name: "No repositories match",
-        },
-        { timeout: firstRenderTimeout },
-      ),
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "No repositories match",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Nothing matches the current filters."),
@@ -257,11 +239,10 @@ describe("the repository list route", () => {
     answerListPage({ list: () => noRepositories });
     renderRoute("/repositories");
 
-    const heading = await screen.findByRole(
-      "heading",
-      { level: 2, name: "No public repositories" },
-      { timeout: firstRenderTimeout },
-    );
+    const heading = await screen.findByRole("heading", {
+      level: 2,
+      name: "No public repositories",
+    });
     expect(
       screen.getByText("There are no public repositories to show."),
     ).toBeInTheDocument();
