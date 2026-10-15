@@ -114,18 +114,8 @@ function signInAs(user = me) {
   server.use(...signedInHandlers(user));
 }
 
-/**
- * How long to wait for the page to first render. Its code is split from the route tree and loaded
- * on first render, which can take over a second while other test files run.
- */
-const firstRenderTimeout = 5_000;
-
 async function findTable() {
-  return screen.findByRole(
-    "table",
-    { name: "Repositories" },
-    { timeout: firstRenderTimeout },
-  );
+  return screen.findByRole("table", { name: "Repositories" });
 }
 
 /** The names in the table's rows, in order. */

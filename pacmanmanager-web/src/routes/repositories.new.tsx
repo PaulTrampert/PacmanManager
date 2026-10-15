@@ -1,16 +1,31 @@
-import Typography from "@mui/material/Typography";
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  linkOptions,
+  useNavigate,
+} from "@tanstack/react-router";
+import { NewRepositoryPage } from "../pages/NewRepositoryPage";
+import { architecturesQuery } from "../queries/architectures";
+import { requireUser } from "../session";
 
-// A stub, so that any page can link here with a typed link. Step 34 of the Web UI: Repositories plan
-// replaces it with the new repository page.
 export const Route = createFileRoute("/repositories/new")({
-  component: NewRepositoryPage,
+  beforeLoad: requireUser,
+  loader: ({ context: { queryClient } }) =>
+    queryClient.ensureQueryData(architecturesQuery()),
+  component: NewRepositoryRoute,
 });
 
-function NewRepositoryPage() {
+function NewRepositoryRoute() {
+  const navigate = useNavigate();
   return (
-    <Typography variant="h4" component="h1">
-      New repository
-    </Typography>
+    <NewRepositoryPage
+      repositoriesLink={linkOptions({ to: "/repositories" })}
+      onCreated={(repository) =>
+        void navigate({
+          to: "/repositories/$repositoryId",
+          params: { repositoryId: repository.id },
+        })
+      }
+      onCancel={() => void navigate({ to: "/repositories" })}
+    />
   );
 }

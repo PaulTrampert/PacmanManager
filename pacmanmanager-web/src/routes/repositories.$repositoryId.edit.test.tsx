@@ -1,24 +1,112 @@
 import { linkOptions } from "@tanstack/react-router";
-import { act, screen } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
+import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
+import type { Repository } from "../api";
+import { apiHandler } from "../mocks/api";
+import { aRepository, anArchitecture, aUser } from "../mocks/fixtures";
+import { server } from "../mocks/node";
+import { signedInHandlers } from "../mocks/session";
 import { renderRoute } from "../testing/renderRoute";
 
 const repositoryId = "6f9619ff-8b86-d011-b42d-00cf4fc964ff";
 
-describe("the edit repository route's stub", () => {
-  it("matches /repositories/$repositoryId/edit and renders its placeholder", async () => {
-    const { router } = renderRoute(`/repositories/${repositoryId}/edit`);
+const me = aUser({
+  id: "11111111-1111-4111-8111-111111111111",
+  displayName: "Paul Trampert",
+});
+
+const architectures = [
+  anArchitecture({
+    value: "x86_64",
+    displayValue: "64-bit Intel/AMD (x86_64)",
+  }),
+  anArchitecture({ value: "aarch64", displayValue: "64-bit ARM (aarch64)" }),
+];
+
+/** The repository the page edits, as a caller who may update it sees it, with any field overridden. */
+function theRepository(overrides: Partial<Repository> = {}): Repository {
+  return aRepository({
+    id: repositoryId,
+    name: "core-extras",
+    isPublic: true,
+    supportedArchitectures: ["x86_64"],
+    owner: { id: me.id, displayName: me.displayName },
+    ...overrides,
+  });
+}
+
+/**
+ * Signs in as `me` and answers the page's requests: the repository, `404` for any other id, and the
+ * architectures.
+ */
+function answerWith(repository: Repository) {
+  server.use(
+    ...signedInHandlers(me),
+    apiHandler("get", "/v1/Repositories/{id}", ({ params }) =>
+      params.id === repositoryId
+        ? HttpResponse.json(repository)
+        : HttpResponse.json(
+            { title: "Not Found", status: 404 },
+            { status: 404 },
+          ),
+    ),
+    apiHandler("get", "/v1/Architectures", () =>
+      HttpResponse.json(architectures),
+    ),
+  );
+}
+
+/**
+ * Waits for the page, and asserts its heading and the breadcrumbs the route links: the list, and the
+ * repository's page.
+ */
+async function expectEditPageHeader() {
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Edit repository" }),
+  ).toBeInTheDocument();
+  const trail = screen.getByRole("navigation", { name: "breadcrumb" });
+  expect(
+    within(trail).getByRole("link", { name: "Repositories" }),
+  ).toHaveAttribute("href", "/repositories");
+  expect(
+    within(trail).getByRole("link", { name: "core-extras" }),
+  ).toHaveAttribute("href", `/repositories/${repositoryId}`);
+  expect(within(trail).getByText("Edit")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+}
+
+describe("the edit repository route", () => {
+  it("is the not-found page when the API answers 404", async () => {
+    answerWith(theRepository());
+    renderRoute("/repositories/00000000-0000-4000-8000-000000000000/edit");
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Edit repository" }),
+      await screen.findByRole("heading", { level: 1, name: "Page not found" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Edit repository" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the page for the repository in its path, with the route's links", async () => {
+    answerWith(theRepository());
+    const { router } = renderRoute(`/repositories/${repositoryId}/edit`);
+
+    await expectEditPageHeader();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "core-extras",
+    );
     const match = router.state.matches.at(-1);
     expect(match?.routeId).toBe("/repositories/$repositoryId/edit");
     expect(match?.params).toEqual({ repositoryId });
   });
 
   it("is reached by a typed link", async () => {
-    // Starts on a page that fetches nothing, as `/` no longer is: it redirects to the list.
+    answerWith(theRepository());
+    // Starts on a page that fetches nothing, as `/` does not: it redirects to the list.
     const { router } = renderRoute("/no-such-page");
     const link = linkOptions({
       to: "/repositories/$repositoryId/edit",
@@ -27,9 +115,7 @@ describe("the edit repository route's stub", () => {
 
     await act(() => router.navigate(link));
 
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Edit repository" }),
-    ).toBeInTheDocument();
+    await expectEditPageHeader();
     expect(router.state.location.pathname).toBe(
       `/repositories/${repositoryId}/edit`,
     );
