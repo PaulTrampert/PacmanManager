@@ -14,15 +14,16 @@ export interface NewRepositoryPageProps {
   onCancel: () => void;
 }
 
-// The form is connected to useCreateRepository, onCreated and onCancel by step 37 of the Web UI:
-// Repositories plan; until then its callbacks do nothing.
-function notYetConnected() {}
-
-/** The page for creating a repository: its breadcrumbs, its heading and an empty `RepositoryForm`. */
+/**
+ * The page for creating a repository: its breadcrumbs, its heading and an empty `RepositoryForm`,
+ * which creates the repository it submits and hands it to `onCreated`.
+ */
 export function NewRepositoryPage({
   repositoriesLink,
+  onCreated,
+  onCancel,
 }: NewRepositoryPageProps) {
-  const page = useNewRepositoryPage();
+  const page = useNewRepositoryPage(onCreated);
   return (
     <>
       <PageHeader
@@ -34,8 +35,10 @@ export function NewRepositoryPage({
       />
       <RepositoryForm
         architectures={page.architectures}
-        onSubmit={notYetConnected}
-        onCancel={notYetConnected}
+        onSubmit={page.create}
+        onCancel={onCancel}
+        pending={page.pending}
+        error={page.error}
       />
     </>
   );
