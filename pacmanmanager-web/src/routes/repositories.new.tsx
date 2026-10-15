@@ -1,0 +1,16 @@
+import Typography from "@mui/material/Typography";
+import { createFileRoute } from "@tanstack/react-router";
+
+// A stub, so that any page can link here with a typed link. Step 34 of the Web UI: Repositories plan
+// replaces it with the new repository page.
+export const Route = createFileRoute("/repositories/new")({
+  component: NewRepositoryPage,
+});
+
+function NewRepositoryPage() {
+  return (
+    <Typography variant="h4" component="h1">
+      New repository
+    </Typography>
+  );
+}
