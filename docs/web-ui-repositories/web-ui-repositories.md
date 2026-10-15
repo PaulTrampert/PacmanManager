@@ -1302,7 +1302,9 @@ on a `404`. It replaces the `/repositories/$repositoryId` stub.
 
 *Wireframes:* [repository-owner-public](wireframes/repository-owner-public.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a961d3aefd)), [repository-owner-private](wireframes/repository-owner-private.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a962df47ba)), [repository-not-owner](wireframes/repository-not-owner.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a963f7a770)), [repository-anonymous](wireframes/repository-anonymous.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7a9654e7812)).
 
-`RepositoryPage` is given the `repositoryId`, both links and `onDelete`.
+`RepositoryPage` is given the `repositoryId`, both links and `onDeleted: () => Promise<unknown>`:
+the route's navigation to `/repositories`, which step 39 passes to `useDeleteRepository` and which
+returns the navigation's promise. Until step 39 the page never calls it.
 
 *Acceptance:* stories of `RepositoryPage` for the owner, not-the-owner and anonymous cases; route
 tests for not-found and arrival by a typed link; a Playwright
@@ -1317,6 +1319,7 @@ test opens a repository from the list and sees its `pacman.conf` section after e
 * [the repository page is a header for its packages](#why-the-repository-page-is-a-header-for-its-packages)
 * [components take their links as props](#why-components-take-their-links-as-props)
 * [pages link to each other through stub routes](#why-pages-link-to-each-other-through-stub-routes)
+* [the repository page is given `onDeleted`, not `onDelete`](#why-the-repository-page-is-given-ondeleted-not-ondelete)
 
 ### 34. The new repository page — MINOR
 
@@ -1427,7 +1430,9 @@ the name, presses **Cancel**, and lands on the repository's page with the name u
 
 **Delete** on the repository page opens `DeleteRepositoryDialog`; confirming calls
 `useDeleteRepository`, passing `onDeleted` as the navigation to `/repositories`; a failure closes the dialog and shows the
-"*name* was not deleted" alert above the repository page's header.
+"*name* was not deleted" alert above the repository page's header. Opening and closing the dialog is
+`useRepositoryPage`'s own behaviour; the route supplies only `RepositoryPage`'s `onDeleted`, whose
+promise the dialog stays pending on until the navigation settles.
 
 *Wireframes:* [delete-dialog-open](wireframes/delete-dialog-open.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0ccd6d1a3)), [delete-name-typed](wireframes/delete-name-typed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d182d3e0)), [delete-failed](wireframes/delete-failed.png) ([Penpot](https://penpot.ptrampert.com/#/workspace?team-id=b3c486d2-18f5-8110-8003-4b706524565b&file-id=b49e4a3b-0a79-8163-8008-c775230cef42&page-id=6c5c10cc-dc0c-80d5-8008-c7a0fdf50164&board-id=6c5c10cc-dc0c-80d5-8008-c7b0d6dd80b8)).
 
@@ -1438,6 +1443,11 @@ field. A route test asserts a successful delete lands on the list without the ro
 component ever rendering, and without a further request for the deleted id.
 
 *Depends on:* 7, 23, 31, 33.
+
+**Why:**
+
+* [a dialog closes on failure](#why-a-dialog-closes-on-failure)
+* [the repository page is given `onDeleted`, not `onDelete`](#why-the-repository-page-is-given-ondeleted-not-ondelete)
 
 ---
 
@@ -1670,6 +1680,20 @@ field can only be changed in the form. For delete it says, unmistakably, that **
 not deleted**: the dialog going away with the page still there, under a banner saying so, cannot be
 misread as success. Retrying means typing the name again, which is little friction for an action
 that cannot be undone.
+
+### Why the repository page is given `onDeleted`, not `onDelete`
+
+Step 33 first gave `RepositoryPage` an `onDelete: () => void`, called when **Delete** is clicked,
+which the route left as a no-op until step 39. Keeping it would have had the page's caller, the
+route, open the dialog. That would put dialog state in the route, which
+[routes load and pages render](../web-ui-architecture/web-ui-architecture.md#why-routes-load-and-pages-render)
+forbids. And the page would still need a second callback for the navigation after a delete. So the
+dialog is the page's own behaviour, in `useRepositoryPage`, and the one thing the route supplies is
+what happens once the repository is gone: `onDeleted`, the navigation to `/repositories`. It returns
+the navigation's promise because `useDeleteRepository` awaits `onDeleted` before removing the detail
+query, and the dialog stays pending meanwhile. `RepositoryHeader` keeps its `onDelete`, since for the
+header the callback really is "Delete was clicked". The project owner signed this off while step 39
+was being implemented.
 
 ### Why repositories are addressed by id
 
