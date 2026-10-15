@@ -12,12 +12,6 @@ const x86_64 = anArchitecture({
   displayValue: "64-bit Intel/AMD (x86_64)",
 });
 
-/**
- * How long to wait for the page to first render. Its code is split from the route tree and loaded
- * on first render, which can take over a second while other test files run.
- */
-const firstRenderTimeout = 5_000;
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -31,11 +25,7 @@ describe("the new repository route", () => {
     const { router } = renderRoute("/repositories/new");
 
     expect(
-      await screen.findByRole(
-        "heading",
-        { level: 1, name: "New repository" },
-        { timeout: firstRenderTimeout },
-      ),
+      await screen.findByRole("heading", { level: 1, name: "New repository" }),
     ).toBeInTheDocument();
     expect(router.state.matches.at(-1)?.routeId).toBe("/repositories/new");
     const breadcrumbs = screen.getByRole("navigation", { name: "breadcrumb" });
