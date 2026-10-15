@@ -511,7 +511,8 @@ ones.
 * `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command: it assigns
   every open, unassigned issue with no open blocker and no `needs decision` label to the `gh` user, moves it to *In Progress*, and
   fans the batch out to sub-agents, one worktree and one PR per issue, following
-  [Worktrees](#worktrees).
+  [Worktrees](#worktrees). Their Storybook, Playwright and e2e runs interfere with one another, so
+  it gives every sub-agent one `flock` lock to run those commands under, one at a time.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). The toolchain they build with is installed
   by the local composite action `.github/actions/setup-toolchain` (the Node LTS included, for the
