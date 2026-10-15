@@ -3,8 +3,8 @@ import type { AppliedSort, Pagination, RequestedSort } from "./PaginatedTable";
 
 /** What {@link usePaginatedTable} needs from the table's props. */
 export interface UsePaginatedTableOptions<TSortField extends string> {
-  /** The sort the rows were actually ordered by. */
-  appliedSort: AppliedSort<TSortField>;
+  /** The sort the rows were actually ordered by; absent before the first response. */
+  appliedSort?: AppliedSort<TSortField>;
   /** Called with the sort a header click asks for. */
   onSortChange: (sort: RequestedSort<TSortField>) => void;
   /** The index of the page's first row in the whole listing. */
@@ -63,13 +63,13 @@ export function usePaginatedTable<TSortField extends string>({
   return {
     headerSort: (sortField) => {
       const active =
-        sortField !== undefined && sortField === appliedSort.sortBy;
+        appliedSort !== undefined && sortField === appliedSort.sortBy;
       const direction = active ? muiDirection[appliedSort.direction] : "asc";
       return { active, direction, sortDirection: active ? direction : false };
     },
     sortBy: (sortField) => {
       onSortChange(
-        sortField === appliedSort.sortBy
+        appliedSort !== undefined && sortField === appliedSort.sortBy
           ? { sortBy: sortField, direction: reversed[appliedSort.direction] }
           : { sortBy: sortField },
       );
