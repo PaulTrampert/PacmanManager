@@ -51,6 +51,7 @@ function NameField({
         patternMessage={patternMessage}
         value={name}
         onChange={setName}
+        control={FormTextField}
         helperText={helperText}
         serverError={serverError}
       />

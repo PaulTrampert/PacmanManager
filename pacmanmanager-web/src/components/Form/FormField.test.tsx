@@ -82,19 +82,4 @@ describe("FormField", () => {
 
     expect(field).toBeDefined();
   });
-
-  it("needs a control for a property that is not a string", () => {
-    const field = (
-      // @ts-expect-error -- the default text field edits only a string
-      <FormField
-        schema="WriteRepositoryRequest"
-        property="isPublic"
-        label="Visibility"
-        value={false}
-        onChange={() => {}}
-      />
-    );
-
-    expect(field).toBeDefined();
-  });
 });
