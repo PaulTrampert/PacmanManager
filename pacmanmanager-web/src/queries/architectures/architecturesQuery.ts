@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, unwrap } from "../../api";
+import { architectureKeys } from "./architectureKeys";
 
 /**
  * How long the architectures stay fresh, in milliseconds: an hour. The list is static, defined by
@@ -14,7 +15,7 @@ export const architecturesStaleTime = 60 * 60 * 1000;
  */
 export function architecturesQuery() {
   return queryOptions({
-    queryKey: ["architectures"],
+    queryKey: architectureKeys.list(),
     queryFn: () => unwrap(client.GET("/v1/Architectures")),
     staleTime: architecturesStaleTime,
   });
