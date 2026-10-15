@@ -1,17 +1,8 @@
-import Typography from "@mui/material/Typography";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Repositories are what every visitor comes to see, so the home page is the repository list.
 export const Route = createFileRoute("/")({
-  component: IndexPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/repositories", replace: true });
+  },
 });
-
-function IndexPage() {
-  return (
-    <>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Welcome to PacmanManager
-      </Typography>
-      <Typography>Private pacman repositories for Arch Linux.</Typography>
-    </>
-  );
-}

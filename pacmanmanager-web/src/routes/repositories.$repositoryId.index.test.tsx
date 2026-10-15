@@ -18,7 +18,8 @@ describe("the repository route's stub", () => {
   });
 
   it("is reached by a typed link", async () => {
-    const { router } = renderRoute("/");
+    // Starts on a page that fetches nothing, as `/` no longer is: it redirects to the list.
+    const { router } = renderRoute("/no-such-page");
     const link = linkOptions({
       to: "/repositories/$repositoryId",
       params: { repositoryId },

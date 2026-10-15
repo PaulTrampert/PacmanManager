@@ -22,7 +22,7 @@ test("an anonymous visitor sees Sign in and no display name", async ({
 test("a user signs in from a deep link, lands back on it, and signs out again", async ({
   page,
 }) => {
-  const deepLink = "/repositories?offset=0&pageSize=10";
+  const deepLink = "/repositories?offset=0&pageSize=25";
   await page.goto(deepLink);
 
   await page.getByRole("banner").getByRole("link", { name: "Sign in" }).click();
@@ -40,8 +40,9 @@ test("a user signs in from a deep link, lands back on it, and signs out again", 
   await menuButton.click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
 
+  // Signing out returns to `/`, which redirects to the repository list.
   await page.waitForURL(
-    (url) => url.origin === webHostUrl && url.pathname === "/",
+    (url) => url.origin === webHostUrl && url.pathname === "/repositories",
   );
   await expect(banner.getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(
@@ -82,7 +83,7 @@ test.describe("a session that can no longer be refreshed", () => {
   });
 
   test("sends the user to sign in, and back", async ({ page }) => {
-    const deepLink = "/repositories?offset=0&pageSize=10";
+    const deepLink = "/repositories?offset=0&pageSize=25";
     await signIn(page, users.other, deepLink);
     await expectSignedIn(page);
 

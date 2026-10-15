@@ -12,9 +12,10 @@ test("an unknown path shows the not-found page", async ({ page }) => {
 
   await page.getByRole("link", { name: "Go to the home page" }).click();
 
+  await expect(page).toHaveURL(/\/repositories$/);
   await expect(
     page
       .getByRole("main")
-      .getByRole("heading", { name: "Welcome to PacmanManager" }),
+      .getByRole("heading", { level: 1, name: "Repositories" }),
   ).toBeVisible();
 });
