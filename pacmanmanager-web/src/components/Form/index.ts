@@ -11,3 +11,4 @@ export {
   type FormRadioGroupFieldProps,
   type FormRadioGroupOption,
 } from "./FormRadioGroupField";
+export { FormTextField, type FormTextFieldProps } from "./FormTextField";
