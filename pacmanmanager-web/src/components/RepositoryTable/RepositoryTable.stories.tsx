@@ -87,6 +87,8 @@ const meta = {
     loading: false,
     pageSize: 50,
     architectures,
+    // The story's router has only `/`, so each name links there, its repository's id in the hash.
+    repositoryLink: (repository) => ({ to: "/", hash: repository.id }),
     onSortChange: fn(),
     onPaginationChange: fn(),
   },
@@ -133,12 +135,13 @@ export const SeveralRows: Story = {
       repositories.length + 1,
     );
 
-    // The name links to the repository's page, by id.
+    // Each name links where `repositoryLink` says for its repository.
     await expect(
       canvas.getByRole("link", { name: "core-extras" }),
-    ).toHaveAttribute(
+    ).toHaveAttribute("href", "/#a0000000-0000-4000-8000-000000000001");
+    await expect(canvas.getByRole("link", { name: "games" })).toHaveAttribute(
       "href",
-      "/repositories/a0000000-0000-4000-8000-000000000001",
+      "/#a0000000-0000-4000-8000-000000000002",
     );
 
     const coreExtras = rowOf(canvasElement, "core-extras");
