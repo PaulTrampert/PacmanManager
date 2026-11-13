@@ -68,6 +68,7 @@ Every new project is in `PacmanManager.sln` and has a matching `.Test` project.
 
 **Why:**
 
+* [Why RabbitMQ and Wolverine](#why-rabbitmq-and-wolverine)
 * [Why `Authentication` is split rather than moved whole](#why-authentication-is-split-rather-than-moved-whole)
 * [Why the publishing logic gets a library of its own](#why-the-publishing-logic-gets-a-library-of-its-own)
 * [Why commands have a data-only project](#why-commands-have-a-data-only-project)
@@ -255,11 +256,19 @@ Worker.
 
 *Depends on:* nothing.
 
+**Why:**
+
+* [Why RabbitMQ and Wolverine](#why-rabbitmq-and-wolverine)
+
 ### 2. Configure Wolverine in RepoHost (#364) — `PATCH`
 
 The Wolverine package reference, configured to publish to RabbitMQ.
 
 *Depends on:* #363.
+
+**Why:**
+
+* [Why RabbitMQ and Wolverine](#why-rabbitmq-and-wolverine)
 
 ### 3. Create `PacmanManager.Worker` (#365) — `MINOR`
 
@@ -453,6 +462,14 @@ More has to happen to an uploaded package than a request should wait for: extrac
 perhaps scanning it for malware, and adding it to the repository itself. Moving the publish off the
 request gives that work a place to run, and means a slow `repo-add` or a held repository lock no
 longer holds an HTTP connection open.
+
+### Why RabbitMQ and Wolverine
+
+RabbitMQ does everything this work needs of a broker, and is one the project owner already knows,
+so it was chosen over brokers that would have to be learned for no gain.
+
+MassTransit was the first choice of library over it, but its licensing recently changed, and
+Wolverine fills the same role: handlers, retries, RabbitMQ transport and an EF Core outbox.
 
 ### Why `Authentication` is split rather than moved whole
 
