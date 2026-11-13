@@ -1,4 +1,4 @@
-﻿FROM archlinux/archlinux AS base
+FROM archlinux/archlinux AS base
 ARG APP_UID=1001
 ARG APP_GID=1001
 ARG APP_USER=app
@@ -16,7 +16,7 @@ WORKDIR ${APP_HOME}
 VOLUME ${DATA_DIR}
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["LibAlpmSharp/LibAlpmSharp.csproj", "LibAlpmSharp/"]
