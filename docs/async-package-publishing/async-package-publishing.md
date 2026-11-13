@@ -98,13 +98,19 @@ A generic job-tracking handler wraps every handler that runs a job:
 | :--- | :--- |
 | message received | `Running` |
 | inner handler returns | `Completed` |
-| inner handler throws, retry remaining | `Pending` |
-| inner handler throws, retries exhausted | `Failed`, with the failure in `Error` |
+| inner handler throws `JobRejectedException` | `Failed` at once, with the rejection in `Error`. **Never retried.** |
+| inner handler throws anything else, retry remaining | `Pending` |
+| inner handler throws anything else, retries exhausted | `Failed`, with the failure in `Error` |
 
 The inner handler receives the job's `Message`.
 
+`JobRejectedException` is how an inner handler reports a **deliberate rejection**: a decision about
+the message that running it again cannot change. Any other exception is treated as a failure that a
+retry may get past.
+
 **Why:**
 
+* [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
 * [Why the job is composed with its message](#why-the-job-is-composed-with-its-message)
 * [Why the job stores a user id and scopes, not an `Actor`](#why-the-job-stores-a-user-id-and-scopes-not-an-actor)
 
@@ -144,9 +150,11 @@ The `PublishPackageCommand` handler, inside the job-tracking handler:
 
 1. Runs as the job's actor, through a `FixedActorAccessor`.
 2. Checks, with the same access policy RepoHost uses, that the actor **may still publish** to the
-   repository. If not, the job fails and nothing is published.
+   repository. If not, it throws `JobRejectedException` and nothing is published.
 3. Takes the repository's lock, and under it repeats the architecture and version checks. A package
-   that fails either fails the job, with the reason in `Error`.
+   that fails either throws `JobRejectedException`, with the reason as its message.
+
+These three rejections fail the job **at once, without retrying**.
 4. Moves the temporary file into the repository directory, adds it with `repo-add`, and upserts the
    package entity — the behaviour [Package Management API](../package-management-api/packages-api.md)
    specifies for publishing, unchanged.
@@ -332,9 +340,14 @@ Create `PacmanManager.Commands` and the command, with `RepositoryId` and `Packag
 
 ### 9. Job-tracking message handler (#368) — `PATCH`
 
-The generic handler [Jobs](#jobs) specifies.
+The generic handler [Jobs](#jobs) specifies, and `JobRejectedException`.
 
-*Acceptance:* unit tests of every transition in the table.
+*Acceptance:* unit tests of every transition in the table, including that a `JobRejectedException`
+with retries remaining fails the job without the inner handler running again.
+
+**Why:**
+
+* [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
 
 *Depends on:* #365, #367.
 
@@ -343,12 +356,13 @@ The generic handler [Jobs](#jobs) specifies.
 The Worker side of [Publishing](#in-the-worker).
 
 *Acceptance:* tests show a revoked permission, an unsupported architecture and a version no longer
-newer each fail the job without publishing.
+newer each throw `JobRejectedException` without publishing.
 
 *Depends on:* #365, #368, #369, #383, #384.
 
 **Why:**
 
+* [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
 * [Why the Worker rechecks permissions](#why-the-worker-rechecks-permissions)
 
 ### 11. `GET /api/v1/Jobs/{id}` (#385) — `MINOR`
@@ -495,6 +509,19 @@ A job can wait in the queue. A user whose publish rights are revoked in
 the meantime must not have their publish land anyway. Running as the job's actor through
 `FixedActorAccessor` means the Worker applies the same policy RepoHost does, which is what
 `IActorAccessor` was designed for: a host that is not the web host chooses its actor explicitly.
+
+### Why deliberate rejections are never retried
+
+A revoked permission, an unsupported architecture or a version that is no longer newer is a decision
+about the message, not a fault in running it. Retrying it repeats the same work to reach the same
+answer, and holds the repository lock and delays the caller's `Failed` while it does. Only failures
+that might clear on their own — a lost connection, a `repo-add` that could not take its lock file —
+are worth a retry.
+
+The handler signals the difference with a specific exception type rather than a list of exception
+types configured per handler. A list would have to be kept in step with every exception a handler,
+and the library code it calls, might throw; a rejection the list forgot would quietly be retried.
+With `JobRejectedException`, a handler states its decision where it makes it.
 
 ### Why the job and the message commit together
 
