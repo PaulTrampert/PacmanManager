@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Decides which pipelines a change needs, from the paths it touches.
 #
-# Reads changed paths, one per line, on stdin and prints `dotnet=`, `web=`, `docker=` and `e2e=`
-# lines (each `true` or `false`) in the form `$GITHUB_OUTPUT` takes. Each path falls into the first
+# Reads changed paths, one per line, on stdin and prints `dotnet=`, `aur=`, `web=`, `docker=` and
+# `e2e=` lines (each `true` or `false`) in the form `$GITHUB_OUTPUT` takes. Each path falls into the first
 # category that matches it:
 #
 #   shared   the API contract, the compose stack, Keycloak, RabbitMQ, CI itself and the tooling and fixtures
@@ -14,9 +14,14 @@
 # A path that matches no category counts as shared, so a new top-level file runs everything until
 # somebody decides it needs less. The images and the end-to-end tests run whenever anything but
 # documentation changed.
+#
+# `aur` is narrower than the categories: it is true only when the AUR client or its tests changed.
+# AurClientTests call the live AUR, so they run only for a change they could catch, rather than
+# failing unrelated changes whenever aur.archlinux.org is down or rate-limiting the runner.
 set -euo pipefail
 
 dotnet=false
+aur=false
 web=false
 everything=false
 
@@ -29,6 +34,9 @@ while IFS= read -r path; do
       everything=true ;;
     docs/* | *.md | .claude/* | .run/* | .idea/* | .gitignore | LICENSE*)
       ;;
+    PacmanManager.AurClient/* | PacmanManager.AurClient.Test/*)
+      dotnet=true
+      aur=true ;;
     *.sln | LibAlpmSharp*/* | PacmanManager.*/*)
       dotnet=true ;;
     pacmanmanager-web/*)
@@ -49,6 +57,7 @@ if [[ "$dotnet" == true || "$web" == true ]]; then
 fi
 
 echo "dotnet=$dotnet"
+echo "aur=$aur"
 echo "web=$web"
 echo "docker=$images"
 echo "e2e=$images"
