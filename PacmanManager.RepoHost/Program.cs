@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Asp.Versioning;

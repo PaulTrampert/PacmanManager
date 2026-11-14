@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;

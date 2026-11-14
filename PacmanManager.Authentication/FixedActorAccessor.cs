@@ -1,7 +1,6 @@
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 
-namespace PacmanManager.RepoHost.Services;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// Supplies a predetermined <see cref="Actor"/>. Intended for CLI tools, background jobs and

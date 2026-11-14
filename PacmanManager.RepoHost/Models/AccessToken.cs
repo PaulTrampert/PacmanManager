@@ -1,6 +1,6 @@
+using PacmanManager.Authentication;
 using System.Linq.Expressions;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 
 namespace PacmanManager.RepoHost.Models;
 

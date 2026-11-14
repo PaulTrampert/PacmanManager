@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;

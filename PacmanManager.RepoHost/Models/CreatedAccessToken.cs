@@ -1,5 +1,5 @@
+using PacmanManager.Authentication;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 
 namespace PacmanManager.RepoHost.Models;
 

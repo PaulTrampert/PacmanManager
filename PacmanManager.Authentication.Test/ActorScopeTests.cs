@@ -1,9 +1,8 @@
 using Microsoft.Extensions.Logging;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.TestUtils;
-using static PacmanManager.RepoHost.Authentication.ScopeValues;
+using static PacmanManager.Authentication.ScopeValues;
 
-namespace PacmanManager.RepoHost.Test.Authentication;
+namespace PacmanManager.Authentication.Test;
 
 /// <summary>
 /// Pins the parser of the <c>scope</c> claim and what the parsed scope permits. Absent means denied,

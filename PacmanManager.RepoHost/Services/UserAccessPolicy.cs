@@ -1,5 +1,5 @@
-using PacmanManager.RepoHost.Authentication;
-using static PacmanManager.RepoHost.Authentication.ScopeValues;
+using PacmanManager.Authentication;
+using static PacmanManager.Authentication.ScopeValues;
 
 namespace PacmanManager.RepoHost.Services;
 

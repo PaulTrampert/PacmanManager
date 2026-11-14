@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PacmanManager.Authentication;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
 

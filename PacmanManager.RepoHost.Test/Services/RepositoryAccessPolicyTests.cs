@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using PacmanManager.Authentication;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Services;
 
 namespace PacmanManager.RepoHost.Test.Services;

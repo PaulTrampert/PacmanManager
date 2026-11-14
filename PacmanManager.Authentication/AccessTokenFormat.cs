@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using PacmanManager.Entities;
 
-namespace PacmanManager.RepoHost.Authentication;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// The wire format of a <see cref="PacmanAccessToken"/>: the two strings a client presents as the

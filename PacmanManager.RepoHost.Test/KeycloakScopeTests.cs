@@ -1,6 +1,6 @@
 using DotNet.Testcontainers.Networks;
 using Microsoft.IdentityModel.JsonWebTokens;
-using PacmanManager.RepoHost.Authentication;
+using PacmanManager.Authentication;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
 

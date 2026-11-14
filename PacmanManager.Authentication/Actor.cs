@@ -1,6 +1,6 @@
 using PacmanManager.Entities;
 
-namespace PacmanManager.RepoHost.Authentication;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// The identity a unit of work is executing as.

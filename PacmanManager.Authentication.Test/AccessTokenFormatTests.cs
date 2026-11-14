@@ -1,9 +1,8 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 
-namespace PacmanManager.RepoHost.Test.Authentication;
+namespace PacmanManager.Authentication.Test;
 
 /// <summary>
 /// Tests for <see cref="AccessTokenFormat"/>: the <c>pmt_</c> username, the <c>pms_</c> secret and

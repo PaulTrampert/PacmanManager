@@ -1,5 +1,5 @@
+using PacmanManager.Authentication;
 using System.Text.Json.Nodes;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.TestUtils;
 
 namespace PacmanManager.RepoHost.Test.Authentication;

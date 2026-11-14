@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Security.Cryptography;
 using LibAlpmSharp;
 using Microsoft.EntityFrameworkCore;
@@ -5,7 +6,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;

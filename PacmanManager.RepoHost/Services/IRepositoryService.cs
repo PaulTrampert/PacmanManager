@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
