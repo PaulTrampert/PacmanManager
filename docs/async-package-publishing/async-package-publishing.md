@@ -22,9 +22,10 @@ specifies, and changes only *when* that behaviour runs and how its outcome is re
 
 ## Goals
 
-* Publishing a package no longer moves the file into the repository or runs `repo-add` during the
-  HTTP request. The request validates the upload, records a job, and returns.
+* Publishing a package no longer copies the file into the repository or runs `repo-add` during the
+  HTTP request. The request authorizes the caller, validates the upload, records a job, and returns.
 * A caller can find out whether their publish succeeded, and why it failed if it did.
+* A caller can list their jobs and clear away the ones that have finished.
 * The rules a publish obeys — who may publish, which architectures, which versions — are the same
   whether they are checked in RepoHost or in the Worker, because both use the same code.
 * Changes to a repository's database stay serialized when more than one process, or more than one
@@ -41,7 +42,6 @@ Recorded here so the issues stay bounded; each has a follow-up in
 * **Asynchronous delete.** Deleting a package stays on the request.
 * **A web UI for jobs.** The web app has no upload screen yet; showing a job's progress arrives with
   one.
-* **Listing jobs.** A caller can read one job by id, not search them.
 
 ---
 
@@ -62,8 +62,8 @@ Every new project is in `PacmanManager.sln` and has a matching `.Test` project.
 | `rabbitmq` | RabbitMQ, with one user for RepoHost and one for the Worker. |
 | `pacmanmanager.worker` | Built from an `archlinux` base, like RepoHost. Mounts **the same `DATA_DIR` volume** as `pacmanmanager.repohost`. |
 
-* The upload directory is on the `DATA_DIR` filesystem, so moving an upload into a repository is a
-  rename, never a copy.
+* The upload directory is on the shared `DATA_DIR` volume, so the Worker reads the upload RepoHost
+  wrote.
 * CI's Docker Build builds the Worker image alongside the others.
 
 **Why:**
@@ -77,23 +77,29 @@ Every new project is in `PacmanManager.sln` and has a matching `.Test` project.
 
 ## Jobs
 
-A `Job` records one unit of off-request work.
+A `Job` records one unit of off-request work. It is **one entity and one table** for every kind of
+job; it is not generic.
 
 | Member | Type | Notes |
 | :--- | :--- | :--- |
 | `Id` | `Guid` | Version 7. |
-| `Created` | `DateTime` | UTC. |
-| `State` | enum | `Pending`, `Running`, `Completed`, `Failed`. |
+| `CreatedAt` | `DateTimeOffset` | UTC. |
+| `State` | enum | `Pending`, `Running`, `Completed`, `Failed`. `Completed` and `Failed` are **final**. |
 | `Error` | `string?` | Set when `Failed`. |
-| `UserId` | `Guid?` | Foreign key to `User`; the actor's user. |
-| `Scopes` | strings | The actor's scope values. |
-| `Message` | `TMessage` | The command itself, stored as jsonb. |
+| `UserId` | `Guid?` | Foreign key to `User`: the user who scheduled the job. `null` when the `System` actor, which has no user, scheduled it. |
+| `MessageType` | `string` | Names the command type the message holds. |
+| `Message` | jsonb | The command itself. |
 
-* The job is **composed with** its message: `Message` is the command's content, and EF loads it with
-  the job. There is no base message type.
-* The job, not the command, carries the actor and the tracking state.
+* `Job.As<TMessage>()` returns a `Job<TMessage>`: a typed view, not mapped by EF, carrying the
+  job's id, its user and its message deserialized as `TMessage`. It throws `JobMessageTypeException`
+  when `MessageType` does not name `TMessage`.
+* `PacmanManager.Entities` does not reference `PacmanManager.Commands`: `As<TMessage>()` is generic
+  over any type, and only its callers name a command.
+* The job is **composed with** its message: there is no base message type, and the job, not the
+  command, carries the user and the tracking state.
 
-A generic job-tracking handler wraps every handler that runs a job:
+A generic job-tracking handler wraps every handler that runs a job. It loads the `Job`, takes its
+typed view with `As<TMessage>()`, and passes the inner handler that view's message:
 
 | Event | State afterwards |
 | :--- | :--- |
@@ -103,8 +109,6 @@ A generic job-tracking handler wraps every handler that runs a job:
 | inner handler throws anything else, retry remaining | `Pending` |
 | inner handler throws anything else, retries exhausted | `Failed`, with the failure in `Error` |
 
-The inner handler receives the job's `Message`.
-
 `JobRejectedException` is how an inner handler reports a **deliberate rejection**: a decision about
 the message that running it again cannot change. Any other exception is treated as a failure that a
 retry may get past.
@@ -113,7 +117,8 @@ retry may get past.
 
 * [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
 * [Why the job is composed with its message](#why-the-job-is-composed-with-its-message)
-* [Why the job stores a user id and scopes, not an `Actor`](#why-the-job-stores-a-user-id-and-scopes-not-an-actor)
+* [Why one `Job` table with a typed view](#why-one-job-table-with-a-typed-view)
+* [Why the job stores only a user id](#why-the-job-stores-only-a-user-id)
 
 ---
 
@@ -123,48 +128,76 @@ retry may get past.
 
 `POST /api/v1/repositories/{repositoryId}/packages`:
 
-1. Writes the upload to a temporary file in the upload directory.
-2. Rejects, with the same responses publishing gives today and **before anything is enqueued**:
+1. Checks that the caller may publish to the repository **before reading any of the body**, with
+   the responses publishing gives today: `401` when anonymous, `403` for a public repository the
+   caller does not own, `404` for one that does not exist or that the caller cannot see.
+2. Writes the upload to a temporary file in the upload directory. An upload over the configured
+   maximum is a `413`.
+3. Rejects, with the same responses publishing gives today and **before anything is enqueued**:
    * an unreadable package;
    * a package whose architecture the repository does not support;
-   * a package whose version is not newer than the one currently stored.
-3. Creates a `Pending` job, recording the current actor, whose `Message` is a `PublishPackageCommand`:
+   * a package whose version is not newer than every stored build it would supersede (see
+     [Version check](#version-check)).
+4. Creates a `Pending` job, with the current actor's user as `UserId`, whose `Message` is a
+   `PublishPackageCommand`:
 
    ```json
    { "repositoryId": "…", "packageFilePath": "…" }
    ```
 
-4. Publishes the command. The job row and the published message are **committed together**: neither
+5. Publishes the command. The job row and the published message are **committed together**: neither
    ever exists without the other.
-5. Responds **`202 Accepted`** with the job, as [`GET /api/v1/Jobs/{id}`](#job-status) returns it,
+6. Responds **`202 Accepted`** with the job, as [`GET /api/v1/Jobs/{id}`](#job-routes) returns it,
    and a `Location` of that route. This replaces today's `201 Created` and `200 OK` with the package.
 
-The version check in step 2 can race with another publish. It **may let an invalid version
+The version check in step 3 can race with another publish. It **may let an invalid version
 through**, which the Worker then fails; it **must never reject a valid version**.
 
 The response change stays under **`v1`**. No new API version is introduced; `openapi/v1.json` is
 regenerated in the same PR.
 
+### Version check
+
+A package name can have several stored builds in one repository, one per architecture or a single
+`any` build. A new build is compared **only with the stored builds it would supersede** — those
+`Replaces` pairs it with: the build of the same architecture, any `any` build, and, when the new
+build is itself `any`, every build of the name. It must be newer than each of them. A build for
+another specific architecture is never compared, so publishing `foo` 2.0 for `aarch64` beside `foo`
+3.0 for `x86_64` is valid. This is the rule `StoreUploadAsync` applies today; both the request and
+the Worker use it.
+
 ### In the Worker
 
 The `PublishPackageCommand` handler, inside the job-tracking handler:
 
-1. Runs as the job's actor, through a `FixedActorAccessor`.
-2. Checks, with the same access policy RepoHost uses, that the actor **may still publish** to the
-   repository. If not, it throws `JobRejectedException` and nothing is published.
-3. Takes the repository's lock, and under it repeats the architecture and version checks. A package
-   that fails either throws `JobRejectedException`, with the reason as its message.
+1. Runs as the job's user with unrestricted scope (`Actor.SystemFor(user)`), or as `Actor.System`
+   when the job has no user, through a `FixedActorAccessor`. **Permissions are not checked again**:
+   they decided whether the job could be scheduled, and stop mattering once it was.
+2. Takes the repository's lock, and under it rejects, by throwing `JobRejectedException` with the
+   reason as its message:
+   * a repository that no longer exists;
+   * an upload that is missing or unreadable;
+   * an unsupported architecture;
+   * a version that is not newer than every stored build it would supersede.
 
-These three rejections fail the job **at once, without retrying**.
-4. Moves the temporary file into the repository directory, adds it with `repo-add`, and upserts the
+   Each of these fails the job **at once, without retrying**. In particular, the repository's
+   absence is a rejection, never a `null` the handler returns from, which would mark the job
+   `Completed` with nothing published.
+3. **Copies** the upload into the repository directory, adds it with `repo-add`, and upserts the
    package entity — the behaviour [Package Management API](../package-management-api/packages-api.md)
-   specifies for publishing, unchanged.
+   specifies for publishing, except that the upload is copied rather than moved. A failure removes
+   the copy, as today's compensation removes the moved file, and **leaves the upload in place**, so
+   a retry starts from the same file.
+4. Once the publish has committed, deletes the upload. A delete that fails is logged and does not
+   fail the job; [Upload cleanup](#upload-cleanup) removes the file later.
 
 **Why:**
 
 * [Why publishing leaves the request](#why-publishing-leaves-the-request)
+* [Why the request authorizes before writing the upload](#why-the-request-authorizes-before-writing-the-upload)
 * [Why the request still validates](#why-the-request-still-validates)
-* [Why the Worker rechecks permissions](#why-the-worker-rechecks-permissions)
+* [Why permissions are checked only when the job is scheduled](#why-permissions-are-checked-only-when-the-job-is-scheduled)
+* [Why the Worker copies the upload rather than moving it](#why-the-worker-copies-the-upload-rather-than-moving-it)
 * [Why the job and the message commit together](#why-the-job-and-the-message-commit-together)
 * [Why the contract change stays in `v1`](#why-the-contract-change-stays-in-v1)
 
@@ -174,42 +207,61 @@ These three rejections fail the job **at once, without retrying**.
 
 `IRepositoryDatabaseLock` keeps its contract and gets a new implementation:
 
-* A **Postgres advisory lock**, keyed by the repository's id, replaces the in-process lock.
-* It is a **session-level** lock on the connection holding it, so it is released if that process
-  dies.
-* `AcquireAsync` waits for exclusive access to one repository and honours its cancellation token;
-  disposing the handle releases the lock.
-* Locks on different repositories never block each other.
+* A **Postgres advisory lock** replaces the in-process lock.
+* It uses the **two-key form**, `pg_advisory_lock(key1, key2)`:
+  * `key1` is a fixed constant, declared once, that names the lock's purpose (repository databases);
+  * `key2` is derived from the repository's id: the XOR of the `Guid`'s four 32-bit words. The
+    derivation must give the same key in every process and runtime, so it is **never**
+    `Guid.GetHashCode()`, which .NET randomizes per process.
+* It is a **session-level** lock. `AcquireAsync` opens a dedicated connection for it, not one a
+  `DbContext` is using; disposing the handle calls `pg_advisory_unlock` and closes that connection.
+  If the holding process dies, Postgres ends the session and releases the lock.
+* `AcquireAsync` waits for exclusive access to one repository and honours its cancellation token.
+* Two different repositories share a `key2` only by collision, roughly a one in 2³² chance for any
+  pair. Colliding repositories serialize against each other, which costs waiting, **never
+  correctness**. Otherwise locks on different repositories never block each other.
 * Publish and delete, in either process, take the same lock.
 
 **Why:**
 
 * [Why a Postgres advisory lock](#why-a-postgres-advisory-lock)
+* [Why the lock key is derived this way](#why-the-lock-key-is-derived-this-way)
 
 ---
 
-## Job status
+## Job routes
 
-`GET /api/v1/Jobs/{id}` returns:
+A job is shown as:
 
 ```json
-{ "id": "…", "state": "Failed", "created": "…", "error": "…" }
+{ "id": "…", "state": "Failed", "createdAt": "…", "error": "…" }
 ```
 
 `error` is present only when `state` is `Failed`.
 
-| Caller | Response |
-| :--- | :--- |
-| the user who started the job | `200` |
-| any other signed-in user | `404` |
-| anonymous | `401` |
+| Route | Caller | Response |
+| :--- | :--- | :--- |
+| `GET /api/v1/Jobs/{id}` | the user who scheduled the job | `200` with the job |
+| `GET /api/v1/Jobs` | any signed-in user | `200` with a page of **their own** jobs |
+| `DELETE /api/v1/Jobs/{id}` | the user who scheduled the job, job in a final state | `204` |
+| `DELETE /api/v1/Jobs/{id}` | the user who scheduled the job, job `Pending` or `Running` | `409` |
+| `GET` or `DELETE /api/v1/Jobs/{id}` | any other signed-in user, or no such job | `404` |
+| any | anonymous | `401` |
 
-* The rules live in a `JobAccessPolicy` with no DB, HTTP or logging dependencies.
+* `GET /api/v1/Jobs` follows the listing conventions: `PaginationParams`, a filter query object
+  with an optional `state`, and `SortOptions<JobSortField>` whose first member, the default, is
+  `CreatedAt`, newest first. The filter is ANDed onto the caller's own jobs and can never widen
+  them.
+* Deleting a finished job removes its row only. A completed publish has already deleted its upload,
+  and a failed one's is left to [Upload cleanup](#upload-cleanup).
+* The rules live in a `JobAccessPolicy` with no DB, HTTP or logging dependencies, including the
+  visibility predicate the listing applies and the rule that only a final job may be deleted.
 * The service enforces the policy itself, as `RepositoryService` does, not the controller.
 
 **Why:**
 
 * [Why job status is `/Jobs/{id}`](#why-job-status-is-jobsid)
+* [Why only finished jobs can be deleted](#why-only-finished-jobs-can-be-deleted)
 
 ---
 
@@ -220,6 +272,10 @@ directory that are:
 
 * older than a configurable minimum age, **and**
 * not the `PackageFilePath` of a `Pending` or `Running` job.
+
+It finds the live uploads by loading the `Pending` and `Running` jobs whose `MessageType` names
+`PublishPackageCommand` and reading each one's `PackageFilePath` through
+`As<PublishPackageCommand>()`.
 
 A file that fails to delete is logged and does not stop the run.
 
@@ -262,13 +318,20 @@ Worker.
 
 ### 2. Configure Wolverine in RepoHost (#364) — `PATCH`
 
-The Wolverine package reference, configured to publish to RabbitMQ.
+The Wolverine package reference, configured to publish to RabbitMQ through Wolverine's **EF Core
+transactional outbox** on Postgres, enlisted with `PacmanManagerDbContext`. Wolverine creates its
+message storage tables at startup.
+
+*Acceptance:* RepoHost starts against the compose stack with the outbox's tables created; a test
+shows that a message published with a `SaveChangesAsync` that commits is sent, and one published
+with a transaction that rolls back is not.
 
 *Depends on:* #363.
 
 **Why:**
 
 * [Why RabbitMQ and Wolverine](#why-rabbitmq-and-wolverine)
+* [Why the job and the message commit together](#why-the-job-and-the-message-commit-together)
 
 ### 3. Create `PacmanManager.Worker` (#365) — `MINOR`
 
@@ -308,6 +371,9 @@ for the library, behaviour unchanged, with their tests.
 *Constraints:* `PackageServiceEnforcementTests` and `RepositoryServiceEnforcementTests` keep passing.
 RepoHost's `Dockerfile` copies the new `.csproj`.
 
+*Acceptance:* the moved tests pass in `PacmanManager.Packages.Test`; RepoHost builds, its tests pass
+unchanged, and RepoHost's `Dockerfile` builds.
+
 *Depends on:* #382.
 
 **Why:**
@@ -319,27 +385,38 @@ RepoHost's `Dockerfile` copies the new `.csproj`.
 The implementation [Repository lock](#repository-lock) specifies.
 
 *Acceptance:* tests against a real Postgres show that two lock instances exclude each other on one
-repository and not on different ones, and that a cancelled wait gives up without the lock.
+repository and not on different ones, that a cancelled wait gives up without the lock, and that a
+lock whose connection is closed is released. A unit test shows the key derivation gives the same
+key for the same id on every call.
 
 *Depends on:* nothing.
 
 **Why:**
 
 * [Why a Postgres advisory lock](#why-a-postgres-advisory-lock)
+* [Why the lock key is derived this way](#why-the-lock-key-is-derived-this-way)
 
 ### 7. Add the `Job` table (#367) — `MINOR`
 
-The entity [Jobs](#jobs) specifies, and its migration.
+The entity [Jobs](#jobs) specifies, its typed view `Job<TMessage>` and `JobMessageTypeException`,
+and its migration.
+
+*Acceptance:* the migration applies; unit tests show `As<TMessage>()` returns the stored message for
+the type `MessageType` names and throws `JobMessageTypeException` for any other.
 
 *Depends on:* nothing.
 
 **Why:**
 
-* [Why the job stores a user id and scopes, not an `Actor`](#why-the-job-stores-a-user-id-and-scopes-not-an-actor)
+* [Why one `Job` table with a typed view](#why-one-job-table-with-a-typed-view)
+* [Why the job stores only a user id](#why-the-job-stores-only-a-user-id)
 
 ### 8. Create `PublishPackageCommand` (#369) — `PATCH`
 
 Create `PacmanManager.Commands` and the command, with `RepositoryId` and `PackageFilePath`.
+
+*Acceptance:* the project is in `PacmanManager.sln` with its test project, references no other
+project in the solution, and a test shows the command round-trips through JSON unchanged.
 
 *Depends on:* nothing.
 
@@ -354,30 +431,33 @@ The generic handler [Jobs](#jobs) specifies, and `JobRejectedException`.
 *Acceptance:* unit tests of every transition in the table, including that a `JobRejectedException`
 with retries remaining fails the job without the inner handler running again.
 
+*Depends on:* #365, #367.
+
 **Why:**
 
 * [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
-
-*Depends on:* #365, #367.
 
 ### 10. `PublishPackageCommand` handler (#366) — `MINOR`
 
 The Worker side of [Publishing](#in-the-worker).
 
-*Acceptance:* tests show a revoked permission, an unsupported architecture and a version no longer
-newer each throw `JobRejectedException` without publishing.
+*Acceptance:* tests show that a deleted repository, a missing upload, an unreadable upload, an
+unsupported architecture and a version no longer newer each throw `JobRejectedException` without
+publishing; that a failure after the copy leaves the upload in place and a retry then publishes it;
+and that a successful publish deletes the upload.
 
 *Depends on:* #365, #368, #369, #383, #384.
 
 **Why:**
 
 * [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
-* [Why the Worker rechecks permissions](#why-the-worker-rechecks-permissions)
+* [Why permissions are checked only when the job is scheduled](#why-permissions-are-checked-only-when-the-job-is-scheduled)
+* [Why the Worker copies the upload rather than moving it](#why-the-worker-copies-the-upload-rather-than-moving-it)
 
 ### 11. `GET /api/v1/Jobs/{id}` (#385) — `MINOR`
 
-The route [Job status](#job-status) specifies, its `JobAccessPolicy`, and the regenerated
-`openapi/v1.json`.
+The single-job `GET` route [Job routes](#job-routes) specifies, its `JobAccessPolicy`, and the
+regenerated `openapi/v1.json`.
 
 *Acceptance:* each policy rule is a unit test; an E2E test covers the route.
 
@@ -387,7 +467,31 @@ The route [Job status](#job-status) specifies, its `JobAccessPolicy`, and the re
 
 * [Why job status is `/Jobs/{id}`](#why-job-status-is-jobsid)
 
-### 12. Run RabbitMQ and the Worker in the E2E fixture (#386) — `PATCH`
+### 12. `GET /api/v1/Jobs` (issue to be filed) — `MINOR`
+
+The listing route [Job routes](#job-routes) specifies, with `JobSortField`, its filter query object,
+the visibility predicate in `JobAccessPolicy`, and the regenerated `openapi/v1.json`.
+
+*Acceptance:* unit tests show a caller sees only their own jobs, that the `state` filter cannot
+widen that, and that the default order is newest first; an E2E test covers the route.
+
+*Depends on:* #385.
+
+### 13. `DELETE /api/v1/Jobs/{id}` (issue to be filed) — `MINOR`
+
+The delete route [Job routes](#job-routes) specifies, its rule in `JobAccessPolicy`, and the
+regenerated `openapi/v1.json`.
+
+*Acceptance:* unit tests show a final job of the caller's own is deleted, a `Pending` or `Running`
+one is refused, and another user's is not found; an E2E test covers the route.
+
+*Depends on:* #385.
+
+**Why:**
+
+* [Why only finished jobs can be deleted](#why-only-finished-jobs-can-be-deleted)
+
+### 14. Run RabbitMQ and the Worker in the E2E fixture (#386) — `PATCH`
 
 The fixture changes [Test environment](#test-environment) specifies, short of the tests waiting for
 jobs.
@@ -400,29 +504,36 @@ jobs.
 
 * [Why the E2E fixture changes ahead of the endpoint](#why-the-e2e-fixture-changes-ahead-of-the-endpoint)
 
-### 13. Publish endpoint validates and enqueues (#380) — `MAJOR`
+### 15. Publish endpoint validates and enqueues (#380) — `MAJOR`
 
 The request side of [Publishing](#on-the-request), the regenerated `openapi/v1.json`, and the E2E
 tests that publish waiting for their job.
 
-*Constraints:* the version check must never reject a valid version. The route stays in `v1`.
+*Constraints:* the caller's permission is checked before the body is read. The version check must
+never reject a valid version. The route stays in `v1`.
+
+*Acceptance:* E2E tests show an anonymous caller, a caller without rights and a missing repository
+get `401`, `403` and `404` with no upload written and no job created; that the three validation
+failures are rejected before a job exists; and that a valid publish returns `202` and its job
+completes.
 
 *Depends on:* #364, #366, #367, #369, #385, #386.
 
 **Why:**
 
+* [Why the request authorizes before writing the upload](#why-the-request-authorizes-before-writing-the-upload)
 * [Why the request still validates](#why-the-request-still-validates)
 * [Why the job and the message commit together](#why-the-job-and-the-message-commit-together)
 * [Why the contract change stays in `v1`](#why-the-contract-change-stays-in-v1)
 
-### 14. Scheduled upload cleanup (#387) — `PATCH`
+### 16. Scheduled upload cleanup (#387) — `PATCH`
 
 The sweep [Upload cleanup](#upload-cleanup) specifies.
 
 *Acceptance:* unit tests show a file with a live job is kept, a file younger than the minimum age is
 kept, and an old file with only a finished job, or with none, is deleted.
 
-*Depends on:* #365, #367.
+*Depends on:* #365, #367, #369.
 
 **Why:**
 
@@ -440,8 +551,6 @@ Worth filing as issues, but explicitly out of scope for the work above.
   makes a delete in RepoHost safe beside a publish in the Worker, so nothing forces it.
 * **Job progress in the web UI** — arrives with a package upload screen, polling
   `GET /api/v1/Jobs/{id}`.
-* **Listing jobs** — a `GET /api/v1/Jobs` with the usual pagination, filter and sort, under the same
-  `JobAccessPolicy`. Additive.
 * **Wider job visibility** — letting a repository's owner see jobs others started against it is a
   new rule in `JobAccessPolicy`.
 
@@ -502,12 +611,37 @@ A job type that each command derived from would tie every command to job trackin
 could not be sent without a job. Composing them keeps the command a plain data object, lets the
 job-tracking handler be generic over any message, and lets EF load the content with the job.
 
-### Why the job stores a user id and scopes, not an `Actor`
+### Why one `Job` table with a typed view
+
+The first draft made the entity itself generic, `Job<TMessage>`. EF maps each closed generic type as
+an entity of its own, so that would have meant either a table per command — which
+`GET /api/v1/Jobs/{id}`, the listing and the cleanup sweep would each have to search — or one table
+whose jsonb could not be turned back into a type, since nothing recorded which command it held.
+Closing the generic in the model would also have made `PacmanManager.Entities`, and with it the
+migrations, reference `PacmanManager.Commands`.
+
+One non-generic `Job` with a `MessageType` column keeps every job in one table that the routes and
+the sweep query without knowing the type, while `As<TMessage>()` gives a handler the typed message
+it wants. Checking `MessageType` there turns a handler reading the wrong kind of job into a specific
+exception rather than a half-deserialized object.
+
+### Why the job stores only a user id
 
 `Actor` wraps a `User` entity and lives in `PacmanManager.Authentication`; `Job` lives in
 `PacmanManager.Entities`, which cannot reference it. Serializing an `Actor` into jsonb would also
-copy a `User` row into every job. The user id and scopes are what is needed to rebuild the actor in
-the Worker.
+copy a `User` row into every job. The first draft also stored the actor's scopes, so that the Worker
+could rebuild the actor and recheck its permissions; with that recheck dropped (see
+[Why permissions are checked only when the job is scheduled](#why-permissions-are-checked-only-when-the-job-is-scheduled)),
+the user id is all that is left to keep: it decides who may see and delete the job, and is the user
+the Worker publishes as.
+
+### Why the request authorizes before writing the upload
+
+Publishing today authorizes before a byte of the body is read, so a caller who may not publish is
+turned away without uploading megabytes first, and gets a `401`, `403` or `404` that says why.
+Writing the upload first would let anyone fill `DATA_DIR` with uploads to repositories they cannot
+touch, and would turn a permission error into a job that fails later. The asynchronous publish keeps
+that order.
 
 ### Why the request still validates
 
@@ -520,20 +654,37 @@ Worker finishes, which would undo the point of going asynchronous. The asymmetry
 letting an invalid version through costs a failed job, which the Worker reports properly; rejecting
 a valid one would be a wrong answer with no recourse.
 
-### Why the Worker rechecks permissions
+The check compares only with the builds the new one would supersede because that is what a newer
+version is protecting: a client that already holds a published build's bytes. A build for another
+architecture is never replaced, so its version says nothing about whether the new one may be
+published.
 
-A job can wait in the queue. A user whose publish rights are revoked in
-the meantime must not have their publish land anyway. Running as the job's actor through
-`FixedActorAccessor` means the Worker applies the same policy RepoHost does, which is what
-`IActorAccessor` was designed for: a host that is not the web host chooses its actor explicitly.
+### Why permissions are checked only when the job is scheduled
+
+Permissions decide whether a caller may schedule a publish. Once a job is scheduled, it is the
+system's commitment to carry out, not a request still awaiting the caller's rights. Rechecking them
+in the Worker would need the job to carry enough of the credential to rebuild the actor exactly —
+its scopes, whether it was a system actor, and whether the access token it came from still exists —
+and would still leave a window between the recheck and the publish. Running the job as its user
+with unrestricted scope keeps the user recorded as the publisher without any of that.
+
+### Why the Worker copies the upload rather than moving it
+
+Today's publish moves the upload to its destination before running `repo-add`, and deletes the
+destination if anything after that fails. On the request that was harmless: the caller's upload was
+gone, but so was the request. In a job that may be retried it is fatal: a `repo-add` that cannot take
+its lock file, or a lost database connection — exactly the failures retries exist for — would destroy
+the upload, and every retry would then fail as an unreadable package. Copying leaves the upload
+untouched until the publish has committed, so a retry starts from the same file, and deleting it only
+afterwards means the only cost of a crash in between is a file the cleanup sweep removes.
 
 ### Why deliberate rejections are never retried
 
-A revoked permission, an unsupported architecture or a version that is no longer newer is a decision
-about the message, not a fault in running it. Retrying it repeats the same work to reach the same
-answer, and holds the repository lock and delays the caller's `Failed` while it does. Only failures
-that might clear on their own — a lost connection, a `repo-add` that could not take its lock file —
-are worth a retry.
+A missing repository, an unusable upload, an unsupported architecture or a version that is no longer
+newer is a decision about the message, not a fault in running it. Retrying it repeats the same work
+to reach the same answer, and holds the repository lock and delays the caller's `Failed` while it
+does. Only failures that might clear on their own — a lost connection, a `repo-add` that could not
+take its lock file — are worth a retry.
 
 The handler signals the difference with a specific exception type rather than a list of exception
 types configured per handler. A list would have to be kept in step with every exception a handler,
@@ -545,6 +696,10 @@ With `JobRejectedException`, a handler states its decision where it makes it.
 Writing the job row and then publishing the message, as two steps, leaves two failures to handle: a
 job that stays `Pending` with no message to run it, or a message whose job does not exist. A
 transactional outbox, such as Wolverine's EF Core integration, makes the two one commit.
+
+Wolverine creates its own storage tables at startup rather than through `PacmanManager.Migrations`.
+Mapping them into `PacmanManagerDbContext` would need an `OnModelCreating`, which the entities
+otherwise do without, and Wolverine already knows how to migrate its own schema.
 
 ### Why the contract change stays in `v1`
 
@@ -560,9 +715,36 @@ here the Worker beside RepoHost — and would be needed anyway for replica sets 
 * **`repo-add`'s own lock file** already prevents corruption, but makes the second writer fail
   rather than wait.
 * **One consumer per repository in RabbitMQ** would serialize publishes, but not RepoHost's deletes.
+* **A row lock** (`SELECT … FOR UPDATE` on the repository's row) would be exact, but is held by a
+  transaction, which would then stay open across `repo-add`, and it would also block unrelated
+  changes to the repository, such as a rename.
 * **A Postgres advisory lock** uses infrastructure every process already has, waits rather than
   fails, and as a session-level lock is released by Postgres when the holding process dies, so a
   crashed Worker cannot leave a repository locked.
+
+### Why the lock key is derived this way
+
+An advisory lock is keyed by one 64-bit integer or two 32-bit ones, and a repository's id is a
+128-bit `Guid`, so the key has to be derived and can collide. A collision only makes two
+repositories wait for each other; it never lets two writers into one repository, so a small chance
+of it is acceptable and an exact mapping is not worth a table of its own.
+
+The two-key form is used so that the first key can name the lock's purpose. Postgres keeps one-key
+and two-key locks in separate spaces, and Wolverine takes advisory locks of its own in the one-key
+space, so the namespace keeps the two from ever meeting. The single-key form would give 64 bits of
+the id rather than 32 and fewer collisions, but would share its space with Wolverine's.
+
+XOR of the four words uses every bit of the id. Taking the first four bytes would not: in a version
+7 `Guid` they are the top of the creation timestamp, which repositories created within about a
+minute of each other share. The derivation has to be stable across processes, which rules out
+`Guid.GetHashCode()`.
+
+### Why only finished jobs can be deleted
+
+Jobs accumulate, and a caller who lists theirs needs a way to clear the ones they have dealt with.
+A `Pending` or `Running` job is still the record the Worker updates and the cleanup sweep relies on
+to keep its upload; deleting it would orphan the upload and leave the caller nothing to poll. A
+finished job is only a record of what happened, so removing it loses nothing the system needs.
 
 ### Why job status is `/Jobs/{id}`
 
@@ -575,10 +757,11 @@ as simple a rule as any of the others.
 
 ### Why cleanup is a scheduled sweep in the Worker
 
-An upload can be abandoned more than one way: its job fails for good, or the request dies between
-writing the file and committing the job. Cleaning up on job failure would catch only the first. A
-periodic sweep catches both, and the Worker is already the process that owns off-request work. The
-minimum age keeps the sweep away from an upload whose job is still being committed.
+An upload can be abandoned more than one way: its job fails for good, the request dies between
+writing the file and committing the job, or the Worker publishes it and then fails to delete it.
+Cleaning up on job failure would catch only the first. A periodic sweep catches all of them, and the
+Worker is already the process that owns off-request work. The minimum age keeps the sweep away from
+an upload whose job is still being committed.
 
 ### Why the E2E fixture changes ahead of the endpoint
 
