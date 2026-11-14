@@ -19,6 +19,25 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+    # We stay on .NET LTS releases. These packages' major version is the .NET release they belong
+    # to, so a major bump is a move to that release, odd-numbered STS ones included. Moving to the
+    # next LTS is done by hand, together with every TargetFramework, the Docker images and
+    # setup-toolchain's dotnet-version; patches within the current release still arrive here.
+    ignore:
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      # Its major tracks EF Core's, and it requires the matching EF Core.
+      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotnet-ef"
+        update-types: ["version-update:semver-major"]
+      # The CLI tool runs with rollForward false, and its 11.x targets only net11.0.
+      - dependency-name: "Swashbuckle.AspNetCore.Cli"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "(PATCH) "
 
@@ -31,6 +50,11 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+    # The .NET images' tag is the .NET release; we stay on LTS releases and move between them by
+    # hand. See the nuget entry above.
+    ignore:
+      - dependency-name: "dotnet/*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "(PATCH) "
 
