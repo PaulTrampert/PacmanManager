@@ -92,6 +92,7 @@ Services in `compose.yaml`:
 | `pacmanmanager.web` | The web app in SpaHost. Host port **8081** → container 80. Signs users in as Keycloak's `pacman-manager-web` client and proxies `/api/pacmanmanager/…` to RepoHost's `/api/…` with their access token. Built with `pacmanmanager-web` as its context. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
 | `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
+| `rabbitmq` | RabbitMQ 4 on port **5672**, management UI on **15672**. Its users come from `rabbitmq/definitions.json`, loaded at boot in place of `guest`: `pacmanmanager.repohost` and `pacmanmanager.worker` (password `password`) for the two processes, and `admin`/`admin` for the UI. |
 | `postgres` | Postgres 18, port **5432**, user/password `pacmanmanager`/`password`. |
 
 A service built from this repository is named `pacmanmanager.<component>`; an external dependency
@@ -108,6 +109,7 @@ OAuth against Keycloak with PKCE.
 | `PacmanManager.CliTools` | Generic runner for external command line tools. |
 | `PacmanManager.AurClient` | Client for the Arch User Repository. |
 | `PacmanManager.Authentication` | The actor model: `Actor`, `ActorScope`, `ScopeValues`, `AccessTokenFormat`, `IActorAccessor`, `FixedActorAccessor`. Must not reference ASP.NET Core; the sign-in code and `HttpContextActorAccessor` stay in RepoHost. |
+| `PacmanManager.Commands` | Command messages: data objects only, no behaviour, referencing no other project in the solution. |
 | `PacmanManager.Entities` | EF Core entities and `PacmanManagerDbContext`. Configuration is by data annotations; there is no `OnModelCreating`. |
 | `PacmanManager.Migrations` | EF migrations plus a console host that applies them (with retries) on startup. |
 | `PacmanManager.RepoHost` | The API: controllers, services, authentication, authorization. |
@@ -262,7 +264,7 @@ Which pipelines run is coarse on purpose — a whole pipeline or none of it:
 | documentation only (`docs/`, `*.md`, `.claude/`, `.run/`, `.idea/`) | nothing; `Check changes` passes |
 | the .NET projects (`*.sln`, `LibAlpmSharp*/`, `PacmanManager.*/`) | .NET, Docker, end-to-end |
 | `pacmanmanager-web/` | Web, Docker, end-to-end |
-| shared infrastructure (`compose.yaml`, `keycloak/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
+| shared infrastructure (`compose.yaml`, `keycloak/`, `rabbitmq/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
 
 A push to `main` and a run by hand always run everything, with one exception: `AurClientTests`,
 which call the live AUR, run only for a pull request that changes `PacmanManager.AurClient/` or
