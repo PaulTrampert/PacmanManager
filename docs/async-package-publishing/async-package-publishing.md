@@ -89,6 +89,18 @@ job; it is not generic.
 | `UserId` | `Guid?` | Foreign key to `User`: the user who scheduled the job. `null` when the `System` actor, which has no user, scheduled it. |
 | `MessageType` | `string` | Names the command type the message holds. |
 | `Message` | jsonb | The command itself. |
+| `AffectedEntities` | collection of `JobAffectedEntity` | The entities the job acts on, as far as they are known. |
+
+`JobAffectedEntity` is a row of its own, keyed by `JobId`, `EntityType` and `EntityId`:
+
+| Member | Type | Notes |
+| :--- | :--- | :--- |
+| `JobId` | `Guid` | Foreign key to `Job`, deleted with it. |
+| `EntityType` | enum | `JobEntityType`: `Repository`, `Package`. |
+| `EntityId` | `Guid` | The entity's id. Not a foreign key, so it survives the entity's deletion. |
+
+* An affected entity is recorded **as soon as it is known**: whoever schedules a job records what it
+  already names, and the inner handler reports what it creates.
 
 * `Job.As<TMessage>()` returns a `Job<TMessage>`: a typed view, not mapped by EF, carrying the
   job's id, its user and its message deserialized as `TMessage`. It throws `JobMessageTypeException`
@@ -99,12 +111,13 @@ job; it is not generic.
   command, carries the user and the tracking state.
 
 A generic job-tracking handler wraps every handler that runs a job. It loads the `Job`, takes its
-typed view with `As<TMessage>()`, and passes the inner handler that view's message:
+typed view with `As<TMessage>()`, and passes the inner handler that view's message. The inner
+handler returns the entities it affected that the job did not already record, which may be none:
 
 | Event | State afterwards |
 | :--- | :--- |
 | message received | `Running` |
-| inner handler returns | `Completed` |
+| inner handler returns | `Completed`, with the affected entities it returned added to the job |
 | inner handler throws `JobRejectedException` | `Failed` at once, with the rejection in `Error`. **Never retried.** |
 | inner handler throws anything else, retry remaining | `Pending` |
 | inner handler throws anything else, retries exhausted | `Failed`, with the failure in `Error` |
@@ -119,6 +132,7 @@ retry may get past.
 * [Why the job is composed with its message](#why-the-job-is-composed-with-its-message)
 * [Why one `Job` table with a typed view](#why-one-job-table-with-a-typed-view)
 * [Why the job stores only a user id](#why-the-job-stores-only-a-user-id)
+* [Why jobs record the entities they affect](#why-jobs-record-the-entities-they-affect)
 
 ---
 
@@ -138,8 +152,8 @@ retry may get past.
    * a package whose architecture the repository does not support;
    * a package whose version is not newer than every stored build it would supersede (see
      [Version check](#version-check)).
-4. Creates a `Pending` job, with the current actor's user as `UserId`, whose `Message` is a
-   `PublishPackageCommand`:
+4. Creates a `Pending` job, with the current actor's user as `UserId` and the repository as an
+   affected entity, whose `Message` is a `PublishPackageCommand`:
 
    ```json
    { "repositoryId": "…", "packageFilePath": "…" }
@@ -190,6 +204,8 @@ The `PublishPackageCommand` handler, inside the job-tracking handler:
    a retry starts from the same file.
 4. Once the publish has committed, deletes the upload. A delete that fails is logged and does not
    fail the job; [Upload cleanup](#upload-cleanup) removes the file later.
+5. Returns the published package as an affected entity, so the completed job names it. Builds the
+   publish superseded are not reported: they no longer exist.
 
 **Why:**
 
@@ -234,10 +250,19 @@ The `PublishPackageCommand` handler, inside the job-tracking handler:
 A job is shown as:
 
 ```json
-{ "id": "…", "state": "Failed", "createdAt": "…", "error": "…" }
+{
+  "id": "…",
+  "state": "Completed",
+  "createdAt": "…",
+  "affectedEntities": [
+    { "type": "Repository", "id": "…" },
+    { "type": "Package", "id": "…" }
+  ]
+}
 ```
 
-`error` is present only when `state` is `Failed`.
+`error` is present only when `state` is `Failed`. `affectedEntities` lists what is known so far: a
+publish names its repository from the start and its package once it completes.
 
 | Route | Caller | Response |
 | :--- | :--- | :--- |
@@ -261,6 +286,7 @@ A job is shown as:
 **Why:**
 
 * [Why job status is `/Jobs/{id}`](#why-job-status-is-jobsid)
+* [Why jobs record the entities they affect](#why-jobs-record-the-entities-they-affect)
 * [Why only finished jobs can be deleted](#why-only-finished-jobs-can-be-deleted)
 
 ---
@@ -398,11 +424,12 @@ key for the same id on every call.
 
 ### 7. Add the `Job` table (#367) — `MINOR`
 
-The entity [Jobs](#jobs) specifies, its typed view `Job<TMessage>` and `JobMessageTypeException`,
-and its migration.
+The entities [Jobs](#jobs) specifies, `Job` and `JobAffectedEntity`, the typed view
+`Job<TMessage>` and `JobMessageTypeException`, and their migration.
 
-*Acceptance:* the migration applies; unit tests show `As<TMessage>()` returns the stored message for
-the type `MessageType` names and throws `JobMessageTypeException` for any other.
+*Acceptance:* the migration applies, and deleting a job deletes its affected entities; unit tests
+show `As<TMessage>()` returns the stored message for the type `MessageType` names and throws
+`JobMessageTypeException` for any other.
 
 *Depends on:* nothing.
 
@@ -429,7 +456,8 @@ project in the solution, and a test shows the command round-trips through JSON u
 The generic handler [Jobs](#jobs) specifies, and `JobRejectedException`.
 
 *Acceptance:* unit tests of every transition in the table, including that a `JobRejectedException`
-with retries remaining fails the job without the inner handler running again.
+with retries remaining fails the job without the inner handler running again, and that the
+affected entities an inner handler returns are recorded on the completed job.
 
 *Depends on:* #365, #367.
 
@@ -444,7 +472,8 @@ The Worker side of [Publishing](#in-the-worker).
 *Acceptance:* tests show that a deleted repository, a missing upload, an unreadable upload, an
 unsupported architecture and a version no longer newer each throw `JobRejectedException` without
 publishing; that a failure after the copy leaves the upload in place and a retry then publishes it;
-and that a successful publish deletes the upload.
+and that a successful publish deletes the upload and reports the published package as an
+affected entity.
 
 *Depends on:* #365, #368, #369, #383, #384.
 
@@ -459,7 +488,8 @@ and that a successful publish deletes the upload.
 The single-job `GET` route [Job routes](#job-routes) specifies, its `JobAccessPolicy`, and the
 regenerated `openapi/v1.json`.
 
-*Acceptance:* each policy rule is a unit test; an E2E test covers the route.
+*Acceptance:* each policy rule is a unit test; an E2E test covers the route, including its
+`affectedEntities`.
 
 *Depends on:* #367, #382.
 
@@ -514,8 +544,8 @@ never reject a valid version. The route stays in `v1`.
 
 *Acceptance:* E2E tests show an anonymous caller, a caller without rights and a missing repository
 get `401`, `403` and `404` with no upload written and no job created; that the three validation
-failures are rejected before a job exists; and that a valid publish returns `202` and its job
-completes.
+failures are rejected before a job exists; and that a valid publish returns `202` naming the repository, and its job
+completes naming the published package.
 
 *Depends on:* #364, #366, #367, #369, #385, #386.
 
@@ -738,6 +768,23 @@ XOR of the four words uses every bit of the id. Taking the first four bytes woul
 7 `Guid` they are the top of the creation timestamp, which repositories created within about a
 minute of each other share. The derivation has to be stable across processes, which rules out
 `Guid.GetHashCode()`.
+
+### Why jobs record the entities they affect
+
+Today's publish answers with the package and a `Location` for it. A job that only reported
+`Completed` would leave the caller guessing the name, version and architecture and searching the
+repository for it, with no way to tell its own publish from a concurrent one. Recording the
+affected entities on the job gives the answer back.
+
+They are a list of typed ids rather than a `PackageId` column because other jobs will affect other
+things — icon extraction a package, an asynchronous delete a package that is then gone — and a
+column per kind would grow with every command. They are rows of their own rather than jsonb so that
+a later rule, such as letting a repository's owner see jobs against it, can query them. `EntityId`
+is not a foreign key because a job outlives what it affected: the record that a package was
+published stays true after the package is deleted.
+
+Superseded builds are left out because the job's answer is what now exists; the ids of rows that
+were deleted would lead the caller nowhere.
 
 ### Why only finished jobs can be deleted
 
