@@ -35,6 +35,7 @@
     <ItemGroup>
       <ProjectReference Include="..\LibAlpmSharp\LibAlpmSharp.csproj" />
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
+      <ProjectReference Include="..\PacmanManager.Commands\PacmanManager.Commands.csproj" />
       <ProjectReference Include="..\PacmanManager.Entities\PacmanManager.Entities.csproj" />
     </ItemGroup>
 

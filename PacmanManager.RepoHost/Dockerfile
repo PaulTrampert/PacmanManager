@@ -21,6 +21,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["LibAlpmSharp/LibAlpmSharp.csproj", "LibAlpmSharp/"]
 COPY ["PacmanManager.CliTools/PacmanManager.CliTools.csproj", "PacmanManager.CliTools/"]
+COPY ["PacmanManager.Commands/PacmanManager.Commands.csproj", "PacmanManager.Commands/"]
 COPY ["PacmanManager.RepoHost/PacmanManager.RepoHost.csproj", "PacmanManager.RepoHost/"]
 COPY ["PacmanManager.Entities/PacmanManager.Entities.csproj", "PacmanManager.Entities/"]
 RUN dotnet restore "PacmanManager.RepoHost/PacmanManager.RepoHost.csproj"
