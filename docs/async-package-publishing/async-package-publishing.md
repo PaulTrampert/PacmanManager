@@ -497,7 +497,7 @@ regenerated `openapi/v1.json`.
 
 * [Why job status is `/Jobs/{id}`](#why-job-status-is-jobsid)
 
-### 12. `GET /api/v1/Jobs` (issue to be filed) — `MINOR`
+### 12. `GET /api/v1/Jobs` (#389) — `MINOR`
 
 The listing route [Job routes](#job-routes) specifies, with `JobSortField`, its filter query object,
 the visibility predicate in `JobAccessPolicy`, and the regenerated `openapi/v1.json`.
@@ -507,7 +507,7 @@ widen that, and that the default order is newest first; an E2E test covers the r
 
 *Depends on:* #385.
 
-### 13. `DELETE /api/v1/Jobs/{id}` (issue to be filed) — `MINOR`
+### 13. `DELETE /api/v1/Jobs/{id}` (#390) — `MINOR`
 
 The delete route [Job routes](#job-routes) specifies, its rule in `JobAccessPolicy`, and the
 regenerated `openapi/v1.json`.
