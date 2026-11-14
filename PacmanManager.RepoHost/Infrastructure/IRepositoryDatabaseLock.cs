@@ -7,8 +7,7 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// <para>
 /// <c>repo-add</c> and <c>repo-remove</c> both rewrite the same file and both take the same lock
 /// file beside it, failing rather than corrupting it. That is a safe floor and a poor experience,
-/// so publish and delete take this lock first and only meet each other's lock file when a writer
-/// outside this process is involved.
+/// so publish and delete take this lock first, and wait for each other rather than fail.
 /// </para>
 /// <para>
 /// Publish and delete share one lock deliberately. A lock that only covered publishing would leave
@@ -17,9 +16,8 @@ namespace PacmanManager.RepoHost.Infrastructure;
 /// </para>
 /// <para>
 /// The lock is held across the side effects <i>and</i> the commit, so no other writer can observe
-/// the window in which the database file and the rows disagree. It is correct for a single instance
-/// only; a multi-instance deployment needs a Postgres advisory lock, which is deferred along with
-/// everything else about running more than one of these.
+/// the window in which the database file and the rows disagree. It holds across processes, so every
+/// process and every replica that changes a repository's database takes the same lock.
 /// </para>
 /// </remarks>
 internal interface IRepositoryDatabaseLock
