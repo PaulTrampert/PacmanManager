@@ -264,7 +264,10 @@ Which pipelines run is coarse on purpose — a whole pipeline or none of it:
 | `pacmanmanager-web/` | Web, Docker, end-to-end |
 | shared infrastructure (`compose.yaml`, `keycloak/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
 
-A push to `main` and a run by hand always run everything. The paths live in
+A push to `main` and a run by hand always run everything, with one exception: `AurClientTests`,
+which call the live AUR, run only for a pull request that changes `PacmanManager.AurClient/` or
+`PacmanManager.AurClient.Test/`, so an AUR outage cannot fail an unrelated change. The rest of
+`PacmanManager.AurClient.Test` always runs with the .NET pipeline. The paths live in
 `.github/scripts/classify-changes.sh`, which reads changed paths on stdin and can be run locally to
 see what a change would trigger. When something new starts reading a path, or a new top-level path
 appears, update it there; until then an unlisted path runs everything, which is safe but slow.
@@ -296,10 +299,12 @@ by editing the title, and the check re-runs on its own rather than needing an em
 `edited` on `check-changes.yml` would re-run every pipeline every time somebody touched
 a title or description.
 
-The runner is Ubuntu, and when the .NET pipeline runs, the whole solution runs on it unfiltered:
+The runner is Ubuntu, and when the .NET pipeline runs, the whole solution runs on it, filtered
+only to leave out the live AUR tests unless the change touches the AUR client:
 
 ```bash
-dotnet test PacmanManager.sln --configuration Release --no-build
+dotnet test PacmanManager.sln --configuration Release --no-build \
+  --filter "FullyQualifiedName!~PacmanManager.AurClient.Test.AurClientTests."
 ```
 
 The E2E fixtures build their images with the **solution root as the Dockerfile directory**, passing
