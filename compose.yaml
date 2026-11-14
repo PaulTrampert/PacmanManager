@@ -82,6 +82,24 @@ services:
     depends_on:
       - postgres
         
+  # The message broker between RepoHost and the Worker; see
+  # docs/async-package-publishing/async-package-publishing.md. Its users are in
+  # rabbitmq/definitions.json: `pacmanmanager.repohost` and `pacmanmanager.worker` (password
+  # `password`), and `admin`/`admin` for the management UI on port 15672.
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-pacmanmanager.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+
   postgres:
     image: postgres:18
     environment:
