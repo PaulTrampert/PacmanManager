@@ -13,6 +13,16 @@ public class PacmanManagerDbContext : DbContext
     public DbSet<ExternalProviderUserMapping> UserMappings { get; set; }
     
     public DbSet<PacmanAccessToken> PacmanAccessTokens { get; set; }
+
+    /// <summary>
+    /// Off-request work and the commands it runs, of every kind.
+    /// </summary>
+    public DbSet<Job> Jobs { get; set; }
+
+    /// <summary>
+    /// The entities each job acts on.
+    /// </summary>
+    public DbSet<JobAffectedEntity> JobAffectedEntities { get; set; }
     
     public PacmanManagerDbContext(DbContextOptions<PacmanManagerDbContext> options) : base(options)
     {
