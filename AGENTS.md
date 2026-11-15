@@ -522,6 +522,9 @@ ones.
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees). Their Storybook, Playwright and e2e runs interfere with one another, so
   it gives every sub-agent one `flock` lock to run those commands under, one at a time.
+  It provisions the worktrees and that lock with `.claude/scripts/provision-worktrees.sh`, a bash
+  script, rather than a loop the agent writes, since the Bash tool's shell may be zsh, which does
+  not word-split an unquoted `$var`.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). The toolchain they build with is installed
   by the local composite action `.github/actions/setup-toolchain` (the Node LTS included, for the
