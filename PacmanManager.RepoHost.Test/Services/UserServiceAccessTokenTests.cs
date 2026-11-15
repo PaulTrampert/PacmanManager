@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -6,7 +7,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.TestUtils;

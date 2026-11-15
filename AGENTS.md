@@ -108,6 +108,7 @@ OAuth against Keycloak with PKCE.
 | `LibAlpmSharp` | libalpm interop plus `pacman.conf` reader/serializer. Uses `AllowUnsafeBlocks` and ANTLR (`**/*.g4`). |
 | `PacmanManager.CliTools` | Generic runner for external command line tools. |
 | `PacmanManager.AurClient` | Client for the Arch User Repository. |
+| `PacmanManager.Authentication` | The actor model: `Actor`, `ActorScope`, `ScopeValues`, `AccessTokenFormat`, `IActorAccessor`, `FixedActorAccessor`. Must not reference ASP.NET Core; the sign-in code and `HttpContextActorAccessor` stay in RepoHost. |
 | `PacmanManager.Commands` | Command messages: data objects only, no behaviour, referencing no other project in the solution. |
 | `PacmanManager.Entities` | EF Core entities and `PacmanManagerDbContext`. Configuration is by data annotations; there is no `OnModelCreating`. |
 | `PacmanManager.Migrations` | EF migrations plus a console host that applies them (with retries) on startup. |

@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
+using PacmanManager.Authentication;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;

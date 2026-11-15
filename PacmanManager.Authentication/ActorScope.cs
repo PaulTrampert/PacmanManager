@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
+using Microsoft.Extensions.Logging;
 
-namespace PacmanManager.RepoHost.Authentication;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// What an <see cref="Actor"/>'s credential may be used for: the values of its <c>scope</c> claim that

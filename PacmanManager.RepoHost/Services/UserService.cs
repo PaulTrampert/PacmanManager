@@ -1,9 +1,9 @@
+using PacmanManager.Authentication;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Config;
 
 namespace PacmanManager.RepoHost.Services;

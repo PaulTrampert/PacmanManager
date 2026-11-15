@@ -1,7 +1,7 @@
 using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
+using PacmanManager.Authentication;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;

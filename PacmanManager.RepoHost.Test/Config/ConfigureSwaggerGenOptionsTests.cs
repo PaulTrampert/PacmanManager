@@ -1,4 +1,4 @@
-using PacmanManager.RepoHost.Authentication;
+using PacmanManager.Authentication;
 using PacmanManager.RepoHost.Config;
 
 namespace PacmanManager.RepoHost.Test.Config;

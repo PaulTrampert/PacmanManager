@@ -1,3 +1,4 @@
+using PacmanManager.Authentication;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -6,7 +7,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Asp.Versioning;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.TestUtils;
 

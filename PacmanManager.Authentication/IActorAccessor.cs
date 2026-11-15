@@ -1,6 +1,4 @@
-using PacmanManager.RepoHost.Authentication;
-
-namespace PacmanManager.RepoHost.Services;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// Supplies the <see cref="Actor"/> that the current scope is executing as.

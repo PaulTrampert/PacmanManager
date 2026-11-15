@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
-using PacmanManager.RepoHost.Authentication;
 
-namespace PacmanManager.RepoHost.Test.Authentication;
+namespace PacmanManager.Authentication.Test;
 
 /// <summary>
 /// Pins the vocabulary of the <c>scope</c> grammar: every value it allows, and nothing else.

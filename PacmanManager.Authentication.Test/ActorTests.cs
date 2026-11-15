@@ -1,9 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
-using PacmanManager.RepoHost.Services;
 
-namespace PacmanManager.RepoHost.Test.Authentication;
+namespace PacmanManager.Authentication.Test;
 
 /// <summary>
 /// Pins the scope each kind of actor carries. An actor with no credential behind it is unrestricted;

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using PacmanManager.Authentication;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 using PTrampert.QueryObjects;

@@ -1,4 +1,4 @@
-namespace PacmanManager.RepoHost.Authentication;
+namespace PacmanManager.Authentication;
 
 /// <summary>
 /// The values of the OAuth 2.0 <c>scope</c> claim that belong to this API, each of the form

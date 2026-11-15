@@ -1,8 +1,8 @@
+using PacmanManager.Authentication;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text.Json;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Models;
 
 namespace PacmanManager.RepoHost.Test.Models;

@@ -2,7 +2,7 @@ using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
-using PacmanManager.RepoHost.Authentication;
+using PacmanManager.Authentication;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace PacmanManager.RepoHost.Config;

@@ -1,7 +1,7 @@
+using PacmanManager.Authentication;
 using System.Linq.Expressions;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Authentication;
-using static PacmanManager.RepoHost.Authentication.ScopeValues;
+using static PacmanManager.Authentication.ScopeValues;
 
 namespace PacmanManager.RepoHost.Services;
 
