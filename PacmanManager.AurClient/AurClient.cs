@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 
@@ -6,10 +7,25 @@ namespace PacmanManager.AurClient;
 
 public class AurClient(HttpClient client) : IAurClient
 {
+    /// <summary>
+    /// Sent with every request whose <see cref="HttpClient"/> sets no User-Agent of its own. The AUR's
+    /// bot protection answers a request without one with an HTML challenge page instead of JSON.
+    /// </summary>
+    private static readonly ProductInfoHeaderValue DefaultUserAgent = new(
+        "PacmanManager.AurClient",
+        typeof(AurClient).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+
     private async Task<T> GetAsync<T>(string url)
         where T : AurResponse
     {
-        var result = await client.GetFromJsonAsync<AurResponse>(url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (client.DefaultRequestHeaders.UserAgent.Count == 0)
+        {
+            request.Headers.UserAgent.Add(DefaultUserAgent);
+        }
+        using var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<AurResponse>();
         if (result == null)
         {
             throw new Exception($"Could not find response {url}");
