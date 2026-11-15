@@ -12,8 +12,7 @@ name: Check Changes
 # | shared infrastructure, or anything unrecognised             | everything                        |
 #
 # `.github/scripts/classify-changes.sh` holds the paths behind each row. A push to `main` and a run
-# by hand always run everything, except the live AUR tests (`AurClientTests`), which run only for a
-# pull request that changes the AUR client or its tests.
+# by hand always run everything.
 on:
   push:
     branches: [main]
@@ -41,7 +40,6 @@ jobs:
       pull-requests: read
     outputs:
       dotnet: ${{ steps.classify.outputs.dotnet }}
-      aur: ${{ steps.classify.outputs.aur }}
       web: ${{ steps.classify.outputs.web }}
       docker: ${{ steps.classify.outputs.docker }}
       e2e: ${{ steps.classify.outputs.e2e }}
@@ -69,7 +67,7 @@ jobs:
           if [[ "$EVENT" == pull_request ]]; then
             .github/scripts/classify-changes.sh < changed-files.txt | tee -a "$GITHUB_OUTPUT"
           else
-            printf '%s\n' dotnet=true aur=false web=true docker=true e2e=true | tee -a "$GITHUB_OUTPUT"
+            printf '%s\n' dotnet=true web=true docker=true e2e=true | tee -a "$GITHUB_OUTPUT"
           fi
 
   dotnet:
@@ -83,8 +81,6 @@ jobs:
       checks: write
       pull-requests: write
     uses: ./.github/workflows/dotnet.yml
-    with:
-      aur-client-tests: ${{ needs.changes.outputs.aur == 'true' }}
 
   web:
     name: Web Build and Test
