@@ -120,10 +120,9 @@ try
     builder.Services.AddScoped<IClaimsTransformation, ClaimsTransformer>();
     builder.Services.AddAuthorization();
 
-    builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
-    {
-        opts.UseNpgsql(builder.Configuration.GetConnectionString("pacmanmanager"));
-    });
+    // PacmanManagerDbContext is registered with Wolverine, so that a message published through
+    // IDbContextOutbox<PacmanManagerDbContext> commits with the context's own changes.
+    builder.Services.AddMessaging(builder.Configuration);
 
 // Generate pacman config in-memory and parse it
     builder.Services.AddTransient<PacmanConfig>(p =>
