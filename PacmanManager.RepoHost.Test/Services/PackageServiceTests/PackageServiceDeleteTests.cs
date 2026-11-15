@@ -19,7 +19,7 @@ namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The file system, the path resolver and the per repository lock are the real ones over a
+/// The file system and the path resolver are the real ones over a
 /// temporary <c>DATA_DIR</c>, as in <see cref="PackageServicePublishTests"/>: most of what deleting
 /// promises is about which files exist when, and a mocked <see cref="IFileSystem"/> would let a
 /// compensation that restored nothing pass. The CLI tools are doubles, since the point of each test
@@ -89,7 +89,7 @@ public class PackageServiceDeleteTests
             _cliRunner.Object,
             _fileSystem,
             _pathResolver,
-            new RepositoryDatabaseLock(),
+            new NoOpRepositoryDatabaseLock(),
             new Lazy<ILibAlpm>(Mock.Of<ILibAlpm>),
             settings,
             new TestOutputLogger<PackageService>());

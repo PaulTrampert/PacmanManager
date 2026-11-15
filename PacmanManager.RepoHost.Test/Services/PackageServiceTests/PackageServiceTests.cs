@@ -84,7 +84,7 @@ public class PackageServiceTests
             Mock.Of<ICliToolRunner>(),
             _fileSystem.Object,
             _pathResolver.Object,
-            new RepositoryDatabaseLock(),
+            new NoOpRepositoryDatabaseLock(),
             _libAlpm,
             Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" }),
             new TestOutputLogger<PackageService>());

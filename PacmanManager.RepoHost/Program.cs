@@ -57,9 +57,12 @@ try
     builder.Services.AddSingleton<IFileSystem, PhysicalFileSystem>();
     builder.Services.AddSingleton<IPackagePathResolver, PackagePathResolver>();
 
-// Every mutation of a repository database is serialized per repository, so this has to outlive the
-// request that takes it.
-    builder.Services.AddSingleton<IRepositoryDatabaseLock, RepositoryDatabaseLock>();
+// Every mutation of a repository database is serialized per repository, across every process, by a
+// Postgres advisory lock. It owns the data source its lock connections come from, so it is a
+// singleton, built only when first needed so that generating the OpenAPI document needs no database.
+    builder.Services.AddSingleton<IRepositoryDatabaseLock>(_ => new PostgresRepositoryDatabaseLock(
+        builder.Configuration.GetConnectionString("pacmanmanager")
+        ?? throw new InvalidOperationException("ConnectionStrings:pacmanmanager is not configured.")));
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();

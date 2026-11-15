@@ -21,7 +21,7 @@ namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The file system, the path resolver and the per repository lock are the real ones over a
+/// The file system and the path resolver are the real ones over a
 /// temporary <c>DATA_DIR</c>, because most of what publishing promises is about which files exist
 /// when: a mocked <see cref="IFileSystem"/> would let a rollback that never deleted anything pass.
 /// libalpm and the CLI tools are doubles, since the point of each test is what the service does
@@ -107,7 +107,7 @@ public class PackageServicePublishTests
             _cliRunner.Object,
             new PhysicalFileSystem(),
             _pathResolver,
-            new RepositoryDatabaseLock(),
+            new NoOpRepositoryDatabaseLock(),
             new Lazy<ILibAlpm>(() => _libAlpm.Object),
             settings,
             new TestOutputLogger<PackageService>());
