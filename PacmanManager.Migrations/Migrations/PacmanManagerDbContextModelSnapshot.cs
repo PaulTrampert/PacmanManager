@@ -17,7 +17,7 @@ namespace PacmanManager.Migrations.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -47,6 +47,56 @@ namespace PacmanManager.Migrations.Migrations
                         .IsUnique();
 
                     b.ToTable("UserMappings");
+                });
+
+            modelBuilder.Entity("PacmanManager.Entities.Job", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Jobs");
+                });
+
+            modelBuilder.Entity("PacmanManager.Entities.JobAffectedEntity", b =>
+                {
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EntityType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("JobId", "EntityType", "EntityId");
+
+                    b.ToTable("JobAffectedEntities");
                 });
 
             modelBuilder.Entity("PacmanManager.Entities.PacmanAccessToken", b =>
@@ -286,6 +336,26 @@ namespace PacmanManager.Migrations.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PacmanManager.Entities.Job", b =>
+                {
+                    b.HasOne("PacmanManager.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PacmanManager.Entities.JobAffectedEntity", b =>
+                {
+                    b.HasOne("PacmanManager.Entities.Job", "Job")
+                        .WithMany("AffectedEntities")
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Job");
+                });
+
             modelBuilder.Entity("PacmanManager.Entities.PacmanAccessToken", b =>
                 {
                     b.HasOne("PacmanManager.Entities.User", "User")
@@ -325,6 +395,11 @@ namespace PacmanManager.Migrations.Migrations
                         .IsRequired();
 
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("PacmanManager.Entities.Job", b =>
+                {
+                    b.Navigation("AffectedEntities");
                 });
 #pragma warning restore 612, 618
         }
