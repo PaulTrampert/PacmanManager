@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Validation;
+using PacmanManager.Packages.Validation;
 
 namespace PacmanManager.RepoHost.Test;
 

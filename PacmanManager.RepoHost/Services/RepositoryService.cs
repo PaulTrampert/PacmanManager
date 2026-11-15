@@ -3,11 +3,13 @@ using Npgsql;
 using PacmanManager.Authentication;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PTrampert.QueryObjects;
+using PacmanManager.Packages.CliTools;
+using PacmanManager.Packages.Infrastructure;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Services;
 

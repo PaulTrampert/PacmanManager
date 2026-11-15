@@ -38,6 +38,7 @@
       <ProjectReference Include="..\PacmanManager.CliTools\PacmanManager.CliTools.csproj" />
       <ProjectReference Include="..\PacmanManager.Commands\PacmanManager.Commands.csproj" />
       <ProjectReference Include="..\PacmanManager.Entities\PacmanManager.Entities.csproj" />
+      <ProjectReference Include="..\PacmanManager.Packages\PacmanManager.Packages.csproj" />
     </ItemGroup>
 
 </Project>

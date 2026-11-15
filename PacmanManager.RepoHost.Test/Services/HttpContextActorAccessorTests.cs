@@ -9,6 +9,7 @@ using PacmanManager.Entities;
 using PacmanManager.RepoHost.Authentication;
 using PacmanManager.RepoHost.Services;
 using PacmanManager.TestUtils;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Test.Services;
 

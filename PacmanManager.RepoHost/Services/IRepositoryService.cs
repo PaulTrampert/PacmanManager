@@ -1,7 +1,7 @@
 using PacmanManager.Authentication;
-using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.Packages.CliTools;
 
 namespace PacmanManager.RepoHost.Services;
 

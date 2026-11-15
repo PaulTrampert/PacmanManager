@@ -1,7 +1,8 @@
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
+using PacmanManager.Packages.CliTools;
+using PacmanManager.Packages.Infrastructure;
 
 namespace PacmanManager.RepoHost.Services;
 

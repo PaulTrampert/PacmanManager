@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using PacmanManager.CliTools;
 using PacmanManager.RepoHost.Exceptions;
+using PacmanManager.Packages.Exceptions;
 
 namespace PacmanManager.RepoHost.Infrastructure;
 

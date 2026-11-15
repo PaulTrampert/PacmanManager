@@ -116,7 +116,7 @@ public class PacmanController(IPacmanRepoService pacmanRepoService, ILogger<Pacm
     /// </summary>
     /// <remarks>
     /// The length needs a seekable stream, which range processing needs anyway and which
-    /// <see cref="Infrastructure.IFileSystem.OpenRead"/> provides.
+    /// <see cref="Packages.Infrastructure.IFileSystem.OpenRead"/> provides.
     /// </remarks>
     /// <param name="file">The resolved file.</param>
     /// <returns>A strong entity tag.</returns>
