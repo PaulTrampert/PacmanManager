@@ -1,10 +1,26 @@
 namespace PacmanManager.AurClient.Test;
 
+/// <summary>
+/// Calls the live AUR at aur.archlinux.org, so it is opt-in: the fixture is ignored unless the
+/// <c>AUR_LIVE_TESTS</c> environment variable is <c>true</c>. CI never sets it, so an AUR outage
+/// or rate limit cannot fail a build.
+/// </summary>
 [TestFixture]
 public class AurClientTests
 {
+    private const string LiveTestsVariable = "AUR_LIVE_TESTS";
+
     private HttpClient _httpClient;
     private AurClient _aurClient;
+
+    [OneTimeSetUp]
+    public void RequireLiveAur()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable(LiveTestsVariable), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Ignore($"Calls the live AUR; set {LiveTestsVariable}=true to run.");
+        }
+    }
 
     [SetUp]
     public void Setup()

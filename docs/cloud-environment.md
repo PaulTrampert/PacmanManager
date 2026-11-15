@@ -43,7 +43,7 @@ Why each one is needed:
 | :--- | :--- | :--- |
 | `production.cloudfront.docker.com` | Docker Hub image **layers**. The Trusted list allows `registry-1.docker.io` and the older `production.cloudflare.docker.com`, but Docker Hub now serves blobs from CloudFront. | Every `docker pull` and every `FROM` resolves its manifest and then fails with `403 Forbidden` on the blob — `postgres:18` and `archlinux/archlinux` both. |
 | `quay.io`, `*.quay.io` | `quay.io/keycloak/keycloak`, started by `KeycloakContainer`. | The Keycloak container never starts. |
-| `geo.mirror.pkgbuild.com`, `*.pkgbuild.com`, `archlinux.org`, `*.archlinux.org` | The `pacman -Syu` inside `PacmanManager.RepoHost/Dockerfile`, and `PacmanManager.AurClient`'s live AUR tests, which call `aur.archlinux.org`. | The RepoHost image build fails, and six `AurClient` tests fail. |
+| `geo.mirror.pkgbuild.com`, `*.pkgbuild.com`, `archlinux.org`, `*.archlinux.org` | The `pacman -Syu` inside `PacmanManager.RepoHost/Dockerfile`, and `PacmanManager.AurClient`'s live AUR tests, which call `aur.archlinux.org` when `AUR_LIVE_TESTS=true`. | The RepoHost image build fails, and, with `AUR_LIVE_TESTS=true`, six `AurClient` tests fail. |
 | `nodejs.org` | The SessionStart hook looks up the current Node LTS and downloads its official binaries, since Ubuntu's `nodejs` is too old for the web app. | The hook keeps whatever Node the image has, if any, and the web app may not build. |
 | `cdn.playwright.dev`, `playwright.download.prss.microsoft.com` | `npx playwright install chromium`: the browser `pacmanmanager-web`'s Storybook stories run in under `npm test`. | The web app's story tests fail to launch a browser. |
 
@@ -123,7 +123,7 @@ With the environment above:
 | `LibAlpmSharp.Test` | Works — the fixture packages load through the real `libalpm`, and the local-database fixtures seed their own |
 | `PacmanManager.CliTools.Test` | Works |
 | `PacmanManager.RepoHost.Test` unit fixtures, `repo-add`/`repo-remove` included | Works |
-| `PacmanManager.AurClient.Test` | Works only with the `archlinux.org` domains allowed; those six tests call the live AUR |
+| `PacmanManager.AurClient.Test` | Works; the six live AUR tests are skipped unless `AUR_LIVE_TESTS=true`, and then need the `archlinux.org` domains allowed |
 | `PacmanManager.RepoHost.Test` end to end fixtures | Works only with the Docker and Arch domains allowed |
 | `pacmanmanager-web`: `npm run lint`, `typecheck`, `build` | Works with `nodejs.org` allowed |
 | `pacmanmanager-web`: `npm test` | Works only with the Playwright domains allowed too, for Chromium |

@@ -5,17 +5,7 @@ name: .NET Build & Test
 # share with the web app; it can also be run by hand.
 on:
   workflow_call:
-    inputs:
-      aur-client-tests:
-        description: Run AurClientTests, which call the live AUR.
-        type: boolean
-        default: false
   workflow_dispatch:
-    inputs:
-      aur-client-tests:
-        description: Run AurClientTests, which call the live AUR.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -60,23 +50,16 @@ jobs:
       # temporary root, so they no longer depend on what this runner has installed. Everything else
       # in the solution runs too, the end to end fixtures included: the runner's Docker daemon is
       # what Testcontainers starts Postgres and Keycloak on and what builds the two images under
-      # test. The one exception is AurClientTests, which call the live AUR and so run only when the
-      # caller asks: Check Changes does for a change to the AUR client or its tests.
+      # test. AurClientTests call the live AUR and skip themselves unless AUR_LIVE_TESTS is true,
+      # which CI never sets: an AUR outage or rate limit must not fail a build.
       # verbosity=minimal prints failures and the summary but not a line per passing test. At
       # `normal` a run emits several thousand lines, and the failures scroll off the top of what
       # the Actions log API will hand back, which is exactly when you need to read them.
       - name: Test
-        env:
-          AUR_CLIENT_TESTS: ${{ inputs.aur-client-tests }}
         run: |
-          filter=()
-          if [[ "$AUR_CLIENT_TESTS" != true ]]; then
-            filter=(--filter "FullyQualifiedName!~PacmanManager.AurClient.Test.AurClientTests.")
-          fi
           dotnet test PacmanManager.sln \
             --configuration Release \
             --no-build \
-            "${filter[@]}" \
             --logger "trx" \
             --logger "console;verbosity=minimal" \
             --results-directory artifacts/test-results
