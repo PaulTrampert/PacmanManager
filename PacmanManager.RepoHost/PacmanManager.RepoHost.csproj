@@ -19,10 +19,10 @@
              WolverineFx.EntityFrameworkCore brings in, ask for Roslyn 5.0.0 exactly, while
              PTrampert.SimplePatch needs its 5.9.0 compiler. These lift the rest of Roslyn to match,
              a mismatch NuGet otherwise warns about (NU1608). -->
-        <PackageReference Include="Microsoft.CodeAnalysis" Version="5.9.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Scripting" Version="5.9.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Microsoft.CodeAnalysis" Version="5.12.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Scripting" Version="5.12.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.12.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.4" />
         <PackageReference Include="PTrampert.QueryObjects" Version="1.8.0" />
         <PackageReference Include="PTrampert.SimplePatch" Version="2.0.4" />
         <PackageReference Include="PTrampert.SimplePatch.Swashbuckle" Version="2.0.4" />
@@ -30,11 +30,11 @@
         <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="11.0.1" />
-        <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.64.0" />
-        <PackageReference Include="WolverineFx.Postgresql" Version="6.64.0" />
-        <PackageReference Include="WolverineFx.RabbitMQ" Version="6.64.0" />
+        <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.64.2" />
+        <PackageReference Include="WolverineFx.Postgresql" Version="6.64.2" />
+        <PackageReference Include="WolverineFx.RabbitMQ" Version="6.64.2" />
         <!-- Wolverine compiles its generated message-handling code at runtime, and the compiler is a package of its own. -->
-        <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.64.0" />
+        <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.64.2" />
     </ItemGroup>
 
     <ItemGroup>
