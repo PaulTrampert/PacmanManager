@@ -62,8 +62,8 @@ try
 // Postgres advisory lock. It owns the data source its lock connections come from, so it is a
 // singleton, built only when first needed so that generating the OpenAPI document needs no database.
     builder.Services.AddSingleton<IRepositoryDatabaseLock>(_ => new PostgresRepositoryDatabaseLock(
-        builder.Configuration.GetConnectionString("pacmanmanager")
-        ?? throw new InvalidOperationException("ConnectionStrings:pacmanmanager is not configured.")));
+        builder.Configuration.GetConnectionString(ConnectionStringIds.Database)
+        ?? throw new InvalidOperationException($"ConnectionStrings:{ConnectionStringIds.Database} is not configured.")));
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();
@@ -122,10 +122,9 @@ try
     builder.Services.AddScoped<IClaimsTransformation, ClaimsTransformer>();
     builder.Services.AddAuthorization();
 
-    builder.Services.AddDbContext<PacmanManagerDbContext>(opts =>
-    {
-        opts.UseNpgsql(builder.Configuration.GetConnectionString("pacmanmanager"));
-    });
+    // PacmanManagerDbContext is registered with Wolverine, so that a message published through
+    // IDbContextOutbox<PacmanManagerDbContext> commits with the context's own changes.
+    builder.Services.AddMessaging(builder.Configuration);
 
 // Generate pacman config in-memory and parse it
     builder.Services.AddTransient<PacmanConfig>(p =>

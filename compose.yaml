@@ -17,6 +17,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       Auth__Authority: "http://auth:8080/realms/localdev"
       ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
+      ConnectionStrings__rabbitmq: "amqp://pacmanmanager.repohost:password@rabbitmq:5672/"
       PackagePublishing__MaxUploadBytes: *max-upload-bytes
       # The address a pacman client reaches RepoHost at, for each repository's serverUrl. Without it the
       # web UI, whose requests SpaHost proxies, would show SpaHost's upstream address instead.
@@ -30,6 +31,8 @@ services:
         condition: service_started
       pacmanmanager.migrations:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
 
   # Handles the messages RepoHost publishes through RabbitMQ; see
   # docs/async-package-publishing/async-package-publishing.md. It mounts the same DATA_DIR volume as

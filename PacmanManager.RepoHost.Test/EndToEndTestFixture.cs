@@ -21,6 +21,7 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
 {
     private INetwork? _testNetwork;
     private DatabaseContainer? _dbContainer;
+    private RabbitMqContainer? _rabbitMqContainer;
     public KeycloakContainer? AuthContainer { get; private set; }
     private IContainer? _apiContainer;
     private HttpClient? _httpClient;
@@ -108,14 +109,18 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
 
             _dbContainer = new DatabaseContainer(_testNetwork);
             AuthContainer = new KeycloakContainer(_testNetwork, solutionDirectory);
-            
-            await Task.WhenAll(_dbContainer.StartAsync(migrationImage), AuthContainer.StartAsync());
+            // RepoHost's Wolverine connects to the broker at startup, and fails to start without one.
+            _rabbitMqContainer = new RabbitMqContainer(_testNetwork, solutionDirectory);
+
+            await Task.WhenAll(_dbContainer.StartAsync(migrationImage), AuthContainer.StartAsync(),
+                _rabbitMqContainer.StartAsync());
                 
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
                 .WithNetworkAliases(ApiHostname)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
+                .WithEnvironment("ConnectionStrings__rabbitmq", _rabbitMqContainer.ConnectionString)
                 .WithEnvironment("Auth__Authority", AuthContainer.Authority)
                 // Well above the fixture package and low enough that a test can exceed it, which is
                 // the point of the limit being configuration rather than a constant.
@@ -212,6 +217,12 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
         {
             await _dbContainer.DisposeAsync();
             _dbContainer = null;
+        }
+
+        if (_rabbitMqContainer != null)
+        {
+            await _rabbitMqContainer.DisposeAsync();
+            _rabbitMqContainer = null;
         }
 
         // Kept with the rest: a container still attached to the network keeps the network alive, so
