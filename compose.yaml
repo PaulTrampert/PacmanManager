@@ -21,11 +21,33 @@ services:
       # The address a pacman client reaches RepoHost at, for each repository's serverUrl. Without it the
       # web UI, whose requests SpaHost proxies, would show SpaHost's upstream address instead.
       PublicUrl: "http://localhost:8082/"
+    # Shared with pacmanmanager.worker: the uploads RepoHost writes under tmp/ and the repository
+    # files the Worker writes are on this one volume.
+    volumes:
+      - data:/data
     depends_on:
       auth:
         condition: service_started
       pacmanmanager.migrations:
         condition: service_completed_successfully
+
+  # Handles the messages RepoHost publishes through RabbitMQ; see
+  # docs/async-package-publishing/async-package-publishing.md. It mounts the same DATA_DIR volume as
+  # pacmanmanager.repohost, so it reads the uploads RepoHost writes and writes the repository files
+  # RepoHost serves.
+  pacmanmanager.worker:
+    image: pacmanmanager.worker
+    build:
+      context: .
+      dockerfile: PacmanManager.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__rabbitmq: "amqp://pacmanmanager.worker:password@rabbitmq:5672"
+    volumes:
+      - data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   # The web front end: the app's bundle in SpaHost, which signs users in against Keycloak and
   # proxies /api/pacmanmanager/... to RepoHost with their access token. Local development only; see
@@ -112,4 +134,5 @@ services:
         
 volumes:
   pgdata:
+  data:
 
