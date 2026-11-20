@@ -392,6 +392,89 @@
         }
       }
     },
+    "/api/v1/Jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Get a job by ID, to find out what happened to the work it records.",
+        "description": "`error` is present only when `state` is `Failed`. `affectedEntities` lists\n            what is known so far. A job scheduled by another user is a `404`, exactly like one that\n            does not exist.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "The job's ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/Packages": {
       "get": {
         "tags": [
@@ -2386,6 +2469,25 @@
         "additionalProperties": false,
         "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
+      "AffectedEntity": {
+        "required": [
+          "id",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/JobEntityType"
+          },
+          "id": {
+            "type": "string",
+            "description": "The entity's id. It may name an entity that has since been deleted.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One entity a job acts on, as `GET /api/v1/Jobs/{id}` shows it."
+      },
       "Architecture": {
         "required": [
           "displayValue",
@@ -2492,6 +2594,60 @@
         },
         "additionalProperties": false,
         "description": "The authenticated caller's own user record, including the parts that are not public."
+      },
+      "Job": {
+        "required": [
+          "affectedEntities",
+          "createdAt",
+          "id",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The job's id, which names it in `GET /api/v1/Jobs/{id}`.",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the job was scheduled.",
+            "format": "date-time"
+          },
+          "affectedEntities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AffectedEntity"
+            },
+            "description": "The entities the job acts on, as far as they are known so far: a publish names its repository\nfrom the start and its package once it completes. Ordered by type, then id."
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the job failed. Present only when PacmanManager.RepoHost.Models.Job.State is `Failed`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One unit of off-request work, such as a package publish, as its caller sees it."
+      },
+      "JobEntityType": {
+        "enum": [
+          "Repository",
+          "Package"
+        ],
+        "type": "string"
+      },
+      "JobState": {
+        "enum": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Failed"
+        ],
+        "type": "string"
       },
       "Package": {
         "required": [
@@ -3049,6 +3205,9 @@
     },
     {
       "name": "Healthcheck"
+    },
+    {
+      "name": "Jobs"
     },
     {
       "name": "Packages"

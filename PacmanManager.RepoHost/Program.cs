@@ -67,6 +67,7 @@ try
     builder.Services.AddScoped<IPacmanRepoService, PacmanRepoService>();
     builder.Services.AddScoped<IUserManagementService, UserManagementService>();
     builder.Services.AddScoped<IAccessTokenService, AccessTokenService>();
+    builder.Services.AddScoped<IJobService, JobService>();
 
 // Services enforce authorization against whatever actor the host supplies. This is the web host,
 // so the actor comes from the authenticated principal; a CLI tool or background job would register
@@ -75,6 +76,7 @@ try
     builder.Services.AddScoped<IActorAccessor, HttpContextActorAccessor>();
     builder.Services.AddSingleton<AccessTokenAccessPolicy>();
     builder.Services.AddSingleton<UserAccessPolicy>();
+    builder.Services.AddSingleton<JobAccessPolicy>();
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<AuthorizationExceptionHandler>();

@@ -1,7 +1,7 @@
 ---
 description: Assign every unblocked, unassigned issue not awaiting a decision to the gh user, move it to In Progress, and implement each one as a PR from its own worktree via sub-agents.
 argument-hint: "[issue numbers to restrict to] [--dry-run]"
-allowed-tools: Bash(gh:*), Bash(git:*), Bash(flock:*), Agent, SendMessage
+allowed-tools: Bash(gh:*), Bash(git:*), Bash(flock:*), Bash(.claude/scripts/provision-worktrees.sh:*), Agent, SendMessage
 ---
 
 # Implement unblocked issues
@@ -16,6 +16,11 @@ Arguments: `$ARGUMENTS`
 * `--dry-run` stops after step 2: print the issues that would be picked up and change nothing.
 
 The repository is `PaulTrampert/PacmanManager`.
+
+The Bash tool's shell may be **zsh**, which does not word-split an unquoted `$var`. Never put a list
+in a variable and split it (`for n in $ISSUES`, `set -- $spec`): write the items out literally
+(`for n in 364 365; do ...`), or pass each as its own argument. Shell variables also do not carry
+from one Bash call to the next, so the values from step 1 are ones you carry forward yourself.
 
 ## 1. Preflight
 
@@ -125,39 +130,35 @@ Claim every issue before starting any implementation, so the board reflects the 
 ## 4. Provision the worktrees
 
 Worktrees live inside the primary checkout, under `.claude/worktrees/`, which is ignored by both
-git and Docker. Never create one beside the checkout. `$PRIMARY` and `$BASE` come from step 1:
-
-```bash
-WORKTREES="$PRIMARY/.claude/worktrees"
-```
+git and Docker. Never create one beside the checkout.
 
 For each issue, pick a branch name: `bugfix/<n>-<slug>` if the issue carries the `bug` label,
 otherwise `feature/<n>-<slug>`, where `<slug>` is the title lower-cased, reduced to `[a-z0-9-]`, and
-cut to a few words. Then:
+cut to a few words. Then provision the whole batch with one call, passing `$BASE` from step 1 and
+one `<n>=<branch>` argument per issue:
 
 ```bash
-git -C "$PRIMARY" worktree add "$WORKTREES/issue-<n>" -b <branch> "$BASE"
+.claude/scripts/provision-worktrees.sh <base commit> 364=feature/364-configure-wolverine 365=bugfix/365-fix-the-thing
 ```
 
-If the branch or the directory already exists, do not reuse or overwrite it — skip that issue and
-report it. Never switch the branch of an existing worktree.
+Don't write the loop yourself; the script exists because a hand-written one breaks under zsh. It
+creates `.claude/worktrees/issue-<n>` in the primary checkout on a new branch from the base commit,
+and prints `created <n> <path> <branch>` for each. If the branch or the directory already exists, it
+prints `skipped <n> <reason>` and does not reuse or overwrite it; report that issue, and never switch
+the branch of an existing worktree. A `failed` line means the issue gets no sub-agent; report it too.
 
 ### The browser lock
 
 The sub-agents share one machine, and their browser and stack runs interfere with one another. The
 Storybook tests, Playwright screenshot scripts and `npm run e2e` (which brings up the compose stack
 on its fixed ports) each fail or hang when another agent's run overlaps them. You coordinate those
-runs: create one lock that every sub-agent takes around each such command, so they run one at a
+runs: one lock that every sub-agent takes around each such command, so they run one at a
 time while everything else stays parallel. A compose stack left running after its command holds
 those fixed ports and blocks every later run, so the lock covers bringing the stack down as well as
-up. It lives in the shared git directory, which every worktree can reach and git never tracks:
+up. It lives in the shared git directory, which every worktree can reach and git never tracks, and
+the provisioning script creates it and prints its absolute path on its last line, `lock <path>`.
 
-```bash
-BROWSER_LOCK="$(git -C "$PRIMARY" rev-parse --path-format=absolute --git-common-dir)/browser-tests.lock"
-flock "$BROWSER_LOCK" true   # creates it
-```
-
-Pass `$BROWSER_LOCK`'s absolute path into every sub-agent's prompt in step 5.
+Pass that path into every sub-agent's prompt in step 5.
 
 ## 5. Implement, one sub-agent per issue
 

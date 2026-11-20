@@ -89,6 +89,7 @@ Services in `compose.yaml`:
 | Service | Notes |
 | :--- | :--- |
 | `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. Runs in `Development`, after the migrations complete. |
+| `pacmanmanager.worker` | Wolverine message handlers, listening on RabbitMQ's `pacmanmanager.worker` queue as the `pacmanmanager.worker` user. Built from an `archlinux` base like RepoHost, and mounts the same `data` volume at `DATA_DIR`, so it reads the uploads RepoHost writes and writes the repository files RepoHost serves. Starts once RabbitMQ is healthy. |
 | `pacmanmanager.web` | The web app in SpaHost. Host port **8081** → container 80. Signs users in as Keycloak's `pacman-manager-web` client and proxies `/api/pacmanmanager/…` to RepoHost's `/api/…` with their access token. Built with `pacmanmanager-web` as its context. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
 | `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
@@ -114,12 +115,13 @@ OAuth against Keycloak with PKCE.
 | `PacmanManager.Entities` | EF Core entities and `PacmanManagerDbContext`. Configuration is by data annotations; there is no `OnModelCreating`. |
 | `PacmanManager.Migrations` | EF migrations plus a console host that applies them (with retries) on startup. |
 | `PacmanManager.RepoHost` | The API: controllers, services, authentication, authorization. |
+| `PacmanManager.Worker` | The off-request process: a generic host whose Wolverine handlers receive messages from RabbitMQ. `WorkerHost.ConfigureWorker` configures it, so its tests build the host the process runs. No ASP.NET Core. |
 | `PacmanManager.TestUtils` | Shared test helpers (`DirUtils.FindSolutionDirectory`, `TestOutputLogger`, wait strategies). |
 | `*.Test` | One test project per production project. |
 | `pacmanmanager-web` | The web front end: an npm project beside the solution, **not** in `PacmanManager.sln`. Its layout is set out in `docs/web-ui-architecture/web-ui-architecture.md`. |
 
 Adding a .NET project means adding it to `PacmanManager.sln` (and to the relevant `Dockerfile` `COPY`
-lines if it becomes a build dependency of RepoHost or Migrations).
+lines if it becomes a build dependency of RepoHost, Migrations or the Worker).
 
 ## Architecture notes worth knowing before changing things
 
@@ -255,7 +257,7 @@ four reusable pipelines and the workflow that decides which of them a change nee
 | `check-changes.yml` (**Check Changes**) | The entry point, on every pull request to `main`, every push to `main` and by hand. Its `Detect changes` job classifies the PR's changed files; it then calls the pipelines below as jobs of the same run, and its `Check changes` job — **the one required check** — passes only if every pipeline it called succeeded. |
 | `dotnet.yml` (**.NET Build & Test**) | `Build and test`: installs pacman tooling and libalpm on the Ubuntu runner, then `dotnet build`, `dotnet tool restore` and `dotnet test` across the solution. `LibAlpmSharp on Arch`: runs `LibAlpmSharp.Test` inside an `archlinux/archlinux` container, against a real pacman installation and a newer libalpm. |
 | `web.yml` (**Web Build and Test**) | Sets up the Node LTS from `pacmanmanager-web/.nvmrc`, then in `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `format:check`, `lint`, `typecheck`, `test`, `build` and `build-storybook`. |
-| `docker.yml` (**Docker Build**) | Builds every deployable image — RepoHost, Migrations and web — from its Dockerfile with `push: false`, as a sanity check that it still builds. The web image's context is `pacmanmanager-web`; the other two use the repository root. |
+| `docker.yml` (**Docker Build**) | Builds every deployable image — RepoHost, Migrations, Worker and web — from its Dockerfile with `push: false`, as a sanity check that it still builds. The web image's context is `pacmanmanager-web`; the others use the repository root. |
 | `e2e.yml` (**End-to-end Tests**) | In `pacmanmanager-web`: `npm ci`, installs Chromium, and runs `npm run e2e` against the compose stack it brings up. On failure it prints `docker compose logs` and uploads them with the Playwright report and traces as the `e2e-report` artifact; `docker compose down -v` always runs. |
 
 Which pipelines run is coarse on purpose — a whole pipeline or none of it:
@@ -523,6 +525,9 @@ ones.
   fans the batch out to sub-agents, one worktree and one PR per issue, following
   [Worktrees](#worktrees). Their Storybook, Playwright and e2e runs interfere with one another, so
   it gives every sub-agent one `flock` lock to run those commands under, one at a time.
+  It provisions the worktrees and that lock with `.claude/scripts/provision-worktrees.sh`, a bash
+  script, rather than a loop the agent writes, since the Bash tool's shell may be zsh, which does
+  not word-split an unquoted `$var`.
 * `.github/workflows/` holds the CI workflows described under
   [Continuous integration](#continuous-integration). The toolchain they build with is installed
   by the local composite action `.github/actions/setup-toolchain` (the Node LTS included, for the

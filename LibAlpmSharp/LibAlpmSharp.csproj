@@ -9,7 +9,7 @@
 
     <ItemGroup>
       <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
-      <PackageReference Include="Antlr4BuildTasks" Version="12.14.0" PrivateAssets="all" IncludeAssets="build" />
+      <PackageReference Include="Antlr4BuildTasks" Version="13.0.0" PrivateAssets="all" IncludeAssets="build" />
       <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.15" />
       <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.15" />
     </ItemGroup>

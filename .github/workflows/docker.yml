@@ -24,6 +24,9 @@ jobs:
           - name: migrations
             context: .
             dockerfile: PacmanManager.Migrations/Dockerfile
+          - name: worker
+            context: .
+            dockerfile: PacmanManager.Worker/Dockerfile
           # The web image's context is its own directory, so it never sees the .NET sources.
           - name: web
             context: pacmanmanager-web
