@@ -57,9 +57,9 @@ public class MessagingOutboxTests
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [$"ConnectionStrings:{MessagingServiceCollectionExtensions.DatabaseConnectionStringName}"] =
+            [$"ConnectionStrings:{ConnectionStringIds.Database}"] =
                 _database.LocalConnectionString,
-            [$"ConnectionStrings:{MessagingServiceCollectionExtensions.RabbitMqConnectionStringName}"] =
+            [$"ConnectionStrings:{ConnectionStringIds.RabbitMq}"] =
                 _rabbitMq.LocalConnectionString,
         });
         builder.Services.AddMessaging(builder.Configuration,

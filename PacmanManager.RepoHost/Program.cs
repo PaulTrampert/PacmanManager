@@ -62,8 +62,8 @@ try
 // Postgres advisory lock. It owns the data source its lock connections come from, so it is a
 // singleton, built only when first needed so that generating the OpenAPI document needs no database.
     builder.Services.AddSingleton<IRepositoryDatabaseLock>(_ => new PostgresRepositoryDatabaseLock(
-        builder.Configuration.GetConnectionString("pacmanmanager")
-        ?? throw new InvalidOperationException("ConnectionStrings:pacmanmanager is not configured.")));
+        builder.Configuration.GetConnectionString(ConnectionStringIds.Database)
+        ?? throw new InvalidOperationException($"ConnectionStrings:{ConnectionStringIds.Database} is not configured.")));
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IUserService, UserService>();

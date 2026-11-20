@@ -36,18 +36,6 @@ namespace PacmanManager.RepoHost.Config;
 public static class MessagingServiceCollectionExtensions
 {
     /// <summary>
-    /// The name of the connection string for the Postgres database, which holds both the
-    /// application's tables and Wolverine's.
-    /// </summary>
-    public const string DatabaseConnectionStringName = "pacmanmanager";
-
-    /// <summary>
-    /// The name of the connection string for the RabbitMQ broker, an AMQP URI such as
-    /// <c>amqp://user:password@rabbitmq:5672/</c>.
-    /// </summary>
-    public const string RabbitMqConnectionStringName = "rabbitmq";
-
-    /// <summary>
     /// The Postgres schema Wolverine's message storage tables live in.
     /// </summary>
     public const string WolverineSchema = "wolverine";
@@ -58,8 +46,8 @@ public static class MessagingServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">
-    /// The configuration holding the <see cref="DatabaseConnectionStringName"/> and
-    /// <see cref="RabbitMqConnectionStringName"/> connection strings.
+    /// The configuration holding the <see cref="ConnectionStringIds.Database"/> and
+    /// <see cref="ConnectionStringIds.RabbitMq"/> connection strings.
     /// </param>
     /// <param name="configure">
     /// Further Wolverine configuration, applied last, such as the routes messages are published to.
@@ -69,8 +57,8 @@ public static class MessagingServiceCollectionExtensions
     public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration,
         Action<WolverineOptions>? configure = null)
     {
-        var databaseConnectionString = RequireConnectionString(configuration, DatabaseConnectionStringName);
-        var rabbitMqUri = new Uri(RequireConnectionString(configuration, RabbitMqConnectionStringName));
+        var databaseConnectionString = RequireConnectionString(configuration, ConnectionStringIds.Database);
+        var rabbitMqUri = new Uri(RequireConnectionString(configuration, ConnectionStringIds.RabbitMq));
 
         services.AddDbContextWithWolverineIntegration<PacmanManagerDbContext>(
             opts => opts.UseNpgsql(databaseConnectionString), WolverineSchema);
