@@ -5,11 +5,13 @@ using Moq;
 using PacmanManager.Authentication;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
-using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
+using PacmanManager.Packages;
+using PacmanManager.Packages.Infrastructure;
+using PacmanManager.Packages.LibAlpm;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Test.Services.PackageServiceTests;
 
@@ -77,15 +79,23 @@ public class PackageServiceTests
         // those two are real doubles a test can arrange rather than bare stand-ins.
         _fileSystem = new Mock<IFileSystem>();
         _pathResolver = new Mock<IPackagePathResolver>();
+        // The publisher is the real one over the throwing libalpm, so a read path that reached
+        // through it to a package file would fail here too.
+        var publisher = new PackagePublisher(
+            _dbContext,
+            Mock.Of<ICliToolRunner>(),
+            _fileSystem.Object,
+            _pathResolver.Object,
+            Mock.Of<IRepositoryDatabaseLock>(),
+            new PackageFileReader(_libAlpm),
+            new TestOutputLogger<PackagePublisher>());
         _service = new PackageService(
             _dbContext,
             _actors,
             new PackageAccessPolicy(new RepositoryAccessPolicy()),
-            Mock.Of<ICliToolRunner>(),
+            publisher,
             _fileSystem.Object,
             _pathResolver.Object,
-            new NoOpRepositoryDatabaseLock(),
-            _libAlpm,
             Options.Create(new PacmanConfigSettings { DataDir = "/tmp/pacman" }),
             new TestOutputLogger<PackageService>());
     }

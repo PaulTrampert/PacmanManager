@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PacmanManager.Authentication;
 using PacmanManager.Entities;
+using PacmanManager.Packages.Authorization;
 using PacmanManager.RepoHost.Exceptions;
 using JobModel = PacmanManager.RepoHost.Models.Job;
 

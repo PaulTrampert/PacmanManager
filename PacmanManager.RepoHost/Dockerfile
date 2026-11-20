@@ -23,6 +23,7 @@ COPY ["LibAlpmSharp/LibAlpmSharp.csproj", "LibAlpmSharp/"]
 COPY ["PacmanManager.Authentication/PacmanManager.Authentication.csproj", "PacmanManager.Authentication/"]
 COPY ["PacmanManager.CliTools/PacmanManager.CliTools.csproj", "PacmanManager.CliTools/"]
 COPY ["PacmanManager.Commands/PacmanManager.Commands.csproj", "PacmanManager.Commands/"]
+COPY ["PacmanManager.Packages/PacmanManager.Packages.csproj", "PacmanManager.Packages/"]
 COPY ["PacmanManager.RepoHost/PacmanManager.RepoHost.csproj", "PacmanManager.RepoHost/"]
 COPY ["PacmanManager.Entities/PacmanManager.Entities.csproj", "PacmanManager.Entities/"]
 RUN dotnet restore "PacmanManager.RepoHost/PacmanManager.RepoHost.csproj"

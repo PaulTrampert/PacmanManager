@@ -7,7 +7,7 @@ namespace PacmanManager.RepoHost.Models;
 /// <para>
 /// The modification time is what lets the route answer a conditional request: libalpm sends
 /// <c>If-Modified-Since</c> on every <c>pacman -Sy</c>, and without it every sync would re-download
-/// every database in full. It comes from <see cref="Infrastructure.IFileSystem.GetLastWriteTimeUtc"/>,
+/// every database in full. It comes from <see cref="Packages.Infrastructure.IFileSystem.GetLastWriteTimeUtc"/>,
 /// not from the stream, so a mocked file system is enough to exercise that path.
 /// </para>
 /// <para>

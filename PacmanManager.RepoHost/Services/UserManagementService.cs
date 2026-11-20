@@ -5,6 +5,7 @@ using PacmanManager.Entities;
 using PacmanManager.RepoHost.Exceptions;
 using PacmanManager.RepoHost.Models;
 using PTrampert.QueryObjects;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Services;
 

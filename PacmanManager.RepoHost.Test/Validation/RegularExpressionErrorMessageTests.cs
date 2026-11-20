@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Validation;
+using PacmanManager.Packages.Validation;
 
 namespace PacmanManager.RepoHost.Test.Validation;
 

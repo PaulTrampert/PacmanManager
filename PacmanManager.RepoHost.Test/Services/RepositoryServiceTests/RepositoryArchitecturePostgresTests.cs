@@ -9,9 +9,11 @@ using PacmanManager.Entities;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
-using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.RepoHost.Test.Containers;
 using PacmanManager.TestUtils;
+using PacmanManager.Packages.Infrastructure;
+using PacmanManager.Packages.LibAlpm;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 

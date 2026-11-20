@@ -111,6 +111,7 @@ OAuth against Keycloak with PKCE.
 | `PacmanManager.AurClient` | Client for the Arch User Repository. |
 | `PacmanManager.Authentication` | The actor model: `Actor`, `ActorScope`, `ScopeValues`, `AccessTokenFormat`, `IActorAccessor`, `FixedActorAccessor`. Must not reference ASP.NET Core; the sign-in code and `HttpContextActorAccessor` stay in RepoHost. |
 | `PacmanManager.Commands` | Command messages: data objects only, no behaviour, referencing no other project in the solution. |
+| `PacmanManager.Packages` | Publishing and removing packages, shared by every host that changes a repository: `IPackagePublisher` (the file, `repo-add`/`repo-remove` and the rows, with their compensation), the `repo-add`/`repo-remove` wrappers, `IPackagePathResolver`, `IFileSystem`, reading a package through libalpm with the pacman configuration it needs, `RepositoryAccessPolicy`, `PackageAccessPolicy` and `IRepositoryDatabaseLock`. `AddPacmanPackages()` registers it. It checks no permissions; its callers authorize first. |
 | `PacmanManager.Entities` | EF Core entities and `PacmanManagerDbContext`. Configuration is by data annotations; there is no `OnModelCreating`. |
 | `PacmanManager.Migrations` | EF migrations plus a console host that applies them (with retries) on startup. |
 | `PacmanManager.RepoHost` | The API: controllers, services, authentication, authorization. |

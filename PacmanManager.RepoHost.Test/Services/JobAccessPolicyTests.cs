@@ -1,5 +1,6 @@
 using PacmanManager.Authentication;
 using PacmanManager.Entities;
+using PacmanManager.Packages.Authorization;
 using PacmanManager.RepoHost.Services;
 
 namespace PacmanManager.RepoHost.Test.Services;

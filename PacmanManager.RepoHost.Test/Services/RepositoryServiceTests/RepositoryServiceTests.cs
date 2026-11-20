@@ -5,14 +5,16 @@ using Moq;
 using PacmanManager.Authentication;
 using PacmanManager.CliTools;
 using PacmanManager.Entities;
-using PacmanManager.RepoHost.CliTools;
 using PacmanManager.RepoHost.Infrastructure;
 using PacmanManager.RepoHost.Models;
 using PacmanManager.RepoHost.Services;
-using PacmanManager.RepoHost.Startup.LibAlpm;
 using PacmanManager.TestUtils;
 using NUnit.Framework;
 using PacmanManager.RepoHost.Exceptions;
+using PacmanManager.Packages.CliTools;
+using PacmanManager.Packages.Infrastructure;
+using PacmanManager.Packages.LibAlpm;
+using PacmanManager.Packages.Authorization;
 
 namespace PacmanManager.RepoHost.Test.Services.RepositoryServiceTests;
 

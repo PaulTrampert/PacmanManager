@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using PacmanManager.Entities;
 using PacmanManager.RepoHost.Validation;
+using PacmanManager.Packages.Validation;
 
 namespace PacmanManager.RepoHost.Models;
 
