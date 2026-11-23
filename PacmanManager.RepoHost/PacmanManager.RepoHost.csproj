@@ -30,11 +30,11 @@
         <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="11.0.1" />
-        <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.64.2" />
-        <PackageReference Include="WolverineFx.Postgresql" Version="6.64.2" />
-        <PackageReference Include="WolverineFx.RabbitMQ" Version="6.64.2" />
+        <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.65.1" />
+        <PackageReference Include="WolverineFx.Postgresql" Version="6.65.1" />
+        <PackageReference Include="WolverineFx.RabbitMQ" Version="6.65.1" />
         <!-- Wolverine compiles its generated message-handling code at runtime, and the compiler is a package of its own. -->
-        <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.64.2" />
+        <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.65.1" />
     </ItemGroup>
 
     <ItemGroup>
