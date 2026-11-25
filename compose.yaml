@@ -45,10 +45,13 @@ services:
       dockerfile: PacmanManager.Worker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
       ConnectionStrings__rabbitmq: "amqp://pacmanmanager.worker:password@rabbitmq:5672"
     volumes:
       - data:/data
     depends_on:
+      pacmanmanager.migrations:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
 
