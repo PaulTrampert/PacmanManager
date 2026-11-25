@@ -392,6 +392,105 @@
         }
       }
     },
+    "/api/v1/Jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "List the caller's own jobs, to find one they lost track of or see which have finished.",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "The number of results to skip.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The maximum number of results to return.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Matches jobs in this state.",
+            "schema": {
+              "$ref": "#/components/schemas/JobState"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "The property to order by. Defaults to the first member of <typeparamref name=\"TSortFields\" />.",
+            "schema": {
+              "$ref": "#/components/schemas/JobSortField"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "The direction to order in, or null to take the default declared for\nPacmanManager.RepoHost.Models.SortOptions`1.SortBy. When omitted, defaults to Descending for CreatedAt.",
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPaginatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPaginatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPaginatedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/Jobs/{jobId}": {
       "get": {
         "tags": [
@@ -2639,6 +2738,60 @@
           "Package"
         ],
         "type": "string"
+      },
+      "JobPaginatedResponse": {
+        "required": [
+          "sort"
+        ],
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "description": "The items on this page."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "The position of the first item on this page within the whole listing.",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "description": "The number of items in the whole listing, across every page.",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/JobSortFieldAppliedSort"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of the jobs listing."
+      },
+      "JobSortField": {
+        "enum": [
+          "CreatedAt"
+        ],
+        "type": "string",
+        "description": "The properties a job listing may be ordered by."
+      },
+      "JobSortFieldAppliedSort": {
+        "required": [
+          "direction",
+          "sortBy"
+        ],
+        "type": "object",
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/JobSortField"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SortDirection"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The ordering a listing actually ran in, echoed on each page of it."
       },
       "JobState": {
         "enum": [
