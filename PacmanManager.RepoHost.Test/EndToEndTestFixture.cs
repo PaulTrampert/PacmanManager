@@ -151,6 +151,7 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
             _workerContainer = new ContainerBuilder(workerImage)
                 .WithNetwork(_testNetwork)
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+                .WithEnvironment("ConnectionStrings__pacmanmanager", _dbContainer.ConnectionString)
                 .WithEnvironment("ConnectionStrings__rabbitmq", _rabbitMqContainer.WorkerConnectionString)
                 .WithVolumeMount(_dataVolume, DataDirectory)
                 // Logged by Wolverine once it has connected to the broker and started listening.
@@ -165,7 +166,7 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
                 .WithNetwork(_testNetwork)
                 .WithNetworkAliases(ApiHostname)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-                .WithEnvironment("ConnectionStrings__pacmanmanager", $"Server={_dbContainer.Hostname};User Id=pacmanmanager;Password=password;")
+                .WithEnvironment("ConnectionStrings__pacmanmanager", _dbContainer.ConnectionString)
                 .WithEnvironment("ConnectionStrings__rabbitmq", _rabbitMqContainer.ConnectionString)
                 .WithEnvironment("Auth__Authority", AuthContainer.Authority)
                 // Well above the fixture package and low enough that a test can exceed it, which is

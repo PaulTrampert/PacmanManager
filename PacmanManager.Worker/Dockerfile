@@ -21,6 +21,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["PacmanManager.Worker/PacmanManager.Worker.csproj", "PacmanManager.Worker/"]
+COPY ["PacmanManager.Entities/PacmanManager.Entities.csproj", "PacmanManager.Entities/"]
 RUN dotnet restore "PacmanManager.Worker/PacmanManager.Worker.csproj"
 COPY . .
 WORKDIR "/src/PacmanManager.Worker"

@@ -11,12 +11,13 @@ services:
       dockerfile: PacmanManager.RepoHost/Dockerfile
     ports:
       - "8082:8080"
+    # The database connection string, shared with every service that reads it.
+    env_file: postgres/connection.env
     # What `docker compose up` needs with no other setup. Development is what lets the bearer
     # handler fetch Keycloak's metadata over plain HTTP, as the web host's does.
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Auth__Authority: "http://auth:8080/realms/localdev"
-      ConnectionStrings__pacmanmanager: "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;"
       ConnectionStrings__rabbitmq: "amqp://pacmanmanager.repohost:password@rabbitmq:5672/"
       PackagePublishing__MaxUploadBytes: *max-upload-bytes
       # The address a pacman client reaches RepoHost at, for each repository's serverUrl. Without it the
@@ -43,12 +44,16 @@ services:
     build:
       context: .
       dockerfile: PacmanManager.Worker/Dockerfile
+    # The database connection string, shared with every service that reads it.
+    env_file: postgres/connection.env
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__rabbitmq: "amqp://pacmanmanager.worker:password@rabbitmq:5672"
     volumes:
       - data:/data
     depends_on:
+      pacmanmanager.migrations:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
 
@@ -104,6 +109,8 @@ services:
     build:
       context: .
       dockerfile: PacmanManager.Migrations/Dockerfile
+    # The database connection string, shared with every service that reads it.
+    env_file: postgres/connection.env
     depends_on:
       - postgres
         

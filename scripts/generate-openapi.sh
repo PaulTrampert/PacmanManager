@@ -11,7 +11,9 @@
 # The environment must be Development: the document embeds Swagger:OpenIdConnectUrl, which only
 # appsettings.Development.json sets. The content root must be RepoHost's output directory, which is
 # where the appsettings files are copied; the CLI otherwise takes the current directory and finds
-# none. OpenApiDocumentTests generates the document the same way.
+# none. RepoHost reads its database connection string while registering its services and has no
+# default of its own, but generation never connects, so it gets a placeholder naming a host that does
+# not exist. OpenApiDocumentTests generates the document the same way.
 set -euo pipefail
 
 configuration="${1:-Debug}"
@@ -27,4 +29,5 @@ fi
 mkdir -p "$root/pacmanmanager-web/openapi"
 cd "$root"
 ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_CONTENTROOT="$bin" \
+  ConnectionStrings__pacmanmanager="Host=openapi-generation.invalid" \
   dotnet swagger tofile --output "$root/pacmanmanager-web/openapi/v1.json" "$dll" v1

@@ -24,7 +24,7 @@ while IFS= read -r path; do
   [[ -z "$path" ]] && continue
   # `*` in a case pattern also matches `/`, so `docs/*` covers everything under docs.
   case "$path" in
-    compose.yaml | keycloak/* | rabbitmq/* | pacmanmanager-web/openapi/* | test-fixtures/* | scripts/* | \
+    compose.yaml | keycloak/* | postgres/* | rabbitmq/* | pacmanmanager-web/openapi/* | test-fixtures/* | scripts/* | \
       .github/* | .config/* | .dockerignore | global.json | nuget.config | Directory.*)
       everything=true ;;
     docs/* | *.md | .claude/* | .run/* | .idea/* | .gitignore | LICENSE*)

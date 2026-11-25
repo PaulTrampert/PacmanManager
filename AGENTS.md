@@ -89,12 +89,12 @@ Services in `compose.yaml`:
 | Service | Notes |
 | :--- | :--- |
 | `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. Runs in `Development`, after the migrations complete. |
-| `pacmanmanager.worker` | Wolverine message handlers, listening on RabbitMQ's `pacmanmanager.worker` queue as the `pacmanmanager.worker` user. Built from an `archlinux` base like RepoHost, and mounts the same `data` volume at `DATA_DIR`, so it reads the uploads RepoHost writes and writes the repository files RepoHost serves. Starts once RabbitMQ is healthy. |
+| `pacmanmanager.worker` | Wolverine message handlers, listening on RabbitMQ's `pacmanmanager.worker` queue as the `pacmanmanager.worker` user. Built from an `archlinux` base like RepoHost, and mounts the same `data` volume at `DATA_DIR`, so it reads the uploads RepoHost writes and writes the repository files RepoHost serves. Shares RepoHost's Postgres database, Wolverine's `wolverine` schema included. Starts once RabbitMQ is healthy and the migrations have completed. |
 | `pacmanmanager.web` | The web app in SpaHost. Host port **8081** → container 80. Signs users in as Keycloak's `pacman-manager-web` client and proxies `/api/pacmanmanager/…` to RepoHost's `/api/…` with their access token. Built with `pacmanmanager-web` as its context. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
 | `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
 | `rabbitmq` | RabbitMQ 4 on port **5672**, management UI on **15672**. Its users come from `rabbitmq/definitions.json`, loaded at boot in place of `guest`: `pacmanmanager.repohost` and `pacmanmanager.worker` (password `password`) for the two processes, and `admin`/`admin` for the UI. |
-| `postgres` | Postgres 18, port **5432**, user/password `pacmanmanager`/`password`. |
+| `postgres` | Postgres 18, port **5432**, user/password `pacmanmanager`/`password`. The connection string every service that reads the database uses is in `postgres/connection.env`, which RepoHost, the Worker and the migrations load with `env_file`. Their `appsettings.json` files hold no default, so that file is the only copy: change it there. |
 
 A service built from this repository is named `pacmanmanager.<component>`; an external dependency
 keeps a plain role name (`auth`, `postgres`). Follow that when adding a service.
@@ -267,7 +267,7 @@ Which pipelines run is coarse on purpose — a whole pipeline or none of it:
 | documentation only (`docs/`, `*.md`, `.claude/`, `.run/`, `.idea/`) | nothing; `Check changes` passes |
 | the .NET projects (`*.sln`, `LibAlpmSharp*/`, `PacmanManager.*/`) | .NET, Docker, end-to-end |
 | `pacmanmanager-web/` | Web, Docker, end-to-end |
-| shared infrastructure (`compose.yaml`, `keycloak/`, `rabbitmq/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
+| shared infrastructure (`compose.yaml`, `keycloak/`, `postgres/`, `rabbitmq/`, `pacmanmanager-web/openapi/`, `test-fixtures/`, `scripts/`, `.github/`, `.config/`, `.dockerignore`), or any path not listed here | everything |
 
 A push to `main` and a run by hand always run everything. The paths live in
 `.github/scripts/classify-changes.sh`, which reads changed paths on stdin and can be run locally to

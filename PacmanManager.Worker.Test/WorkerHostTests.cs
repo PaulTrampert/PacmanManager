@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using PacmanManager.Entities;
 using Wolverine;
 using Wolverine.Tracking;
 
@@ -8,6 +11,7 @@ namespace PacmanManager.Worker.Test;
 public class WorkerHostTests
 {
     private const string RabbitMq = "amqp://pacmanmanager.worker:password@rabbitmq:5672";
+    private const string Database = "Server=postgres;Database=pacmanmanager;User Id=pacmanmanager;Password=password;";
 
     private static HostApplicationBuilder CreateBuilder(IDictionary<string, string?> settings)
     {
@@ -19,9 +23,10 @@ public class WorkerHostTests
     private static async Task<IHost> StartWorkerAsync(IDictionary<string, string?> settings)
     {
         var builder = CreateBuilder(settings).ConfigureWorker();
-        // The broker is not running here: the endpoints are configured as in production, but
-        // nothing connects to them.
+        // Neither the broker nor Postgres is running here: the endpoints and message storage are
+        // configured as in production, but nothing connects to them.
         builder.Services.DisableAllExternalWolverineTransports();
+        builder.Services.DisableAllWolverineMessagePersistence();
         var host = builder.Build();
         await host.StartAsync();
         return host;
@@ -37,6 +42,7 @@ public class WorkerHostTests
     {
         using var host = await StartWorkerAsync(new Dictionary<string, string?>
         {
+            ["ConnectionStrings:pacmanmanager"] = Database,
             ["ConnectionStrings:rabbitmq"] = RabbitMq,
         });
 
@@ -50,6 +56,7 @@ public class WorkerHostTests
     {
         using var host = await StartWorkerAsync(new Dictionary<string, string?>
         {
+            ["ConnectionStrings:pacmanmanager"] = Database,
             ["ConnectionStrings:rabbitmq"] = RabbitMq,
             ["Messaging:QueueName"] = "some.other.queue",
         });
@@ -61,9 +68,47 @@ public class WorkerHostTests
     }
 
     [Test]
+    public async Task ConfigureWorker_RegistersPacmanManagerDbContextAgainstTheConfiguredDatabase()
+    {
+        using var host = await StartWorkerAsync(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:pacmanmanager"] = Database,
+            ["ConnectionStrings:rabbitmq"] = RabbitMq,
+        });
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PacmanManagerDbContext>();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(context.Database.ProviderName, Is.EqualTo("Npgsql.EntityFrameworkCore.PostgreSQL"));
+                Assert.That(context.Database.GetConnectionString(), Does.Contain("Database=pacmanmanager"));
+            });
+        }
+
+        await host.StopAsync();
+    }
+
+    [Test]
+    public void ConfigureWorker_WithoutADatabaseConnectionString_Throws()
+    {
+        var builder = CreateBuilder(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:rabbitmq"] = RabbitMq,
+        });
+
+        var ex = Assert.Throws<MissingConfigurationException>(() => builder.ConfigureWorker());
+        Assert.That(ex.Key, Is.EqualTo("ConnectionStrings:pacmanmanager"));
+    }
+
+    [Test]
     public void ConfigureWorker_WithoutARabbitMqConnectionString_Throws()
     {
-        var builder = CreateBuilder(new Dictionary<string, string?>());
+        var builder = CreateBuilder(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:pacmanmanager"] = Database,
+        });
 
         var ex = Assert.Throws<MissingConfigurationException>(() => builder.ConfigureWorker());
         Assert.That(ex.Key, Is.EqualTo("ConnectionStrings:rabbitmq"));

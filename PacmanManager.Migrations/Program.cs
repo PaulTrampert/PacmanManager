@@ -28,7 +28,10 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Services.AddSerilog();
 
-var connectionString = builder.Configuration.GetConnectionString("pacmanmanager");
+// There is no default: compose supplies it from postgres/connection.env. Without it, every retry
+// below would fail the same way, so stop at once.
+var connectionString = builder.Configuration.GetConnectionString("pacmanmanager")
+    ?? throw new InvalidOperationException("ConnectionStrings:pacmanmanager is not configured.");
 var targetMigration = builder.Configuration.GetValue<string?>("TargetMigration");
 var maxRetries = builder.Configuration.GetValue("MaxRetries", 5);
 var retryDelaySeconds = builder.Configuration.GetValue("RetryDelaySeconds", 5);
