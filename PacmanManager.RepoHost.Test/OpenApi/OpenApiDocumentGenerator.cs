@@ -14,8 +14,9 @@ namespace PacmanManager.RepoHost.Test.OpenApi;
 /// <c>Swagger:OpenIdConnectUrl</c> and only the development settings define it, and the content root
 /// is RepoHost's output directory, where those settings are copied. The output directory is the one
 /// built in this test assembly's own configuration, so a Release build tests the Release output.
-/// <c>DATA_DIR</c> and the connection string are removed from the environment: generation must need
-/// neither.
+/// <c>DATA_DIR</c> is removed from the environment, and the connection string is set to
+/// <see cref="PlaceholderConnectionString"/>: generation must need neither a data directory nor a
+/// database.
 /// </remarks>
 public static class OpenApiDocumentGenerator
 {
@@ -29,6 +30,14 @@ public static class OpenApiDocumentGenerator
     /// </summary>
     public const string RegenerationCommand =
         "dotnet tool restore && dotnet build PacmanManager.RepoHost && scripts/generate-openapi.sh";
+
+    /// <summary>
+    /// The database connection string generation runs with, the same one
+    /// <c>scripts/generate-openapi.sh</c> sets. RepoHost reads the connection string while it registers
+    /// its services and has no default of its own, but generation never opens a connection, so it
+    /// names a host that does not exist.
+    /// </summary>
+    public const string PlaceholderConnectionString = "Host=openapi-generation.invalid";
 
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
 
@@ -66,7 +75,7 @@ public static class OpenApiDocumentGenerator
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         startInfo.Environment["ASPNETCORE_CONTENTROOT"] = bin;
         startInfo.Environment.Remove("DATA_DIR");
-        startInfo.Environment.Remove("ConnectionStrings__pacmanmanager");
+        startInfo.Environment["ConnectionStrings__pacmanmanager"] = PlaceholderConnectionString;
 
         Process process;
         try
