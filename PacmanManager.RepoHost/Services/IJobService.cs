@@ -24,4 +24,19 @@ public interface IJobService
     /// </returns>
     /// <exception cref="NoCurrentUserException">Thrown when the actor has no identity.</exception>
     Task<Job?> GetJobAsync(Guid jobId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves a page of the jobs the actor may see, which for a user are the jobs they scheduled.
+    /// </summary>
+    /// <param name="paginationParams">The pagination parameters.</param>
+    /// <param name="filter">Caller-supplied criteria, which can only narrow the jobs the actor may see.</param>
+    /// <param name="sort">The order to return results in. Defaults to newest first.</param>
+    /// <param name="ct">A cancellation token to observe while waiting for the task to complete.</param>
+    /// <returns>A page of jobs, each shown as <see cref="GetJobAsync"/> shows it.</returns>
+    /// <exception cref="NoCurrentUserException">Thrown when the actor has no identity.</exception>
+    Task<JobPaginatedResponse> GetJobsAsync(
+        PaginationParams paginationParams,
+        JobFilter? filter = null,
+        SortOptions<JobSortField>? sort = null,
+        CancellationToken ct = default);
 }

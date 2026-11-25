@@ -3,6 +3,8 @@ using PacmanManager.Authentication;
 using PacmanManager.Entities;
 using PacmanManager.Packages.Authorization;
 using PacmanManager.RepoHost.Exceptions;
+using PacmanManager.RepoHost.Models;
+using PTrampert.QueryObjects;
 using JobModel = PacmanManager.RepoHost.Models.Job;
 
 namespace PacmanManager.RepoHost.Services;
@@ -12,7 +14,8 @@ namespace PacmanManager.RepoHost.Services;
 /// </summary>
 /// <remarks>
 /// Every job it returns has first been put to <see cref="JobAccessPolicy"/>, together with the
-/// current actor; a job the policy hides is reported as missing.
+/// current actor; a job the policy hides is reported as missing, and a listing starts from
+/// <see cref="JobAccessPolicy.VisibleTo"/> before any of the caller's criteria are applied.
 /// </remarks>
 /// <param name="dbContext">The database the jobs are stored in.</param>
 /// <param name="actorAccessor">Supplies the actor whose view of the jobs every method returns.</param>
@@ -39,6 +42,44 @@ internal class JobService(
             RepositoryAccess.Allowed => JobModel.FromJob(job!),
             RepositoryAccess.Unauthenticated => throw new NoCurrentUserException(),
             _ => null,
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<JobPaginatedResponse> GetJobsAsync(
+        PaginationParams paginationParams,
+        JobFilter? filter = null,
+        SortOptions<JobSortField>? sort = null,
+        CancellationToken ct = default)
+    {
+        var actor = await actorAccessor.GetActorAsync(ct);
+        if (accessPolicy.CheckList(actor) != RepositoryAccess.Allowed)
+        {
+            throw new NoCurrentUserException();
+        }
+
+        // Visibility comes first and the caller's criteria are ANDed onto it, so a filter can only
+        // ever remove rows from the jobs the actor may see.
+        var query = dbContext.Jobs
+            .AsNoTracking()
+            .Where(accessPolicy.VisibleTo(actor))
+            .Where(filter ?? new JobFilter());
+
+        var sortOptions = sort ?? new SortOptions<JobSortField>();
+        var total = await query.CountAsync(ct);
+        var jobs = await query
+            .ApplySort(sortOptions)
+            .Skip(paginationParams.Offset)
+            .Take(paginationParams.PageSize)
+            .Include(j => j.AffectedEntities)
+            .ToListAsync(ct);
+
+        return new JobPaginatedResponse
+        {
+            Results = jobs.Select(JobModel.FromJob).ToList(),
+            Offset = paginationParams.Offset,
+            Total = total,
+            Sort = sortOptions.Resolve()
         };
     }
 }
