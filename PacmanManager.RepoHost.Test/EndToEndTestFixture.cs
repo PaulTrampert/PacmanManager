@@ -1,6 +1,7 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using DotNet.Testcontainers.Volumes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PacmanManager.Entities;
@@ -13,6 +14,10 @@ namespace PacmanManager.RepoHost.Test;
 /// End-to-end test fixture that runs the PacmanManager.RepoHost application in a Docker container.
 /// Uses Testcontainers to build and start the actual Docker image, providing true E2E testing.
 /// </summary>
+/// <remarks>
+/// RepoHost runs as it does in compose: beside Postgres, Keycloak, RabbitMQ and a
+/// PacmanManager.Worker container, with the Worker and RepoHost sharing one data directory.
+/// </remarks>
 /// <param name="environment">
 /// Further environment variables to start the API container with, on top of the ones every fixture
 /// sets, for a test of configuration the shared defaults leave unset.
@@ -24,6 +29,8 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
     private RabbitMqContainer? _rabbitMqContainer;
     public KeycloakContainer? AuthContainer { get; private set; }
     private IContainer? _apiContainer;
+    private IVolume? _dataVolume;
+    private IContainer? _workerContainer;
     private HttpClient? _httpClient;
 
     /// <summary>
@@ -35,6 +42,19 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
     /// The package upload ceiling the containerized API is configured with, in bytes.
     /// </summary>
     public const long MaxUploadBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Where the API and Worker images keep their data, from <c>DATA_DIR</c> in their Dockerfiles.
+    /// </summary>
+    private const string DataDirectory = "/data";
+
+    /// <summary>
+    /// What the Worker logs once Wolverine listens on its queue, which is when it is ready for the
+    /// messages RepoHost sends. The Worker writes compact JSON, so the line carries the message
+    /// template and the queue's URI as separate fields.
+    /// </summary>
+    private const string WorkerReadyMessage =
+        "\"Started message listening at \\{Uri\\}\",\"Uri\":\"rabbitmq://queue/pacmanmanager\\.worker\"";
 
     /// <summary>
     /// A context over the same database the containerized API is using, reachable from the test
@@ -103,9 +123,22 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
             _testNetwork = TestNetworks.Build(logger);
 
             // Built once for the whole assembly and shared; see TestImages.
-            var images = await Task.WhenAll(TestImages.RepoHost.GetAsync(), TestImages.Migrations.GetAsync());
+            var images = await Task.WhenAll(TestImages.RepoHost.GetAsync(), TestImages.Migrations.GetAsync(),
+                TestImages.Worker.GetAsync());
             var apiImage = images[0];
             var migrationImage = images[1];
+            var workerImage = images[2];
+
+            // One volume at DATA_DIR in both containers, as compose's `data` volume is: the Worker
+            // reads the uploads RepoHost writes and writes the repository files RepoHost serves. A
+            // named volume rather than a bind mount, so that Docker seeds it from the image's
+            // DATA_DIR, which belongs to the uid both images run as.
+            _dataVolume = new VolumeBuilder()
+                .WithName($"pacmanmanager-data-{Guid.NewGuid():N}")
+                .WithCleanUp(true)
+                .WithLogger(logger)
+                .Build();
+            await _dataVolume.CreateAsync();
 
             _dbContainer = new DatabaseContainer(_testNetwork);
             AuthContainer = new KeycloakContainer(_testNetwork, solutionDirectory);
@@ -114,7 +147,20 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
 
             await Task.WhenAll(_dbContainer.StartAsync(migrationImage), AuthContainer.StartAsync(),
                 _rabbitMqContainer.StartAsync());
-                
+
+            _workerContainer = new ContainerBuilder(workerImage)
+                .WithNetwork(_testNetwork)
+                .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+                .WithEnvironment("ConnectionStrings__rabbitmq", _rabbitMqContainer.WorkerConnectionString)
+                .WithVolumeMount(_dataVolume, DataDirectory)
+                // Logged by Wolverine once it has connected to the broker and started listening.
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged(WorkerReadyMessage))
+                .WithCleanUp(true)
+                .WithLogger(logger)
+                // The Worker's logs reach the test output, as RepoHost's do.
+                .WithOutputConsumer(Consume.RedirectStdoutAndStderrToConsole())
+                .Build();
+
             _apiContainer = new ContainerBuilder(apiImage)
                 .WithNetwork(_testNetwork)
                 .WithNetworkAliases(ApiHostname)
@@ -126,6 +172,7 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
                 // the point of the limit being configuration rather than a constant.
                 .WithEnvironment("PackagePublishing__MaxUploadBytes", MaxUploadBytes.ToString())
                 .WithEnvironment(environment ?? new Dictionary<string, string>())
+                .WithVolumeMount(_dataVolume, DataDirectory)
                 // Map port 8080 from container to a random host port
                 .WithPortBinding(8080, true)
                 // Wait for the application to be ready
@@ -140,7 +187,7 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
                 .WithOutputConsumer(Consume.RedirectStdoutAndStderrToConsole())
                 .Build();
 
-            await _apiContainer.StartAsync();
+            await Task.WhenAll(_workerContainer.StartAsync(), _apiContainer.StartAsync());
 
             _httpClient = new HttpClient
             {
@@ -213,6 +260,13 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
             _apiContainer = null;
         }
 
+        if (_workerContainer != null)
+        {
+            await _workerContainer.StopAsync();
+            await _workerContainer.DisposeAsync();
+            _workerContainer = null;
+        }
+
         if (_dbContainer != null)
         {
             await _dbContainer.DisposeAsync();
@@ -231,6 +285,13 @@ public class EndToEndTestFixture(IReadOnlyDictionary<string, string>? environmen
         {
             await AuthContainer.DisposeAsync();
             AuthContainer = null;
+        }
+
+        // After both containers that mount it, since Docker refuses to remove a volume in use.
+        if (_dataVolume != null)
+        {
+            await _dataVolume.DisposeAsync();
+            _dataVolume = null;
         }
 
         if (_testNetwork != null)

@@ -8,7 +8,7 @@ namespace PacmanManager.RepoHost.Test.Containers;
 
 /// <summary>
 /// A RabbitMQ broker configured as the compose stack's is, from <c>rabbitmq/rabbitmq.conf</c> and
-/// <c>rabbitmq/definitions.json</c>, so that RepoHost connects as the same user it does there.
+/// <c>rabbitmq/definitions.json</c>, so that RepoHost and the Worker connect as the same users they do there.
 /// </summary>
 /// <param name="network">The network the broker joins.</param>
 /// <param name="solutionRoot">The solution directory, which holds the <c>rabbitmq</c> folder.</param>
@@ -23,6 +23,12 @@ public class RabbitMqContainer(INetwork network, string solutionRoot, string? ho
 
     /// <summary>The password of <see cref="RepoHostUsername"/>.</summary>
     public const string RepoHostPassword = "password";
+
+    /// <summary>The user the Worker connects as, from <c>rabbitmq/definitions.json</c>.</summary>
+    public const string WorkerUsername = "pacmanmanager.worker";
+
+    /// <summary>The password of <see cref="WorkerUsername"/>.</summary>
+    public const string WorkerPassword = "password";
 
     private readonly IContainer _container = new ContainerBuilder(new DockerImage("rabbitmq:4-management"))
         .WithNetwork(network)
@@ -45,6 +51,9 @@ public class RabbitMqContainer(INetwork network, string solutionRoot, string? ho
 
     /// <summary>The AMQP URI another container on the network reaches the broker at, as RepoHost.</summary>
     public string ConnectionString => $"amqp://{RepoHostUsername}:{RepoHostPassword}@{Hostname}:{AmqpPort}/";
+
+    /// <summary>The AMQP URI another container on the network reaches the broker at, as the Worker.</summary>
+    public string WorkerConnectionString => $"amqp://{WorkerUsername}:{WorkerPassword}@{Hostname}:{AmqpPort}/";
 
     /// <summary>The AMQP URI the test host reaches the broker at, as RepoHost.</summary>
     public string LocalConnectionString =>
