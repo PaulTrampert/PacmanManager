@@ -62,13 +62,20 @@ Every new project is in `PacmanManager.sln` and has a matching `.Test` project.
 | `rabbitmq` | RabbitMQ, with one user for RepoHost and one for the Worker. |
 | `pacmanmanager.worker` | Built from an `archlinux` base, like RepoHost. Mounts **the same `DATA_DIR` volume** as `pacmanmanager.repohost`. |
 
-* The upload directory is on the shared `DATA_DIR` volume, so the Worker reads the upload RepoHost
-  wrote.
+* The upload directory is **`$DATA_DIR/tmp/package-uploads/`**, on the shared `DATA_DIR` volume, so
+  the Worker reads the upload RepoHost wrote. It is declared once, in `PacmanManager.Packages` beside
+  `IPackagePathResolver`, and RepoHost's upload and the Worker's cleanup both resolve it from there.
+* The Worker registers `PacmanManagerDbContext` against the same Postgres database as RepoHost, read
+  from `ConnectionStrings:pacmanmanager`, and enlisted in Wolverine's EF Core integration with
+  Postgres message persistence as RepoHost's is. In compose it starts only once
+  `pacmanmanager.migrations` has completed.
 * CI's Docker Build builds the Worker image alongside the others.
 
 **Why:**
 
 * [Why RabbitMQ and Wolverine](#why-rabbitmq-and-wolverine)
+* [Why uploads go under `tmp/package-uploads`](#why-uploads-go-under-tmppackage-uploads)
+* [Why the Worker's database is an issue of its own](#why-the-workers-database-is-an-issue-of-its-own)
 * [Why `Authentication` is split rather than moved whole](#why-authentication-is-split-rather-than-moved-whole)
 * [Why the publishing logic gets a library of its own](#why-the-publishing-logic-gets-a-library-of-its-own)
 * [Why commands have a data-only project](#why-commands-have-a-data-only-project)
@@ -126,9 +133,21 @@ handler returns the entities it affected that the job did not already record, wh
 the message that running it again cannot change. Any other exception is treated as a failure that a
 retry may get past.
 
+Retries are **Wolverine's error policy**, not a loop of the handler's own:
+
+* On any exception other than `JobRejectedException`, Wolverine retries the message **5 times** after
+  its first attempt, with a **backoff**: a delay before each retry, growing from one retry to the
+  next. The retry count and the delays are declared once, together.
+* The job-tracking handler tells "retry remaining" from "retries exhausted" by the envelope's attempt
+  count, measured against that same declared count, so the job's state and Wolverine's behaviour
+  cannot disagree.
+* `JobRejectedException` has a policy of its own that never retries. The handler has already marked
+  the job `Failed` by then.
+
 **Why:**
 
 * [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
+* [Why retries are Wolverine's error policy, with a backoff](#why-retries-are-wolverines-error-policy-with-a-backoff)
 * [Why the job is composed with its message](#why-the-job-is-composed-with-its-message)
 * [Why one `Job` table with a typed view](#why-one-job-table-with-a-typed-view)
 * [Why the job stores only a user id](#why-the-job-stores-only-a-user-id)
@@ -145,7 +164,8 @@ retry may get past.
 1. Checks that the caller may publish to the repository **before reading any of the body**, with
    the responses publishing gives today: `401` when anonymous, `403` for a public repository the
    caller does not own, `404` for one that does not exist or that the caller cannot see.
-2. Writes the upload to a temporary file in the upload directory. An upload over the configured
+2. Writes the upload to a temporary file in the upload directory, `$DATA_DIR/tmp/package-uploads/`
+   (see [Process layout](#process-layout)). An upload over the configured
    maximum is a `413`.
 3. Rejects, with the same responses publishing gives today and **before anything is enqueued**:
    * an unreadable package;
@@ -294,7 +314,7 @@ publish names its repository from the start and its package once it completes.
 ## Upload cleanup
 
 The Worker runs a cleanup on a configurable interval. Each run deletes the files in the upload
-directory that are:
+directory, `$DATA_DIR/tmp/package-uploads/`, that are:
 
 * older than a configurable minimum age, **and**
 * not the `PackageFilePath` of a `Pending` or `Running` job.
@@ -303,11 +323,13 @@ It finds the live uploads by loading the `Pending` and `Running` jobs whose `Mes
 `PublishPackageCommand` and reading each one's `PackageFilePath` through
 `As<PublishPackageCommand>()`.
 
-A file that fails to delete is logged and does not stop the run.
+A file that fails to delete is logged and does not stop the run. A directory that does not exist yet
+is an empty run, not an error.
 
 **Why:**
 
 * [Why cleanup is a scheduled sweep in the Worker](#why-cleanup-is-a-scheduled-sweep-in-the-worker)
+* [Why uploads go under `tmp/package-uploads`](#why-uploads-go-under-tmppackage-uploads)
 
 ---
 
@@ -455,15 +477,20 @@ project in the solution, and a test shows the command round-trips through JSON u
 
 The generic handler [Jobs](#jobs) specifies, and `JobRejectedException`.
 
-*Acceptance:* unit tests of every transition in the table, including that a `JobRejectedException`
-with retries remaining fails the job without the inner handler running again, and that the
-affected entities an inner handler returns are recorded on the completed job.
+The Wolverine error policies [Jobs](#jobs) specifies are part of it: 5 retries with a backoff for
+any other exception, and none for `JobRejectedException`.
 
-*Depends on:* #365, #367.
+*Acceptance:* unit tests of every transition in the table, including that a `JobRejectedException`
+with retries remaining fails the job without the inner handler running again, that the last retry
+leaves the job `Pending` and the attempt after it marks it `Failed`, and that the affected entities
+an inner handler returns are recorded on the completed job.
+
+*Depends on:* #365, #367, #424.
 
 **Why:**
 
 * [Why deliberate rejections are never retried](#why-deliberate-rejections-are-never-retried)
+* [Why retries are Wolverine's error policy, with a backoff](#why-retries-are-wolverines-error-policy-with-a-backoff)
 
 ### 10. `PublishPackageCommand` handler (#366) — `MINOR`
 
@@ -558,16 +585,38 @@ completes naming the published package.
 
 ### 16. Scheduled upload cleanup (#387) — `PATCH`
 
-The sweep [Upload cleanup](#upload-cleanup) specifies.
+The sweep [Upload cleanup](#upload-cleanup) specifies. Whichever of this and #380 lands first
+declares the upload directory in `PacmanManager.Packages`; the other uses it.
 
 *Acceptance:* unit tests show a file with a live job is kept, a file younger than the minimum age is
 kept, and an old file with only a finished job, or with none, is deleted.
 
-*Depends on:* #365, #367, #369.
+*Depends on:* #365, #367, #369, #424.
 
 **Why:**
 
 * [Why cleanup is a scheduled sweep in the Worker](#why-cleanup-is-a-scheduled-sweep-in-the-worker)
+* [Why uploads go under `tmp/package-uploads`](#why-uploads-go-under-tmppackage-uploads)
+
+### 17. Give the Worker `PacmanManagerDbContext` and the Postgres connection (#424) — `PATCH`
+
+The Worker's database access [Process layout](#process-layout) specifies: `PacmanManagerDbContext`
+registered from `ConnectionStrings:pacmanmanager`, enlisted in Wolverine's EF Core integration with
+Postgres message persistence, and the compose connection string and dependency on the migrations.
+
+*Constraints:* the Worker fails at startup with `MissingConfigurationException` when the connection
+string is not configured.
+
+*Acceptance:* `WorkerHost.ConfigureWorker` tests show the missing connection string is refused and
+`PacmanManagerDbContext` resolves from a configured host; the Worker still starts in the compose
+stack and connects to RabbitMQ.
+
+*Depends on:* #365.
+
+**Why:**
+
+* [Why the Worker's database is an issue of its own](#why-the-workers-database-is-an-issue-of-its-own)
+* [Why the job and the message commit together](#why-the-job-and-the-message-commit-together)
 
 ---
 
@@ -720,6 +769,51 @@ The handler signals the difference with a specific exception type rather than a 
 types configured per handler. A list would have to be kept in step with every exception a handler,
 and the library code it calls, might throw; a rejection the list forgot would quietly be retried.
 With `JobRejectedException`, a handler states its decision where it makes it.
+
+### Why retries are Wolverine's error policy, with a backoff
+
+The plan as first written said which failures are retried but not how often, where that is set, or
+how the handler knows whether a retry remains. Added after the plan was settled, with the project
+owner's sign-off.
+
+* **A retry loop inside the job-tracking handler** was the alternative. It would duplicate what
+  Wolverine already does, and would hold the message, and the handler's scope, for the whole of the
+  backoff rather than letting Wolverine reschedule it.
+* **Retrying at once** would spend every attempt on a failure that has not had time to clear: a
+  `repo-add` whose lock file is still held, or a database connection that is still down. A backoff
+  gives those failures time to go away.
+* **Five retries** after the first attempt is enough to ride out a short outage without leaving a
+  job the caller is polling `Pending` for long.
+
+The handler reads the attempt count from the envelope and compares it with the same declared count
+that configures the policy, because a separate number in the handler could drift from Wolverine's,
+leaving a job `Pending` that will never be retried or `Failed` while a retry is still coming.
+
+### Why uploads go under `tmp/package-uploads`
+
+The plan said only that uploads go to "the upload directory" on the shared volume, which left #380,
+which writes them, and #387, which sweeps them, each to choose a path. Added after the plan was
+settled, with the project owner's sign-off.
+
+`DATA_DIR` already holds the repositories, each in a directory of its own, so uploads need a path
+that can never be mistaken for a repository's. `tmp/` says that nothing under it is permanent, and
+matches what `compose.yaml` already says RepoHost writes there. `package-uploads/` inside it leaves
+`tmp/` for other temporary files without the sweep, which deletes anything old enough, ever touching
+them. Declaring the path once in `PacmanManager.Packages`, which both hosts reference, keeps the
+writer and the sweep from disagreeing about it.
+
+### Why the Worker's database is an issue of its own
+
+The plan as first written had the Worker connect only to RabbitMQ (#365), yet both the job-tracking
+handler (#368) and the cleanup sweep (#387) read and write `Job` rows. Left as it was, each of those
+issues would have had to set up the database itself, in parallel, producing two versions of the
+same registration that conflict when merged and may well disagree. Added after the plan was
+settled, with the project owner's sign-off, as #424, which both now depend on.
+
+Enlisting the context in Wolverine's EF Core integration, as RepoHost does, is part of it because
+the Worker's handlers will send messages of their own, and the same reasoning as
+[Why the job and the message commit together](#why-the-job-and-the-message-commit-together) applies
+to them.
 
 ### Why the job and the message commit together
 
