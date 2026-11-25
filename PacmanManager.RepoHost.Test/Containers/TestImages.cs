@@ -47,6 +47,12 @@ public static class TestImages
     public static SharedImage Migrations { get; } =
         FromDockerfile("PacmanManager.Migrations/Dockerfile", "pacmanmanager-migrations-test");
 
+    /// <summary>
+    /// The PacmanManager.Worker image, which handles the messages RepoHost publishes.
+    /// </summary>
+    public static SharedImage Worker { get; } =
+        FromDockerfile("PacmanManager.Worker/Dockerfile", "pacmanmanager-worker-test");
+
     private static SharedImage FromDockerfile(string dockerfile, string name) => new(() =>
     {
         var solutionDirectory = DirUtils.FindSolutionDirectory();
