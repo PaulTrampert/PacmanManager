@@ -89,7 +89,7 @@ Services in `compose.yaml`:
 | Service | Notes |
 | :--- | :--- |
 | `pacmanmanager.repohost` | The API. Host port **8082** → container 8080. Built from an `archlinux` base image (it needs pacman tooling), not the Microsoft runtime image. Runs in `Development`, after the migrations complete. |
-| `pacmanmanager.worker` | Wolverine message handlers, listening on RabbitMQ's `pacmanmanager.worker` queue as the `pacmanmanager.worker` user. Built from an `archlinux` base like RepoHost, and mounts the same `data` volume at `DATA_DIR`, so it reads the uploads RepoHost writes and writes the repository files RepoHost serves. Starts once RabbitMQ is healthy. |
+| `pacmanmanager.worker` | Wolverine message handlers, listening on RabbitMQ's `pacmanmanager.worker` queue as the `pacmanmanager.worker` user. Built from an `archlinux` base like RepoHost, and mounts the same `data` volume at `DATA_DIR`, so it reads the uploads RepoHost writes and writes the repository files RepoHost serves. Shares RepoHost's Postgres database, Wolverine's `wolverine` schema included. Starts once RabbitMQ is healthy and the migrations have completed. |
 | `pacmanmanager.web` | The web app in SpaHost. Host port **8081** → container 80. Signs users in as Keycloak's `pacman-manager-web` client and proxies `/api/pacmanmanager/…` to RepoHost's `/api/…` with their access token. Built with `pacmanmanager-web` as its context. |
 | `auth` | Keycloak on port **8080**, importing the `localdev` realm from `keycloak/localdev.json`. |
 | `pacmanmanager.migrations` | Runs EF migrations to completion and exits. |
